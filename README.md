@@ -1,36 +1,35 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Remotion OS: Next.js migration of `Remotion_Desktop.html`
 
-## Getting Started
+This is the Next.js 16 (App Router) target of the migration planned in `../plans/migration/html-to-nextjs/`. Doc 15 there tracks progress.
 
-First, run the development server:
+## Run
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+pnpm dev                 # http://localhost:3000
+pnpm build && ./tools/serve.sh   # production server on :3100 (used by tests)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+| Route | What it shows |
+|---|---|
+| `/` | The full OS. Until the React shell reaches parity, it runs the original file through the **legacy bridge** (same origin, same storage) |
+| `/apps/<key>` | One app in standalone app mode (11 keys: documents, forms, files, terminal, calcsci, billing, hrPeople, patients, calendar, cabinet, planning) |
+| `/#app=<key>` | Old pop-out links redirect to `/apps/<key>` |
+| `/?shell=react` | **Preview** of the React shell (Phase B, in progress) |
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Tests
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+pnpm test                              # unit + golden (Vitest)
+pnpm exec playwright test tests/e2e    # routes + dual-run parity tests (source file = oracle)
+pnpm exec playwright test tests/visual/compare.visual.ts      # target vs source baseline (≤0.1 % pixels)
+CAPTURE=1 pnpm exec playwright test tests/visual/capture-baseline.visual.ts   # recapture baseline from the source
+```
 
-## Learn More
+## Rules
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **The source visuals win:** `src/styles/legacy/*` are verbatim slices of the source CSS (a byte-identity test checks this). Don't edit them.
+- **Same storage keys and shapes** as the source (`src/lib/storage/keys.ts`: 40 keys + 1 IndexedDB). Don't add keys.
+- **Generated markup:** `src/os/shell/generated/*` comes from `node tools/markup-to-jsx.mjs --gen`. Don't edit it by hand.
+- **Defects:** source defects are reproduced unless they are in the approved fix set (doc 09 §4). Every reproduction is commented with its `D-xx` id.
+- **Regenerating data:** i18n and registry data are extracted from the source (`pnpm extract:i18n`, `pnpm extract:registry`). Never retype them.
