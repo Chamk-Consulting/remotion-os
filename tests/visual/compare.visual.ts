@@ -1,0 +1,36 @@
+/**
+ * L5 · Visual regression: the TARGET app vs the SOURCE baseline (doc 13 §4). Threshold ≤ 0.1 % differing pixels.
+ */
+import { test, expect } from "@playwright/test";
+import fs from "node:fs";
+import { PNG } from "pngjs";
+import pixelmatch from "pixelmatch";
+import { serveGoogleFontsLocally } from "../helpers/fonts";
+import { SCENES, VIEWPORTS, FIXED_NOW, seed } from "../helpers/scenes";
+
+test.skip(!!process.env.CAPTURE, "comparison disabled while capturing");
+fs.mkdirSync("test-results/visual", { recursive: true });
+for (const s of SCENES) {
+  test(`visual ${s.name}`, async ({ browser, baseURL }) => {
+    const base = `tests/visual/baseline/${s.name}.png`;
+    test.skip(!fs.existsSync(base), "no baseline");
+    const ctx = await browser.newContext({ viewport: VIEWPORTS[s.vp], colorScheme: s.scheme, reducedMotion: "reduce", deviceScaleFactor: 1, baseURL });
+    const page = await ctx.newPage();
+    await page.clock.setFixedTime(FIXED_NOW);
+    await serveGoogleFontsLocally(page); await page.route(/cdnjs/, (r) => r.abort());
+    await seed(page, s);
+    await page.goto(s.app ? `/apps/${s.app}` : "/");
+    await page.waitForTimeout(800);
+    for (const f of page.frames()) await f.evaluate(() => document.fonts.ready).catch(() => {});
+    await page.waitForTimeout(2500);
+    const shot = PNG.sync.read(await page.screenshot()); const ref = PNG.sync.read(fs.readFileSync(base));
+    expect([shot.width, shot.height]).toEqual([ref.width, ref.height]);
+    const diff = new PNG({ width: ref.width, height: ref.height });
+    const n = pixelmatch(ref.data, shot.data, diff.data, ref.width, ref.height, { threshold: 0.1 });
+    const ratio = n / (ref.width * ref.height);
+    if (ratio > 0) { fs.writeFileSync(`test-results/visual/${s.name}.diff.png`, PNG.sync.write(diff)); fs.writeFileSync(`test-results/visual/${s.name}.actual.png`, PNG.sync.write(shot)); }
+    console.log(`${s.name}: ${(ratio * 100).toFixed(3)} % differing`);
+    expect(ratio).toBeLessThanOrEqual(0.001);
+    await ctx.close();
+  });
+}
