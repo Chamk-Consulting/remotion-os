@@ -1,0 +1,49 @@
+/* Source Remotion_Desktop.html L6808–L6855 (verbatim, do not edit; see plans doc 10 ADR-06) */
+/* top bar fits any language: labels drop out step by step */
+html{overflow-x:clip}
+.shell{grid-template-columns:minmax(0,1fr)}
+.top{min-width:0}
+.top.c1 .nav>button:not(#wsBtn) .lbl{display:none}
+.top.c2 .right .lbl,.top.c2 .who-txt{display:none}
+.top.c3 #wsLabel,.top.c3 .search>span:first-of-type{display:none}
+.top.c3 .search{flex:0 0 auto;min-width:0}
+.top.c4 .search .kbds{display:none}
+.top.c5 .search{display:none}
+.top.c6 .brand .word{display:none}
+.top.c6 .brand{margin-inline-end:6px}
+.top.c7 .nav>button:not(#wsBtn){display:none}
+.top.c8 #langBtn,.top.c8 #kbBtn,.top.c8 .right .sep{display:none}
+.top.c9 #themeBtn,.top.c9 #sysBtn{display:none}
+.top.c10 #wsBtn .chev{display:none}
+.top.c10 .right{gap:0}
+/* narrower screens */
+@media (max-width:1150px){
+  .nav .lbl,.right .lbl,.who-txt{display:none}
+  .brand{margin-inline-end:10px}
+}
+@media (max-width:860px){
+  :root{--panel-h:104px}
+  body{overflow:auto}
+  html,body{height:auto}
+  .shell{height:auto;min-height:100%;grid-template-rows:auto auto}
+  .top{padding-inline:12px;height:56px}
+  .brand{font-size:21px}
+  .brand .word{display:none}
+  .nav>button{padding:0 10px}
+  .right .hide-sm{display:none}
+  .langmenu{inset-inline-start:auto;inset-inline-end:0}
+  .main{flex-direction:column;padding:16px 16px 120px;gap:16px}
+  .rail{width:auto;flex-direction:row;justify-content:space-between;padding:10px 6px;border-radius:14px;border:0;gap:0;overflow-x:auto}
+  .rail button{width:auto;min-width:56px;font-size:12px}
+  .ricon{width:44px;height:44px}
+  .menu{inset-inline:16px;width:auto;top:8px}
+  .widgets{position:static;width:auto;grid-template-columns:1fr}
+  .weather{grid-template-columns:1fr;gap:14px}
+  .clock{border-inline-start:0;border-top:1px solid var(--line);padding-top:14px}
+  .dock,[dir="rtl"] .dock{position:fixed;--dx:-50%;bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:6}
+  .shell.desks-open .dock{z-index:8}
+  .desks{padding-inline:16px;overflow-x:auto}
+  .thumb{width:96px;height:46px}
+  .dright{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important;transition-delay:0s!important}}

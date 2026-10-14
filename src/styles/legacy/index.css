@@ -1,0 +1,17 @@
+/*
+ * Source CSS (Remotion_Desktop.html L1 wrapper + L6–L6855), split verbatim by area and imported in source order.
+ * Concatenation is byte-identical to the source (checked by tests/unit/legacy-css.test.ts).
+ * Do not edit these files: the source visuals are authoritative (decision Q-01, doc 09 §5).
+ */
+@import "./00-wrapper.css";
+@import "./01-shell-core.css";
+@import "./02-ai-desktop-os.css";
+@import "./03-forms.css";
+@import "./04-documents.css";
+@import "./05-window-manager.css";
+@import "./06-calculator.css";
+@import "./07-billing.css";
+@import "./08-hr-kit.css";
+@import "./09-healthcare.css";
+@import "./10-documents-word.css";
+@import "./11-topbar-fit.css";

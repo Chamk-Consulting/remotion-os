@@ -1,0 +1,47 @@
+/* Source Remotion_Desktop.html L5108–L5153 (verbatim, do not edit; see plans doc 10 ADR-06) */
+/* v55 window manager */
+.os-win.os-off{display:none!important}
+.os-eh{position:absolute;z-index:6;touch-action:none}
+.os-eh.e-n,.os-eh.e-s{left:10px;right:10px;height:7px;cursor:ns-resize}.os-eh.e-n{top:-3px}.os-eh.e-s{bottom:-3px}
+.os-eh.e-e,.os-eh.e-w{top:10px;bottom:10px;width:7px;cursor:ew-resize}.os-eh.e-e{right:-3px}.os-eh.e-w{left:-3px}
+.os-eh.e-ne,.os-eh.e-nw,.os-eh.e-se,.os-eh.e-sw{width:14px;height:14px}
+.os-eh.e-ne{top:-3px;right:-3px;cursor:nesw-resize}.os-eh.e-sw{bottom:-3px;left:-3px;cursor:nesw-resize}
+.os-eh.e-nw{top:-3px;left:-3px;cursor:nwse-resize}.os-eh.e-se{bottom:-3px;right:-3px;cursor:nwse-resize}
+.os-win.max .os-eh{display:none}
+.os-win.sizing{user-select:none}.os-win.sizing *{pointer-events:none}.os-win.sizing .os-eh{pointer-events:auto}
+.os-win[data-snap]{border-radius:12px}
+.os-snapv{position:fixed;z-index:4;border-radius:14px;background:color-mix(in srgb,var(--blue) 16%,transparent);border:2px solid color-mix(in srgb,var(--blue) 55%,transparent);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);opacity:0;transform:scale(.96);pointer-events:none;transition:opacity .18s ease,transform .3s var(--spring),left .25s var(--spring),top .25s var(--spring),width .25s var(--spring),height .25s var(--spring)}
+.os-snapv.on{opacity:1;transform:none}
+.os-wc [data-wmenu] svg{display:block}
+/* windows drawn on the desktop thumbnails */
+.osm-l{position:absolute;inset:0;pointer-events:none;z-index:2}
+.osm{position:absolute;display:block;border-radius:2px;background:var(--surface);border:1px solid color-mix(in srgb,var(--fg) 22%,transparent);box-shadow:0 1px 3px rgba(0,0,0,.25);pointer-events:auto;cursor:grab;min-width:6px;min-height:5px;transition:transform .2s var(--spring),box-shadow .2s}
+.osm b{position:absolute;left:0;right:0;top:0;height:3px;background:color-mix(in srgb,var(--blue) 70%,transparent);border-radius:2px 2px 0 0}
+.osm.all{outline:1px dashed color-mix(in srgb,var(--blue) 70%,transparent);outline-offset:1px}
+.osm:hover{transform:scale(1.08);box-shadow:0 3px 8px rgba(0,0,0,.3);z-index:1}
+.osm-n{position:absolute;top:3px;inset-inline-end:3px;z-index:3;min-width:16px;height:16px;padding:0 4px;border-radius:99px;background:var(--blue);color:#fff;font:600 10px/16px system-ui,sans-serif;text-align:center;box-sizing:border-box;pointer-events:none}
+.desk.osm-over .thumb,#addDesk.osm-over .thumb{border-color:var(--blue)!important;box-shadow:0 0 0 3px color-mix(in srgb,var(--blue) 30%,transparent);transform:translateY(-3px) scale(1.04)}
+@media (max-width:860px){.os-eh,.os-wc [data-wmenu]{display:none}}
+@media (prefers-reduced-motion:reduce){.os-snapv{transition:none}}
+/* v56 app mode and separate window */
+body.os-appmode .top,body.os-appmode #dock,body.os-appmode .main,body.os-appmode #desks,body.os-appmode .dhud{visibility:hidden!important}
+body.os-appmode .os-win:not(.os-solo){display:none!important}
+body.os-appmode .os-win.os-solo{position:fixed;left:0!important;top:0!important;right:0;bottom:0;width:100vw!important;height:100vh!important;height:100dvh!important;border-radius:0!important;border:0;box-shadow:none;z-index:7}
+body.os-appmode .os-solo .os-wc,body.os-appmode .os-solo .os-eh,body.os-appmode .os-solo .os-rz{display:none!important}
+body.os-appmode .os-solo .os-wh{cursor:default}
+body.os-booting #wall,body.os-booting .os-win{opacity:0}
+.os-solob{display:flex;align-items:center;gap:4px;margin-inline-start:6px}
+.os-solob button{height:28px;min-width:28px;padding:0 8px;display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font-size:12px;cursor:pointer}
+.os-solob button:hover{border-color:var(--blue);color:var(--blue)}
+.os-solob button svg{width:15px;height:15px}
+.os-solob .ex{font-weight:600}
+@media (max-width:560px){.os-solob .ex span{display:none}}
+.os-popdlg{position:fixed;inset:0;z-index:60;display:grid;place-items:center;background:rgba(10,20,30,.35);padding:16px;animation:osPopIn .2s ease}
+.os-popdlg .bx{width:min(480px,100%);background:var(--surface);color:var(--fg);border:1px solid var(--line);border-radius:16px;box-shadow:0 24px 60px rgba(0,0,0,.3);padding:18px 18px 14px;display:flex;flex-direction:column;gap:12px}
+.os-popdlg .hd{display:flex;align-items:center;gap:10px;font-size:15px}.os-popdlg .hd svg{width:20px;height:20px;color:var(--blue)}
+.os-popdlg p{margin:0;font-size:13px;line-height:1.5;color:var(--muted)}
+.os-popdlg .ln{display:flex;gap:6px}.os-popdlg .ln input{flex:1;min-width:0;height:34px;border:1px solid var(--line);border-radius:8px;padding:0 10px;background:var(--bg,transparent);color:var(--fg);font:12px ui-monospace,Menlo,monospace}
+.os-popdlg button{height:34px;padding:0 12px;border-radius:9px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+.os-popdlg button.pri{background:var(--blue);border-color:var(--blue);color:#fff}.os-popdlg button svg{width:15px;height:15px}
+.os-popdlg .ft{display:flex;justify-content:flex-end;gap:8px}
+@keyframes osPopIn{from{opacity:0}to{opacity:1}}

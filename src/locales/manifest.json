@@ -1,0 +1,32 @@
+{
+ "source": "Remotion_Desktop.html",
+ "sha256": "5a452785991220a7e98d4bfacb46696ec92b3825590417dcd541446e8f9ccedd",
+ "langs": {
+  "en": {
+   "name": "English",
+   "locale": "en-US",
+   "dir": "ltr"
+  },
+  "fr": {
+   "name": "Français",
+   "locale": "fr-FR",
+   "dir": "ltr"
+  },
+  "de": {
+   "name": "Deutsch",
+   "locale": "de-DE",
+   "dir": "ltr"
+  },
+  "ar": {
+   "name": "العربية",
+   "locale": "ar-TN",
+   "dir": "rtl"
+  }
+ },
+ "counts": {
+  "en": 4528,
+  "fr": 4525,
+  "de": 4525,
+  "ar": 4525
+ }
+}
