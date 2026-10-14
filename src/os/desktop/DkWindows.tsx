@@ -10,6 +10,7 @@ import { Glyph, useDkName } from "./Glyph";
 import { dkExt, fmtSize, type Item } from "./model";
 import { desktopApi } from "./api";
 import { fsFind } from "./fs";
+import { bgClickGuard, useStack, zOf } from "@/os/windows/stack";
 import { dkMenuShow } from "@/os/menu/DkMenu";
 import { osActions } from "@/os/actions";
 import { useDkWins, openDkWin, type DkWinState } from "./windows";
@@ -30,6 +31,8 @@ function DkWin({ w, title, icon, width, cls = "", children }: { w: DkWinState; t
   const { t } = useI18n();
   const ref = useRef<HTMLElement | null>(null);
   const close = useDkWins((s) => s.close), front = useDkWins((s) => s.front);
+  const z = useStack((s) => zOf(s.ids, "dk:" + w.key));
+  const guard = useRef(bgClickGuard("dk:" + w.key)).current;
   const W = Math.min(width, typeof innerWidth === "number" ? innerWidth - 24 : width);
   const [pos] = useState(() => ({ left: Math.max(12, Math.min(innerWidth - W - 12, (innerWidth - W) / 2 + w.n * 28)), top: Math.max(70, 110 + w.n * 28) }));
   const closing = useRef(false);
@@ -42,8 +45,8 @@ function DkWin({ w, title, icon, width, cls = "", children }: { w: DkWinState; t
   }, [w.from]);
   const d = useRef<{ x: number; y: number } | null>(null);
   return (
-    <section ref={ref} className={"dk-win " + cls} data-key={w.key} role="dialog" aria-label={title} style={{ width: W, left: pos.left, top: pos.top }}
-      onPointerDownCapture={() => front(w.key)} onKeyDownCapture={(e) => { if (e.key === "Escape") { stopAll(e); doClose(); } }}>
+    <section ref={ref} className={"dk-win " + cls} data-key={w.key} role="dialog" aria-label={title} style={{ width: W, left: pos.left, top: pos.top, zIndex: z }}
+      onPointerDownCapture={() => { guard.down(); front(w.key); }} onClickCapture={(e) => guard.click(e)} onPointerUpCapture={() => guard.up()} onKeyDownCapture={(e) => { if (e.key === "Escape") { stopAll(e); doClose(); } }}>
       <header className="dk-wh"
         onPointerDown={(e) => { if ((e.target as Element).closest("button")) return; const el = ref.current!; d.current = { x: e.clientX - el.offsetLeft, y: e.clientY - el.offsetTop }; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); el.classList.add("moving"); }}
         onPointerMove={(e) => { if (!d.current) return; const el = ref.current!; const l = Math.max(-W + 80, Math.min(innerWidth - 80, e.clientX - d.current.x)), tp = Math.max(58, Math.min(innerHeight - 50, e.clientY - d.current.y)); el.style.left = l + "px"; el.style.top = tp + "px"; }}
@@ -58,8 +61,8 @@ function DkWin({ w, title, icon, width, cls = "", children }: { w: DkWinState; t
 
 export function DkWindows() {
   const wins = useDkWins((s) => s.wins);
-  const sorted = [...wins].sort((a, b) => a.z - b.z);
-  return <>{sorted.map((w) => <OneWin key={w.key} w={w} />)}</>;
+  // Stable DOM order; stacking comes from the shared window stack (see os/windows/stack.ts).
+  return <>{wins.map((w) => <OneWin key={w.key} w={w} />)}</>;
 }
 
 function OneWin({ w }: { w: DkWinState }) {

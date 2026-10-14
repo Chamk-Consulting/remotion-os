@@ -14,6 +14,7 @@ import { DK_PAD, DK_SIZES, dkBlocked, dkCellAt, dkExt, dkFix, dkFree, dkId, dkNe
 import { openDkWin } from "./windows";
 import { desktopApi } from "./api";
 import { osActions } from "@/os/actions";
+import { APP_WINDOWS, OPEN_KEY, openApp } from "@/os/windows/apps";
 import { fsFind } from "./fs";
 import { dkSetAlign, osDeskMenu, osIconMenu, osRefreshDesk, setAlignHook, type LayerApi } from "./menus";
 
@@ -63,6 +64,8 @@ export function DesktopLayer() {
 
   /** Measure → fix cells → publish geometry (source renderIcons L11306 / resize L11328). */
   const relayout = useCallback(() => {
+    // dkItems() (L11273) gives the current desktop an `items` array the first time it is rendered (saved with the next save).
+    { const st = useShell.getState(), d = st.desks[st.cur]; if (d && !Array.isArray(d.items)) d.items = []; }
     setPhone(dkPhone());
     const g = computeGeo();
     if (g && dkFix(g, useShell.getState().desks[useShell.getState().cur].items ?? [])) useShell.getState().mutate(() => {});
@@ -125,6 +128,8 @@ export function DesktopLayer() {
   }
   function openX(it: Item | undefined, el: HTMLElement | null, root?: string) {
     if (!it) return;
+    // App shortcuts of window apps open their window (the dkOpenX wrappers L13589…L27207, outermost first).
+    if (it.type === "app" && it.app && APP_WINDOWS[OPEN_KEY[it.app] ?? ""] && !["files", "terminal"].includes(OPEN_KEY[it.app])) { pop(el); openApp(OPEN_KEY[it.app], el); return; }
     if (it.type === "app") {
       const k = it.app!; pop(el);
       s.mutate((st) => { st.apps.recent = [k, ...st.apps.recent.filter((x) => x !== k)].slice(0, 12); }, { save: false, apps: true }); // alTouch

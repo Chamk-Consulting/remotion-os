@@ -14,7 +14,8 @@ import { Widgets } from "./Widgets";
 import { Dock } from "./Dock";
 import { Toast } from "./Toast";
 import { DesktopLayer } from "@/os/desktop/DesktopLayer";
-import { DkWindows, useTrashDock } from "@/os/desktop/DkWindows";
+import { useTrashDock } from "@/os/desktop/DkWindows";
+import { WindowLayer } from "@/os/windows/WindowLayer";
 import { DesktopsPanel } from "@/os/desktop/DesktopsPanel";
 import { OsMenuRoot } from "@/os/menu/OsMenu";
 import { DkMenuRoot } from "@/os/menu/DkMenu";
@@ -49,7 +50,7 @@ export function OsShell() {
         </main>
         <div className="scrim" id="scrim" onClick={() => s.setDesksOpen(false)}></div>
         <DesktopsPanel />
-        <DkWindows />
+        <WindowLayer />
       </div>
       <Toast />
       <OsMenuRoot />

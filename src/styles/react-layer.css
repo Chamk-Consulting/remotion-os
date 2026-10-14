@@ -1,0 +1,9 @@
+/*
+ * React-port additions (not in the source). Kept minimal and documented in doc 15.
+ * .os-wlayer: holds every window at the source's window z-index (5) so windows can stack with an inline z-index
+ * instead of moving DOM nodes (moving an <iframe> reloads it).
+ */
+.os-wlayer{position:fixed;inset:0;z-index:5;pointer-events:none}
+.os-wlayer>*{pointer-events:auto}
+/* App mode: the solo window sits at z-index 7 in the source (above the dock and desktops bar). */
+body.os-appmode .os-wlayer{z-index:7}

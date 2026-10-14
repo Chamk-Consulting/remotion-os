@@ -21,7 +21,7 @@ for (const s of SCENES) {
     if (s.app === "hrPeople") await page.evaluate(() => (window as unknown as { eval: (x: string) => void }).eval(`(function(k){document.body.classList.add("os-appmode","os-standalone","os-booting");var go=function(n){if(typeof OS_OPEN[k]!=="function"){if(n<60)setTimeout(function(){go(n+1)},100);return}try{osAppMode(k,true)}catch(e){}document.body.classList.remove("os-booting")};setTimeout(function(){go(0)},60)})("hrPeople")`));
     await page.evaluate(() => document.fonts.ready); await page.waitForTimeout(2500);
     if (s.act) { await s.act(await shellRoot(page), page); await page.mouse.move(1, 1); await page.waitForTimeout(500); }
-    await page.screenshot({ path: `tests/visual/baseline/${s.name}.png` });
+    await page.screenshot({ path: `tests/visual/baseline/${s.name}.png`, clip: s.clip });
     await ctx.close();
   });
 }

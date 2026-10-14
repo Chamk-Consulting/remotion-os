@@ -8,6 +8,7 @@ import "@fontsource/noto-sans-arabic/500.css";
 import "@fontsource/noto-sans-arabic/600.css";
 import "@fontsource/noto-sans-arabic/700.css";
 import "@/styles/legacy/index.css";
+import "@/styles/react-layer.css";
 import { PREPAINT } from "@/lib/prepaint";
 
 // Source L1–L2: <title>Remotion Desktop</title>, viewport with viewport-fit=cover.

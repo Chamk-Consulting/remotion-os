@@ -26,7 +26,7 @@ for (const s of SCENES) {
     for (const f of page.frames()) await f.evaluate(() => document.fonts.ready).catch(() => {});
     await page.waitForTimeout(2500);
     if (s.act) { await s.act(await shellRoot(page), page); await page.mouse.move(1, 1); await page.waitForTimeout(500); }
-    const shot = PNG.sync.read(await page.screenshot()); const ref = PNG.sync.read(fs.readFileSync(base));
+    const shot = PNG.sync.read(await page.screenshot({ clip: s.clip })); const ref = PNG.sync.read(fs.readFileSync(base));
     expect([shot.width, shot.height]).toEqual([ref.width, ref.height]);
     const diff = new PNG({ width: ref.width, height: ref.height });
     const n = pixelmatch(ref.data, shot.data, diff.data, ref.width, ref.height, { threshold: 0.1 });

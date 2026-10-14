@@ -1,5 +1,6 @@
 "use client";
 import { useI18n } from "@/lib/i18n/I18nProvider";
+import { addWorkspace, selectWorkspace } from "@/os/windows/workspaces";
 import { useShell, type Workspace } from "@/os/state/shell";
 import { WorkspaceMenuMarkup } from "./generated/WorkspaceMenuMarkup";
 import { SvgString } from "./svg";
@@ -26,12 +27,12 @@ export function WorkspaceMenu() {
   const wsName = useWsName();
   const p = (id: string): Record<string, unknown> => {
     if (id === "wsMenu") return { className: "pop menu" + (s.wsOpen ? "" : " closed") };
-    if (id === "addWs") return { onClick: () => { const w = s.addWs(); s.showToast(t("added", { x: wsName(w) })); } };
+    if (id === "addWs") return { onClick: () => { const w = addWorkspace(); s.showToast(t("added", { x: wsName(w) })); } };
     return {};
   };
   const slot = (id: string, fb: React.ReactNode) => id !== "wsList" ? fb : s.workspaces.map((w, i) => (
     <button key={i} className={"mi" + (i === s.selWs ? " sel" : "")} role="menuitemradio" aria-checked={i === s.selWs} data-ws={i}
-      onClick={() => { s.selectWs(i); s.showToast(t("switched", { x: wsName(s.workspaces[i]) })); }}>
+      onClick={() => { selectWorkspace(i); s.showToast(t("switched", { x: wsName(s.workspaces[i]) })); }}>
       <SvgString html={WS_ICONS[w.k ?? ""] || WS_ICONS.workspace} /><span>{wsName(w)}</span><span className="end"><SvgString html={i === s.selWs ? CHECK : DOTS} /></span>
     </button>
   ));

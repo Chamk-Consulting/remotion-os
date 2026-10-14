@@ -47,6 +47,10 @@ type ShellState = {
   shownDesk: number; iconAnim: number;
   /** Desktop whose wallpaper is painted on #wall (lags `cur` during the reduced-motion fade, L7814). */
   wallDesk: number;
+  /** OSX.store: each workspace's desktops `{l, c}` (persisted in `remotion-ws-desks`, L20844). */
+  wsStore: Record<string, { l: Desk[]; c: number }>;
+  /** OSX.ws: the workspace whose desktops are loaded. */
+  osxWs: number | null;
   /** Bumped by delayed re-layouts (sidebar/widgets transitions, view size) — source `setTimeout(()=>{dkGeom();dkFix();dkPlace(true)})`. */
   layoutTick: number;
   /** Bumped by renderIcons(true) (refresh): remounts the icons so their entrance animation replays. */
@@ -72,7 +76,7 @@ export const useShell = create<ShellState>((set, get) => ({
   wsOpen: true, langOpen: false, desksOpen: false,
   iconsHidden: false, widgetsHidden: false,
   toast: null,
-  trash: [], dkView: { size: "m", align: true, icons: true }, fs: {} as FsData, apps: AL_DEFAULT, sel: new Set(), rev: 0, shownDesk: 0, iconAnim: 1, wallDesk: 0, layoutTick: 0, iconEpoch: 0,
+  trash: [], dkView: { size: "m", align: true, icons: true }, fs: {} as FsData, apps: AL_DEFAULT, sel: new Set(), rev: 0, shownDesk: 0, iconAnim: 1, wallDesk: 0, layoutTick: 0, iconEpoch: 0, wsStore: {}, osxWs: null,
   mutate: (fn, opts = { save: true }) => {
     const st = get(); fn(st);
     if (opts.save !== false) writeJSON(STORAGE_KEYS.desks, { l: st.desks, c: st.cur });
@@ -99,7 +103,16 @@ export const useShell = create<ShellState>((set, get) => ({
     seedV1(desks, t, flags); writeJSON(STORAGE_KEYS.desks, { l: desks, c: cur }); // the source saves after v1 normalisation
     if (seedV2(desks, t, flags)) writeJSON(STORAGE_KEYS.desks, { l: desks, c: cur });
     for (const sd of APP_SEEDS) { const r = seedApp(desks, apps, sd, flags); if (r.apps) writeJSON(STORAGE_KEYS.apps, apps); if (r.desks) writeJSON(STORAGE_KEYS.desks, { l: desks, c: cur }); }
-    set({ booted: true, desks, cur, isDark: th.dark, themeMode: th.mode, wsOpen: innerWidth >= 860, iconsHidden: !railOn, widgetsHidden: !desks[cur]?.w, trash, dkView, fs, apps, shownDesk: cur, wallDesk: cur });
+    // v55 (L20851): restore the open workspace, the other workspaces' desktops and this workspace's desktop ids.
+    let selWs = 0; const workspaces = [...get().workspaces]; let wsStore: Record<string, { l: Desk[]; c: number }> = {};
+    const ws = readJSON<{ sel?: number; st?: Record<string, { l: Desk[]; c: number }>; n?: number } | null>(STORAGE_KEYS.wsDesks, null);
+    if (ws && ws.st) {
+      wsStore = ws.st; while (workspaces.length < (ws.n || 0)) workspaces.push({ n: workspaces.length + 1 });
+      if (Number.isInteger(ws.sel) && ws.sel! >= 0 && ws.sel! < workspaces.length) selWs = ws.sel!;
+      const mine = wsStore[selWs]; if (mine && Array.isArray(mine.l)) desks.forEach((d, i) => { if (mine.l[i] && mine.l[i]._id) d._id = mine.l[i]._id; });
+    }
+    desks.forEach((d) => { if (!d._id) d._id = newDeskId(); });
+    set({ booted: true, workspaces, selWs, wsStore, osxWs: selWs, desks, cur, isDark: th.dark, themeMode: th.mode, wsOpen: innerWidth >= 860, iconsHidden: !railOn, widgetsHidden: !desks[cur]?.w, trash, dkView, fs, apps, shownDesk: cur, wallDesk: cur });
   },
   setTheme: (dark) => { document.documentElement.classList.toggle("dark", dark); document.documentElement.classList.toggle("light", !dark); set({ isDark: dark }); },
   setThemeMode: (m) => { try { if (m === "auto") localStorage.removeItem(STORAGE_KEYS.theme); else localStorage.setItem(STORAGE_KEYS.theme, m); } catch {} set({ themeMode: m }); },
@@ -114,6 +127,17 @@ export const useShell = create<ShellState>((set, get) => ({
   hideToast: () => set({ toast: null }),
   saveDesks: () => { const { desks, cur } = get(); writeJSON(STORAGE_KEYS.desks, { l: desks, c: cur }); },
 }));
+
+export const newDeskId = () => "d" + Math.random().toString(36).slice(2, 8);
+/** osDid (L20845): a desktop's stable id, created on first use. */
+export function osDid(i: number) { const d = useShell.getState().desks[i]; if (!d) return ""; if (!d._id) d._id = newDeskId(); return d._id; }
+/** osWsSave (L20849). */
+export function osWsSave() {
+  const st = useShell.getState(); st.wsStore[st.selWs] = { l: st.desks, c: st.cur };
+  writeJSON(STORAGE_KEYS.wsDesks, { sel: st.selWs, st: st.wsStore, n: st.workspaces.length });
+}
+/** osNewDesks (L20848): two fresh desktops for a workspace opened for the first time. */
+export const osNewDesks = (wi: number): Desk[] => [{ n: "", s: (wi * 2) % scenes.length, _id: newDeskId() }, { n: "", s: (wi * 2 + 1) % scenes.length, _id: newDeskId() }];
 
 /** Schedules a desktop re-layout after a CSS transition (`ms`), like the source's dkGeom/dkFix/dkPlace(true) timers. */
 export function requestRelayout(ms: number) { setTimeout(() => useShell.setState((s) => ({ layoutTick: s.layoutTick + 1 })), ms); }

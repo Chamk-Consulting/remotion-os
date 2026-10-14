@@ -11,6 +11,7 @@ import { reducedMotion } from "@/lib/motion";
 import { scenes } from "@/os/shell/wallpaper";
 import { toggleIcons, toggleWidgets, useShell, type DkView } from "@/os/state/shell";
 import { osActions } from "@/os/actions";
+import { iconSoloRows } from "@/os/windows/appmode";
 import { osMenu, osMenuCloseAll, type MenuItem } from "@/os/menu/OsMenu";
 import { setDeskWall } from "./DesktopsPanel";
 import { Glyph } from "./Glyph";
@@ -93,13 +94,17 @@ export function itemMenuItems(api: Pick<LayerApi, "t" | "nf" | "add">, nodes: It
 /* ---------- icon menu (osIconMenu, L11921) ---------- */
 export function osIconMenu(api: LayerApi, x: number, y: number, it: Item) {
   const st = useShell.getState();
+  // v56 (L21064): app icons get App mode / Full screen / Pop-out after "Open", unless part of a multi-selection.
+  const solo = it.type === "app" && !(st.sel.size > 1 && st.sel.has(it.id)) ? iconSoloRows(it.app) : [];
   if (!st.sel.has(it.id)) st.setSel([it.id]);
   const sel = useShell.getState().sel; const nodes = (st.desks[st.cur].items ?? []).filter((n) => sel.has(n.id));
-  osMenu(x, y, itemMenuItems(api, nodes, {
+  const rows = itemMenuItems(api, nodes, {
     root: "desktop", path: [], open: (n) => api.open(n), rename: (n) => api.rename(n.id),
     copy: (cut) => { FM.clip = null; api.copy(cut); }, dup: api.duplicate, del: () => api.del([...useShell.getState().sel]),
     info: (n) => osActions.files(null, { root: "desktop", path: [], sel: n.id }),
-  }));
+  });
+  if (solo.length) rows.splice(1, 0, ...solo);
+  osMenu(x, y, rows);
 }
 
 /* ---------- desktop background menu (osDeskMenu, L11893) ---------- */

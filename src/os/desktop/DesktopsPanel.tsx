@@ -14,6 +14,10 @@ import icons from "@/os/shell/data/icons.json";
 import { paint, sceneFor, scenes } from "@/os/shell/wallpaper";
 import { osMenu } from "@/os/menu/OsMenu";
 import { useDkWins } from "./windows";
+import { osDid } from "@/os/state/shell";
+import { deskHooks, OSW, osShowDesktop, panelApi, useWm } from "@/os/windows/wm";
+import { osActions } from "@/os/actions";
+import { osMoveWin } from "@/os/windows/wm";
 
 const DKI = icons.DKI as Record<string, string>;
 const PLUS22 = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>';
@@ -21,12 +25,15 @@ const CHEV_DOWN = (icons.OSI as Record<string, string>).chev.replace("m9 6 6 6-6
 
 /* ---------- desktop switching (gotoDesk / slideSpace / showDeskHud / dkSwitch) ---------- */
 let deskAnims: Animation[] = [];
-let hudSetter: ((h: { from: number } | null) => void) | null = null;
+type Hud = { from: number; ws?: boolean };
+let hudSetter: ((h: Hud | null) => void) | null = null;
 let hudTimer: ReturnType<typeof setTimeout> | undefined;
+/** osWsHud (L20885): workspace dots, name and "n desktops · w windows". */
+export function showWsHud() { clearTimeout(hudTimer); hudSetter?.({ from: -1, ws: true }); hudTimer = setTimeout(() => hudSetter?.(null), 1600); }
 export function showDeskHud(from?: number) { clearTimeout(hudTimer); hudSetter?.({ from: from ?? useShell.getState().cur }); hudTimer = setTimeout(() => hudSetter?.(null), 1400); }
 
 /** dkSwitch (L11328): clear selection, close desktop windows except trash, then swap icons/widgets after `delay`. */
-function dkSwitch(delay: number) {
+export function dkSwitch(delay: number) {
   const st = useShell.getState(); st.setSel([]);
   useDkWins.setState((w) => ({ wins: w.wins.filter((x) => x.kind === "trash") }));
   setTimeout(() => { const s2 = useShell.getState(); useShell.setState({ shownDesk: s2.cur, iconAnim: 1, widgetsHidden: !s2.desks[s2.cur]?.w }); }, delay);
@@ -67,7 +74,7 @@ export function setDeskWall(i: number, k: number) {
     old.animate([{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: "scale(1.04)" }], { duration: 700, easing: "cubic-bezier(.4,0,.2,1)" }).finished.then(() => old.remove());
   } else s.mutate((x) => { x.desks[i].s = k; });
 }
-export function gotoDesk(i: number, closeAfter?: boolean) {
+function gotoDesk0(i: number, closeAfter?: boolean) {
   const st = useShell.getState(); const n = st.desks.length; i = (i + n) % n;
   if (i === st.cur) { if (closeAfter) st.setDesksOpen(false); return; }
   const from = st.cur;
@@ -76,6 +83,13 @@ export function gotoDesk(i: number, closeAfter?: boolean) {
   showDeskHud(from);
   if (closeAfter) setTimeout(() => { if (useShell.getState().desksOpen) useShell.getState().setDesksOpen(false); }, 560);
 }
+/** gotoDesk with the v55 wrapper (L20862): open windows travel with their desktop. */
+export function gotoDesk(i: number, closeAfter?: boolean) {
+  const st = useShell.getState(); const dc = st.desks.length; const n = ((i % dc) + dc) % dc;
+  if (n === st.cur || !dc) return gotoDesk0(i, closeAfter);
+  const from = st.cur, fromId = osDid(from), toId = osDid(n);
+  gotoDesk0(i, closeAfter); deskHooks.afterGoto(fromId, toId, n > from ? 1 : -1);
+}
 
 export function DesktopsPanel() {
   const { t, nf } = useI18n();
@@ -83,10 +97,14 @@ export function DesktopsPanel() {
   const el = useRef<HTMLElement | null>(null);
   const [ren, setRen] = useState(-1);
   const [dctx, setDctx] = useState<number | null>(null);
-  const [hud, setHud] = useState<{ from: number } | null>(null);
+  const [hud, setHud] = useState<Hud | null>(null);
   const [glide, setGlide] = useState(false);
   const deskName = useCallback((i: number) => s.desks[i]?.n || t("desktopN", { n: nf(i + 1) }), [s.desks, t, nf]);
   useEffect(() => { hudSetter = setHud; return () => { hudSetter = null; }; }, []);
+  const addRef = useRef<(sw: boolean) => void>(() => {});
+  useEffect(() => { addRef.current = addDesk; });
+  useEffect(() => { panelApi.gotoDesk = (i) => gotoDesk(i); panelApi.addDesk = (sw) => addRef.current(sw); }, []);
+  const wm = useWm((x) => x.rev); void wm; // minis follow window changes (osMinis)
   // setDesks(false) closes the context menu and ends a rename (L7790).
   useEffect(() => useShell.subscribe((st, prev) => { if (prev.desksOpen && !st.desksOpen) { setDctx(null); setRen(-1); } }), []);
 
@@ -110,6 +128,7 @@ export function DesktopsPanel() {
     return () => clearTimeout(id);
   }, [s.desksOpen]);
 
+  useMiniDrops(el);
   const go = (i: number) => { setGlide(true); gotoDesk(i); };
   function addDesk(switchTo: boolean) {
     const st = useShell.getState(); if (st.desks.length >= 12) { st.showToast(t("dskMax")); return; }
@@ -117,10 +136,12 @@ export function DesktopsPanel() {
     for (let k = 1; k <= scenes.length; k++) { const c = (last + k) % scenes.length; if (!used.includes(c)) { sc = c; break; } }
     st.mutate((x) => { x.desks.push({ n: "", s: sc }); });
     const idx = useShell.getState().desks.length - 1;
+    deskHooks.afterAdd();
     requestAnimationFrame(() => { const e = el.current?.querySelector<HTMLElement>(`[data-di="${idx}"]`); if (e && useShell.getState().desksOpen && !reducedMotion()) { const w = e.offsetWidth + 14; e.animate([{ opacity: 0, transform: "translateY(16px) scale(.5)", marginInlineEnd: -w + "px" }, { opacity: 1, transform: "none", marginInlineEnd: "0px" }], { duration: 560, easing: "cubic-bezier(.2,1.15,.3,1)" }); e.querySelector("canvas")!.animate([{ filter: "blur(6px) saturate(0)" }, { filter: "none" }], { duration: 700, delay: 120, easing: "ease-out", fill: "backwards" }); setTimeout(() => e.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" }), 60); } });
     if (switchTo) gotoDesk(idx); else st.showToast(t("added", { x: useShell.getState().desks[idx].n || t("desktopN", { n: nf(idx + 1) }) }));
   }
   function closeDesk(i: number) {
+    deskHooks.afterClose(); // v55 wrapper (L20872): re-home windows and save the workspace 450 ms after any close request
     const st = useShell.getState(); if (st.desks.length < 2) { st.showToast(t("lastDesk")); return; }
     setDctx(null);
     const snap: Desk[] = st.desks.map((x) => ({ ...x })), snapCur = st.cur, name = deskName(i), e = el.current?.querySelector<HTMLElement>(`[data-di="${i}"]`);
@@ -188,6 +209,7 @@ export function DesktopsPanel() {
                 <canvas width="252" height="116"></canvas>
                 <span className={"mini" + (d.w ? "" : " free")} aria-hidden="true"><i className="m-top"></i><i className="m-rail"></i><i className="m-w1"></i><i className="m-w2"></i><i className="m-w3"></i><i className="m-dock"></i>
                   {(d.items || []).slice(0, 10).filter((it) => it.c != null).map((it) => <i key={it.id} className="m-ic" style={{ insetInlineStart: 14 + it.c! * 7 + "%", top: 18 + it.r! * 13 + "%" }}></i>)}</span>
+                <OsMinis i={i} />
               </button>
               <span className="dnrow">
                 {ren === i ? <RenameInput value={d.n || deskName(i)} onDone={(save, v) => endRename(i, save, v)} />
@@ -201,8 +223,8 @@ export function DesktopsPanel() {
         </div>
         <div className="tray" id="tray">
           <button type="button" className="os-dsw" data-tray="dsw" aria-haspopup="menu" aria-label={t("deskSwitch")} onClick={(e) => trayDsw(e.currentTarget)}><span>{deskName(s.cur)}</span><SvgString html={CHEV_DOWN} /></button>
-          <button type="button" className="os-tb" data-tray="apps" aria-label={t("apps")} title={t("apps")}><SvgString html={(icons.OIC as Record<string, string>).grid} /></button>
-          <button type="button" className="os-tb" data-tray="show" aria-label={t("showDesk")} title={t("showDesk")} onClick={() => { useDkWins.setState({ wins: [] }); }}><SvgString html={(icons.OIC as Record<string, string>).sq} /></button>
+          <button type="button" className="os-tb" data-tray="apps" aria-label={t("apps")} title={t("apps")} onClick={(e) => { s.setDesksOpen(false); osActions.launcher(e.currentTarget); }}><SvgString html={(icons.OIC as Record<string, string>).grid} /></button>
+          <button type="button" className="os-tb" data-tray="show" aria-label={t("showDesk")} title={t("showDesk")} onClick={() => { const any = osShowDesktop(); useDkWins.setState({ wins: [] }); if (any) s.setDesksOpen(false); }}><SvgString html={(icons.OIC as Record<string, string>).sq} /></button>
         </div>
       </footer>
       {dctx !== null ? <DeskContextMenu i={dctx} name={deskName(dctx)} of={t("dskOf", { n: nf(dctx + 1), m: nf(n) })} n={n} wall={s.desks[dctx]?.s ?? 0} dark={s.isDark}
@@ -210,10 +232,38 @@ export function DesktopsPanel() {
         onRename={() => { setDctx(null); setRen(dctx); }} onNew={() => { setDctx(null); addDesk(false); }} onCloseDesk={() => closeDesk(dctx)} onWall={(k) => setDeskWall(dctx, k)} /> : null}
       {typeof document !== "undefined" ? createPortal(
         <div className={"dhud" + (hud ? " show" : "")} id="dHud" role="status" aria-live="polite">
-          {hud ? <><span className="dh-dots">{s.desks.map((_, i) => <HudDot key={i} on={i === s.cur} start={i === hud.from} />)}</span><b>{deskName(s.cur)}</b><small>{t("dskOf", { n: nf(s.cur + 1), m: nf(n) })}</small></> : null}
+          {hud?.ws ? <><span className="dh-dots">{s.workspaces.map((_, i) => <i key={i} className={i === s.selWs ? "on" : ""}></i>)}</span><b>{s.workspaces[s.selWs].k ? t(s.workspaces[s.selWs].k!) : t("workspaceN", { n: nf(s.workspaces[s.selWs].n!) })}</b><small>{t("os_wsDesks", { n: nf(n), w: nf(OSW().filter((w) => w.ws === s.selWs).length) })}</small></>
+            : hud ? <><span className="dh-dots">{s.desks.map((_, i) => <HudDot key={i} on={i === s.cur} start={i === hud.from} />)}</span><b>{deskName(s.cur)}</b><small>{t("dskOf", { n: nf(s.cur + 1), m: nf(n) })}</small></> : null}
         </div>, document.body) : null}
     </>
   );
+}
+/** osMinis (L20963): each thumbnail shows its desktop's windows; a badge counts the windows that live there. Drag one to move it. */
+function OsMinis({ i }: { i: number }) {
+  const { t, nf } = useI18n();
+  const st = useShell(); useWm((x) => x.rev);
+  const id = osDid(i), iw = innerWidth, ih = innerHeight;
+  const ws = OSW().filter((w) => w.ws === st.selWs && (w.all || w.did === id) && !w.min);
+  const n = OSW().filter((w) => w.ws === st.selWs && !w.all && w.did === id).length;
+  const box = (k: string) => { const el = document.querySelector<HTMLElement>(`.os-win[data-osw="${k}"]`); return el ? { L: el.offsetLeft, T: el.offsetTop, W: el.offsetWidth, H: el.offsetHeight } : null; };
+  return <>
+    {ws.length ? <span className="osm-l">{ws.map((w) => { const b = box(w.key); if (!b) return null; const title = typeof w.o.title === "function" ? w.o.title(t) : w.o.title;
+      return <i key={w.key} className={"osm" + (w.all ? " all" : "")} draggable="true" data-osk={w.key} title={title} style={{ left: Math.max(0, b.L / iw * 100).toFixed(1) + "%", top: Math.max(0, b.T / ih * 100).toFixed(1) + "%", width: Math.min(100, b.W / iw * 100).toFixed(1) + "%", height: Math.min(100, b.H / ih * 100).toFixed(1) + "%" }}><b></b></i>; })}</span> : null}
+    {n ? <span className="osm-n" title={t("os_winN", { n: nf(n) })}>{nf(n)}</span> : null}
+  </>;
+}
+/** Drag a window mini onto another desktop (or "add desktop") to move the window there (L20968). */
+export function useMiniDrops(root: React.RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const el = root.current; if (!el) return;
+    const start = (e: DragEvent) => { const m = (e.target as Element).closest?.(".osm") as HTMLElement | null; if (!m) return; e.dataTransfer!.setData("text/x-osw", m.dataset.osk!); e.dataTransfer!.effectAllowed = "move"; el.classList.add("osm-drag"); };
+    const end = () => { el.classList.remove("osm-drag"); el.querySelectorAll(".osm-over").forEach((x) => x.classList.remove("osm-over")); };
+    const over = (e: DragEvent) => { if (![...(e.dataTransfer?.types || [])].includes("text/x-osw")) return; const d = (e.target as Element).closest(".desk[data-di],#addDesk"); if (!d) return; e.preventDefault(); e.dataTransfer!.dropEffect = "move"; el.querySelectorAll(".osm-over").forEach((x) => x !== d && x.classList.remove("osm-over")); d.classList.add("osm-over"); };
+    const leave = (e: DragEvent) => { const d = (e.target as Element).closest(".desk[data-di],#addDesk"); if (d && !d.contains(e.relatedTarget as Node)) d.classList.remove("osm-over"); };
+    const drop = (e: DragEvent) => { const k = e.dataTransfer?.getData("text/x-osw"); if (!k) return; const d = (e.target as Element).closest<HTMLElement>(".desk[data-di],#addDesk"); if (!d) return; e.preventDefault(); d.classList.remove("osm-over"); osMoveWin(k, d.id === "addDesk" ? useShell.getState().desks.length : +d.dataset.di!, false); };
+    el.addEventListener("dragstart", start); el.addEventListener("dragend", end); el.addEventListener("dragover", over); el.addEventListener("dragleave", leave); el.addEventListener("drop", drop);
+    return () => { el.removeEventListener("dragstart", start); el.removeEventListener("dragend", end); el.removeEventListener("dragover", over); el.removeEventListener("dragleave", leave); el.removeEventListener("drop", drop); };
+  }, [root]);
 }
 /** HUD dot: shows the origin desktop first, then moves to the new one after two frames (L7806). */
 function HudDot({ on, start }: { on: boolean; start: boolean }) {
