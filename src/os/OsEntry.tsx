@@ -1,8 +1,14 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { resolveApp, type AppKey } from "@/apps/registry";
 import { LegacyBridge } from "./LegacyBridge";
+
+const noop = () => () => {};
+/** Client-only value: the OS needs window/localStorage (ADR-02); the server renders nothing. */
+const useIsClient = () => useSyncExternalStore(noop, () => true, () => false);
+/** Old pop-out links `/#app=<key>` (doc 02 §2). */
+const hashTarget = () => { const m = /#app=([A-Za-z]+)/.exec(location.hash); const a = m && resolveApp(m[1]); return a?.solo ? a : null; };
 
 /**
  * Entry for `/` and `/apps/[appKey]`.
@@ -11,15 +17,9 @@ import { LegacyBridge } from "./LegacyBridge";
  */
 export function OsEntry({ appKey }: { appKey?: AppKey }) {
   const router = useRouter();
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    // Compatibility: old pop-out links `/#app=<key>` → `/apps/<key>` (doc 02 §2).
-    const m = /#app=([A-Za-z]+)/.exec(location.hash);
-    const target = m && resolveApp(m[1]);
-    if (!appKey && target?.solo) { router.replace(`/apps/${target.key}`); return; }
-    setReady(true);
-  }, [appKey, router]);
-  if (!ready) return null;
-  const app = appKey ? resolveApp(appKey) : null;
-  return <LegacyBridge app={app} />;
+  const isClient = useIsClient();
+  const redirect = isClient && !appKey ? hashTarget() : null;
+  useEffect(() => { if (redirect) router.replace(`/apps/${redirect.key}`); }, [redirect, router]);
+  if (!isClient || redirect) return null;
+  return <LegacyBridge app={appKey ? resolveApp(appKey) : null} />;
 }
