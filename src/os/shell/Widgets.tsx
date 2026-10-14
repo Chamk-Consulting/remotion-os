@@ -1,4 +1,5 @@
 "use client";
+import { widgetsApi } from "./widgetsApi";
 import { Children, isValidElement, useEffect, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { useShell } from "@/os/state/shell";
@@ -21,6 +22,11 @@ export function Widgets() {
   const input = useRef<HTMLInputElement | null>(null);
   useEffect(() => { const id = setInterval(() => setNow(new Date()), 10000); return () => clearInterval(id); }, []); // tick, L7691
   useEffect(() => { if (composer) input.current?.focus({ preventScroll: true }); }, [composer]);
+  // openNoteComposer (L8120) and the calendar's "today" (ACTIONS.calToday) for shortcuts and the palette.
+  useEffect(() => {
+    widgetsApi.openNoteComposer = () => { setComposer(true); input.current?.focus({ preventScroll: true }); };
+    widgetsApi.calToday = () => { const d = new Date(); setCal({ y: d.getFullYear(), m: d.getMonth() }); };
+  }, []);
 
   const L = loc();
   const parts = new Intl.DateTimeFormat(L, { timeZone: TZ, hour: "2-digit", minute: "2-digit", numberingSystem: "latn" }).formatToParts(now);

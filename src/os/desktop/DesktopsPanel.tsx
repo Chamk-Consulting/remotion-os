@@ -101,9 +101,10 @@ export function DesktopsPanel() {
   const [glide, setGlide] = useState(false);
   const deskName = useCallback((i: number) => s.desks[i]?.n || t("desktopN", { n: nf(i + 1) }), [s.desks, t, nf]);
   useEffect(() => { hudSetter = setHud; return () => { hudSetter = null; }; }, []);
-  const addRef = useRef<(sw: boolean) => void>(() => {});
-  useEffect(() => { addRef.current = addDesk; });
-  useEffect(() => { panelApi.gotoDesk = (i) => gotoDesk(i); panelApi.addDesk = (sw) => addRef.current(sw); }, []);
+  const addRef = useRef<(sw: boolean) => void>(() => {}); const closeRef = useRef<(i: number) => void>(() => {});
+  useEffect(() => { addRef.current = addDesk; closeRef.current = closeDesk; });
+  // closeDesk() without an index closes the current desktop (L7850).
+  useEffect(() => { panelApi.gotoDesk = (i) => gotoDesk(i); panelApi.addDesk = (sw) => addRef.current(sw); panelApi.closeDesk = (i) => closeRef.current(i ?? useShell.getState().cur); }, []);
   const wm = useWm((x) => x.rev); void wm; // minis follow window changes (osMinis)
   // setDesks(false) closes the context menu and ends a rename (L7790).
   useEffect(() => useShell.subscribe((st, prev) => { if (prev.desksOpen && !st.desksOpen) { setDctx(null); setRen(-1); } }), []);

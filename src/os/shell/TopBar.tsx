@@ -1,13 +1,15 @@
 "use client";
 import { stopAll } from "@/lib/events";
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
-import { useI18n, setLang } from "@/lib/i18n/I18nProvider";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 import { LANGS, type Lang } from "@/lib/i18n/langs";
-import { translate } from "@/lib/i18n/core";
 import { useShell } from "@/os/state/shell";
 import { TopBarMarkup } from "./generated/TopBarMarkup";
 import { loadAccountState, roleOf, STATUSES, PEOPLE_ICON } from "./data/account";
 import { SvgString } from "./svg";
+import { setThemeModeFull, switchLang } from "./shellActions";
+import { setSysMenu } from "@/os/shortcuts/actions";
+import { openSearch } from "@/os/shortcuts/Palette";
 
 const CK = '<svg class="ck" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m5 12 5 5 9-10"/></svg>';
 
@@ -16,24 +18,6 @@ export function fitTop() {
   const tp = document.querySelector<HTMLElement>(".top"); if (!tp) return;
   const C = ["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9", "c10"]; tp.classList.remove(...C);
   for (const c of C) { if (tp.scrollWidth <= tp.clientWidth + 1) break; tp.classList.add(c); }
-}
-
-/** Source switchLang (L7662): view transition with staggered panels, blur fallback, instant under reduced motion. */
-function switchLang(next: Lang, current: Lang, done: () => void) {
-  if (next === current) return;
-  const apply = () => setLang(next);
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches) { apply(); done(); return; }
-  const d = document as Document & { startViewTransition?: (cb: () => void) => { finished: Promise<void> } };
-  if (d.startViewTransition) {
-    document.documentElement.classList.add("vt-lang"); document.documentElement.classList.toggle("vt-ov", false);
-    d.startViewTransition(apply).finished.finally(() => { document.documentElement.classList.remove("vt-lang", "vt-ov"); done(); });
-  } else {
-    const sh = document.getElementById("shell")!;
-    sh.animate([{ opacity: 1, filter: "blur(0)", transform: "none" }, { opacity: 0, filter: "blur(6px)", transform: "translateY(-6px)" }], { duration: 200, easing: "ease-in", fill: "forwards" }).finished.then(() => {
-      apply();
-      sh.animate([{ opacity: 0, filter: "blur(6px)", transform: "translateY(10px)" }, { opacity: 1, filter: "blur(0)", transform: "none" }], { duration: 480, easing: "cubic-bezier(.2,1,.3,1)", fill: "forwards" }).finished.then(() => { sh.getAnimations().forEach((a) => a.cancel()); done(); });
-    });
-  }
 }
 
 export function TopBar() {
@@ -59,31 +43,15 @@ export function TopBar() {
     document.addEventListener("click", h); return () => document.removeEventListener("click", h);
   }, []);
 
-  /** Source animateTheme (L10423): circular reveal from the button, crossfade fallback. */
-  const animateTheme = (dark: boolean) => {
-    const root = document.documentElement, b = themeRef.current!.getBoundingClientRect(), x = b.left + b.width / 2, y = b.top + b.height / 2;
-    root.style.setProperty("--rx", x + "px"); root.style.setProperty("--ry", y + "px");
-    root.style.setProperty("--rr", Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y)) + "px");
-    const d = document as Document & { startViewTransition?: (cb: () => void) => { finished: Promise<void> } };
-    if (d.startViewTransition && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      root.classList.add("vt-theme");
-      d.startViewTransition(() => s.setTheme(dark)).finished.finally(() => root.classList.remove("vt-theme"));
-    } else {
-      const wall = document.getElementById("wall");
-      root.classList.add("theme-fade"); wall?.classList.add("fade");
-      setTimeout(() => { s.setTheme(dark); wall?.classList.remove("fade"); }, 180);
-      setTimeout(() => root.classList.remove("theme-fade"), 750);
-    }
-    s.showToast(t(dark ? "darkMode" : "lightMode"));
-  };
-
   const p = (id: string): Record<string, unknown> => {
     switch (id) {
       case "wsBtn": return { className: s.wsOpen ? "on" : "", "aria-expanded": s.wsOpen, onClick: (e: React.MouseEvent) => { stopAll(e); const open = !s.wsOpen; s.closeAll(); s.setWs(open); } };
       case "deskBtn": return { className: s.desksOpen ? "on" : undefined, "aria-expanded": s.desksOpen, onClick: (e: React.MouseEvent) => { stopAll(e); const open = !s.desksOpen; s.closeAll(); s.setDesksOpen(open); } };
       case "langBtn": return { className: s.langOpen ? "on" : undefined, "aria-expanded": s.langOpen, onClick: (e: React.MouseEvent) => { stopAll(e); const open = !s.langOpen; s.closeAll(); s.setLangMenu(open); } };
       case "langMenu": return { className: "pop langmenu" + (s.langOpen ? "" : " closed") };
-      case "themeBtn": return { ref: themeRef, onClick: () => { const dark = !s.isDark; s.setThemeMode(dark ? "dark" : "light"); if (dark !== s.isDark) animateTheme(dark); } };
+      case "sysBtn": return { className: s.sysOpen ? "on" : undefined, "aria-expanded": s.sysOpen, onClick: (e: React.MouseEvent) => { stopAll(e); const open = !s.sysOpen; s.closeAll(); setSysMenu(open); } };
+      case "searchBtn": return { onClick: (e: React.MouseEvent) => { stopAll(e); openSearch(); } };
+      case "themeBtn": return { ref: themeRef, onClick: () => setThemeModeFull(s.isDark ? "light" : "dark", themeRef.current) };
       case "whoAv": return { className: "avatar" + (me.org ? " org" : ""), style: { background: me.bg } };
       default: return {};
     }
@@ -94,7 +62,7 @@ export function TopBar() {
       case "langCode": return lang.toUpperCase();
       case "langMenu": return (Object.entries(LANGS) as [Lang, (typeof LANGS)[Lang]][]).map(([k, v]) => (
         <button key={k} role="menuitemradio" aria-checked={k === lang} data-lang={k} lang={k}
-          onClick={(e) => { stopAll(e); s.setLangMenu(false); switchLang(k, lang, () => useShell.getState().showToast(translate(k, "langSet", { x: LANGS[k].name }))); }}>
+          onClick={(e) => { stopAll(e); s.setLangMenu(false); switchLang(k); }}>
           <span className="code">{k.toUpperCase()}</span>{v.name}{k === lang ? <SvgString html={CK} /> : null}
         </button>))
       ;

@@ -175,7 +175,7 @@ export const deskHooks = {
   afterAdd() { useShell.getState().desks.forEach((_, k) => osDid(k)); osWsSave(); },
 };
 /** Set by the desktops panel: its gotoDesk / addDesk (kept there to avoid an import cycle). */
-export const panelApi: { gotoDesk: (i: number) => void; addDesk: (switchTo: boolean) => void } = { gotoDesk: () => {}, addDesk: () => {} };
+export const panelApi: { gotoDesk: (i: number) => void; addDesk: (switchTo: boolean) => void; closeDesk: (i?: number) => void } = { gotoDesk: () => {}, addDesk: () => {}, closeDesk: () => {} };
 /** Set by the shell: workspace HUD and switch (osWsSwitch lives with the wallpaper/desktop plumbing). */
 export const wsApi: { renderWs: () => void } = { renderWs: () => {} };
 

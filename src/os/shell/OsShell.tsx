@@ -18,6 +18,10 @@ import { useTrashDock } from "@/os/desktop/DkWindows";
 import { WindowLayer } from "@/os/windows/WindowLayer";
 import { DesktopsPanel } from "@/os/desktop/DesktopsPanel";
 import { OsMenuRoot } from "@/os/menu/OsMenu";
+import { ShortcutsPanel } from "@/os/shortcuts/ShortcutsPanel";
+import { Palette } from "@/os/shortcuts/Palette";
+import { useGlobalShortcuts } from "@/os/shortcuts/useGlobalShortcuts";
+import { SysMenu } from "./SysMenu";
 import { DkMenuRoot } from "@/os/menu/DkMenu";
 import { osSidebar } from "@/os/desktop/menus";
 
@@ -29,13 +33,14 @@ export function OsShell() {
   const { t } = useI18n();
   useEffect(() => { s.init(); }, [s]);
   useTrashDock();
+  useGlobalShortcuts();
   // Escape closes the shell menus (source L7976).
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if (e.key === "Escape") useShell.getState().closeAll(); };
     document.addEventListener("keydown", k); return () => document.removeEventListener("keydown", k);
   }, []);
   if (!s.booted) return null;
-  const cls = ["shell", s.iconsHidden ? "icons-hidden" : "", s.widgetsHidden ? "widgets-hidden" : "", s.desksOpen ? "desks-open" : ""].filter(Boolean).join(" ");
+  const cls = ["shell", s.iconsHidden ? "icons-hidden" : "", s.widgetsHidden ? "widgets-hidden" : "", s.desksOpen ? "desks-open" : "", s.navHidden ? "nav-hidden" : ""].filter(Boolean).join(" ");
   return (
     <>
       <Wallpaper />
@@ -53,6 +58,9 @@ export function OsShell() {
         <WindowLayer />
       </div>
       <Toast />
+      <ShortcutsPanel />
+      <SysMenu />
+      <Palette />
       <OsMenuRoot />
       <DkMenuRoot />
       <button type="button" className={"rail-peek" + (s.iconsHidden ? " show" : "")} aria-label={t("sbShow")} title={t("sbShow") + " (Ctrl+B)"} onClick={() => osSidebar(true, t)} dangerouslySetInnerHTML={{ __html: RAIL_PEEK }} />

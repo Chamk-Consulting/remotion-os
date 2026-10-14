@@ -14,6 +14,8 @@ type Actions = {
   ai: () => void;
   askAI: (it: Item) => void;
   sysMenu: (open: boolean, view?: string) => void;
+  /** Lock screen, restart / shut down (power screen), on-screen keyboard — ported with B-09 / B-13. */
+  lock: () => void; restart: () => void; shutdown: () => void; vkb: () => void;
 };
 const pending = (name: string) => (...args: unknown[]) => {
   if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("remotion:pending", { detail: { name, args: args.map((a) => (a instanceof Element ? a.tagName : a)) } }));
@@ -21,5 +23,6 @@ const pending = (name: string) => (...args: unknown[]) => {
 export const osActions: Actions = {
   files: pending("files"), terminal: pending("terminal"), launcher: pending("launcher"),
   ai: pending("ai"), askAI: pending("askAI"), sysMenu: pending("sysMenu"),
+  lock: pending("lock"), restart: pending("restart"), shutdown: pending("shutdown"), vkb: pending("vkb"),
 };
 export function registerOsAction<K extends keyof Actions>(k: K, fn: Actions[K]) { osActions[k] = fn; }

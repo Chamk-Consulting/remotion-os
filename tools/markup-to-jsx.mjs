@@ -75,6 +75,8 @@ if (process.argv[2] === "--gen") {
     ["TopBarMarkup", "sel:header.top", ["wsLabel", "langMenu", "whoAv", "whoName", "whoRole", "bellBadge", "langCode"]],
     ["WorkspaceMenuMarkup", "id:wsMenu", ["wsList"]],
     ["WidgetsMarkup", "sel:section.widgets", ["temp", "time", "date", "fore", "evCount", "calTitle", "calGrid", "n3d", "t5d", ".notes"]],
+    ["ShortcutsMarkup", "id:scDlg", ["scNav", "scBody"]],
+    ["PaletteMarkup", "id:palette", ["palList"]],
   ];
   fs.mkdirSync("src/os/shell/generated", { recursive: true });
   for (const [name, sel, slots] of SECTIONS) {

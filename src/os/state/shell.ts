@@ -39,6 +39,8 @@ type ShellState = {
   desks: Desk[]; cur: number;
   workspaces: Workspace[]; selWs: number;
   wsOpen: boolean; langOpen: boolean; desksOpen: boolean;
+  /** System (gear) menu, its requested sub-view (setSysMenu(true, view)), search palette, shortcuts panel, hidden top bar. */
+  sysOpen: boolean; sysView: { v: string; n: number } | null; palOpen: boolean; scOpen: boolean; navHidden: boolean;
   iconsHidden: boolean; widgetsHidden: boolean;
   toast: { msg: string; n: number; undo?: () => void } | null;
   /* desktop layer (B-08) */
@@ -74,6 +76,7 @@ export const useShell = create<ShellState>((set, get) => ({
   workspaces: [{ k: "mainWorkspace" }, { k: "development" }, { k: "design" }, { k: "research" }, { k: "personal" }], selWs: 0,
   // Source: #wsMenu is open in the markup and closed at boot only below 860 px (L27215, defect/intent U-07 reproduced).
   wsOpen: true, langOpen: false, desksOpen: false,
+  sysOpen: false, sysView: null, palOpen: false, scOpen: false, navHidden: false,
   iconsHidden: false, widgetsHidden: false,
   toast: null,
   trash: [], dkView: { size: "m", align: true, icons: true }, fs: {} as FsData, apps: AL_DEFAULT, sel: new Set(), rev: 0, shownDesk: 0, iconAnim: 1, wallDesk: 0, layoutTick: 0, iconEpoch: 0, wsStore: {}, osxWs: null,
@@ -121,13 +124,16 @@ export const useShell = create<ShellState>((set, get) => ({
   setDesksOpen: (open) => set({ desksOpen: open }),
   selectWs: (i) => set({ selWs: i }),
   addWs: () => { const w = { n: get().workspaces.length + 1 }; set({ workspaces: [...get().workspaces, w] }); return w; },
-  // Source closeAll (L7972): ws, lang, desks (+ kb/sys/search/nc/account menus once ported).
-  closeAll: () => set({ wsOpen: false, langOpen: false, desksOpen: false }),
+  // Source closeAll (L7972): ws, lang, desks, kb menu, sys menu, palette, notification centre, account menu.
+  // (kb menu, notification centre and account menu join as they are ported: closeAllHooks.)
+  closeAll: () => { set({ wsOpen: false, langOpen: false, desksOpen: false, sysOpen: false, palOpen: false }); closeAllHooks.forEach((f) => f()); },
   showToast: (msg, undo) => set({ toast: { msg, n: (get().toast?.n ?? 0) + 1, undo } }),
   hideToast: () => set({ toast: null }),
   saveDesks: () => { const { desks, cur } = get(); writeJSON(STORAGE_KEYS.desks, { l: desks, c: cur }); },
 }));
 
+/** Extra closers registered by surfaces ported later (keyboard menu, notification centre, account menu). */
+export const closeAllHooks: (() => void)[] = [];
 export const newDeskId = () => "d" + Math.random().toString(36).slice(2, 8);
 /** osDid (L20845): a desktop's stable id, created on first use. */
 export function osDid(i: number) { const d = useShell.getState().desks[i]; if (!d) return ""; if (!d._id) d._id = newDeskId(); return d._id; }
