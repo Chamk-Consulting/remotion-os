@@ -104,7 +104,7 @@ test("view options: icon size, hide icons, align off/on, widgets, sidebar, refre
 // row clears the selection before the row runs — Duplicate / Copy / Cut / Delete then act on nothing. Keyboard activation works.
 test("icon menu actions: mouse no-op (D-B21), keyboard duplicate/cut, favourite, share, move to Documents and Desktop 2, paste", async ({ browser, baseURL }) => {
   const r = await both(browser, baseURL, async (p) => {
-    const menu = async (n: string) => { await icon(p, n).first().click({ button: "right" }); await p.locator('.os-menu[data-level="0"]').waitFor(); };
+    const menu = async (n: string) => { await icon(p, n).first().click({ button: "right" }); await p.locator('.os-menu[data-level="0"]').waitFor(); await p.waitForTimeout(80); /* the menu focuses its first row after 20 ms */ };
     const kbd = async (label: string) => { await p.locator('.os-menu[data-level="0"] button[data-oi]', { hasText: label }).first().focus(); await p.keyboard.press("Enter"); await p.waitForTimeout(250); };
     await menu("Rapport.pdf"); await pick(p, 0, "Duplicate"); const dupMouse = [await layout(p), await p.locator("#dkLayer .dk-on").count()];
     await menu("Rapport.pdf"); await pick(p, 0, "Delete"); const delMouse = [await layout(p), await p.evaluate(() => (JSON.parse(localStorage.getItem("remotion-trash") || "[]")).length)];

@@ -35,6 +35,14 @@ export const SCENES: Scene[] = [
   { name: "shortcuts-all-light", vp: "desktop", scheme: "light", act: async (root, page) => { await root.locator("#sysBtn").click(); await page.waitForTimeout(300); await root.locator('#sysMenu [data-act="shortcuts"]').click(); await page.waitForTimeout(900); } },
   { name: "shortcuts-search-fr", vp: "desktop", scheme: "light", lang: "fr", act: async (root, page) => { await root.locator("#sysBtn").click(); await page.waitForTimeout(300); await root.locator('#sysMenu [data-act="shortcuts"]').click(); await page.waitForTimeout(400); await root.locator("#scSearch").fill("bureau"); await page.waitForTimeout(900); } },
   { name: "shortcuts-mobile-dark", vp: "mobile", scheme: "dark", act: async (root, page) => { await root.locator("#dkLayer .dk-ic").first().press("Control+Slash"); await page.waitForTimeout(900); } },
+  // Phase B slice 6: notification centre, banners, account menu.
+  { name: "nc-open-light", vp: "desktop", scheme: "light", act: async (root, page) => { await root.locator("#bellBtn").click(); await page.waitForTimeout(1200); } },
+  { name: "nc-detail-dark", vp: "desktop", scheme: "dark", act: async (root, page) => { await root.locator("#bellBtn").click(); await page.waitForTimeout(600); await root.locator('#ncScroll .ni[data-id="3"]').click(); await page.waitForTimeout(900); } },
+  { name: "nc-filter-ar", vp: "desktop", scheme: "light", lang: "ar", act: async (root, page) => { await root.locator("#bellBtn").click(); await page.waitForTimeout(600); await root.locator('#ncPri [data-pri="high"]').click(); await page.waitForTimeout(900); } },
+  { name: "nc-mobile-light", vp: "mobile", scheme: "light", act: async (root, page) => { await root.locator("#bellBtn").click(); await page.waitForTimeout(1200); } },
+  { name: "acc-main-light", vp: "desktop", scheme: "light", act: async (root, page) => { await root.locator("#accBtn").click(); await page.waitForTimeout(900); } },
+  { name: "acc-units-dark", vp: "desktop", scheme: "dark", act: async (root, page) => { await root.locator("#accBtn").click(); await page.waitForTimeout(400); await root.locator('#accMenu .kbm-item[data-go="units"]').click(); await page.waitForTimeout(1000); } },
+  { name: "acc-status-fr", vp: "desktop", scheme: "light", lang: "fr", act: async (root, page) => { await root.locator("#accBtn").click(); await page.waitForTimeout(400); await root.locator("#accStBtn").click(); await page.waitForTimeout(900); } },
   ...SOLO.map((app) => ({ name: `app-${app}-desktop-light`, vp: "desktop" as const, scheme: "light" as const, app })),
 ];
 /** Seeds storage before boot so both sides start from the same state. */

@@ -22,6 +22,16 @@ import { ShortcutsPanel } from "@/os/shortcuts/ShortcutsPanel";
 import { Palette } from "@/os/shortcuts/Palette";
 import { useGlobalShortcuts } from "@/os/shortcuts/useGlobalShortcuts";
 import { SysMenu } from "./SysMenu";
+import { NotificationCenter } from "@/os/notifications/NotificationCenter";
+import { AccountMenu, accApi } from "@/os/account/AccountMenu";
+import { bootAccount, startAutoAway, useAccount } from "@/os/account/store";
+import { bootNc, closeNc, ncApi } from "@/os/notifications/nc";
+import { closeSearch } from "@/os/shortcuts/Palette";
+import { closeAllHooks } from "@/os/state/shell";
+
+// closeAll also closes the notification centre and the account menu (L7972); openNc closes the palette first.
+closeAllHooks.push(closeNc, () => { if (useAccount.getState().open) accApi.open(false); });
+ncApi.closeSearch = closeSearch;
 import { DkMenuRoot } from "@/os/menu/DkMenu";
 import { osSidebar } from "@/os/desktop/menus";
 
@@ -31,7 +41,7 @@ const RAIL_PEEK = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" s
 export function OsShell() {
   const s = useShell();
   const { t } = useI18n();
-  useEffect(() => { s.init(); }, [s]);
+  useEffect(() => { s.init(); bootAccount(); bootNc(); return startAutoAway(); }, [s]);
   useTrashDock();
   useGlobalShortcuts();
   // Escape closes the shell menus (source L7976).
@@ -58,6 +68,8 @@ export function OsShell() {
         <WindowLayer />
       </div>
       <Toast />
+      <NotificationCenter />
+      <AccountMenu />
       <ShortcutsPanel />
       <SysMenu />
       <Palette />

@@ -29,6 +29,9 @@ export function prepareLegacy(frame: HTMLIFrameElement, appKey: string | null, e
     const st = frame.contentDocument!.createElement("style"); st.dataset.bridge = "1";
     st.textContent = "body.os-appmode .os-win.os-solo>.os-wh{display:none!important}";
     frame.contentDocument!.head.appendChild(st);
+    // Notifications posted by the bridged app (rmNotify → pushNc, L24522) go to the shell's notification centre, as they
+    // would in the single-document source. The item's text / field / action functions keep running in the frame.
+    try { w.eval("pushNc=function(n){var p=window.parent;if(p&&p.__remotionPushNc){p.__remotionPushNc(n,typeof NC_KIND!=='undefined'?NC_KIND[n.kind]:undefined)}}"); } catch {}
     // Pointer input inside the frame never reaches the OS window: forward it so the window comes forward (and D-B23 applies).
     if (hooks) { const d = frame.contentDocument!; d.addEventListener("pointerdown", hooks.down, true); d.addEventListener("click", hooks.click, true); d.addEventListener("pointerup", hooks.up, true); }
   }
