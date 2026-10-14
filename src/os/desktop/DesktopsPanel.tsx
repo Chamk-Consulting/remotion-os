@@ -53,6 +53,20 @@ function slideSpace(dir: number) {
   deskAnims = [a1, a2, a3, a4, a5];
   const end = () => { old.remove(); document.body.classList.remove("dk-switch"); }; a1.onfinish = end; a1.oncancel = end;
 }
+/** Source setDeskWall (L7903): thumbnail cross-fade + wallpaper cross-fade on the current desktop. */
+export function setDeskWall(i: number, k: number) {
+  const s = useShell.getState();
+  if (!s.desks[i] || s.desks[i].s === k) return;
+  const cv = document.getElementById("desks")?.querySelector<HTMLCanvasElement>(`[data-di="${i}"] canvas`);
+  if (cv && !reducedMotion()) { const c2 = document.createElement("canvas"); c2.width = cv.width; c2.height = cv.height; c2.getContext("2d")!.drawImage(cv, 0, 0); c2.className = "thumb-old"; cv.after(c2); c2.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 480, easing: "ease-out" }).finished.then(() => c2.remove()); cv.parentElement!.animate([{ transform: "scale(.94)" }, { transform: "none" }], { duration: 480, easing: "cubic-bezier(.2,1.3,.3,1)" }); }
+  const wall = document.getElementById("wall") as HTMLCanvasElement;
+  if (i === s.cur && !reducedMotion()) {
+    document.getElementById("wallOld")?.remove();
+    const old = document.createElement("canvas"); old.id = "wallOld"; old.width = wall.width; old.height = wall.height; try { old.getContext("2d")!.drawImage(wall, 0, 0); } catch {}
+    wall.after(old); flushSync(() => s.mutate((x) => { x.desks[i].s = k; }));
+    old.animate([{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: "scale(1.04)" }], { duration: 700, easing: "cubic-bezier(.4,0,.2,1)" }).finished.then(() => old.remove());
+  } else s.mutate((x) => { x.desks[i].s = k; });
+}
 export function gotoDesk(i: number, closeAfter?: boolean) {
   const st = useShell.getState(); const n = st.desks.length; i = (i + n) % n;
   if (i === st.cur) { if (closeAfter) st.setDesksOpen(false); return; }
@@ -129,19 +143,6 @@ export function DesktopsPanel() {
     requestAnimationFrame(() => { if (useShell.getState().desksOpen) el.current?.querySelector<HTMLElement>(`[data-di="${i}"] .thumb`)?.focus({ preventScroll: true }); });
     if (i === s.cur && hud) showDeskHud();
   }
-  function setDeskWall(i: number, k: number) {
-    if (!s.desks[i] || s.desks[i].s === k) return;
-    const cv = el.current?.querySelector<HTMLCanvasElement>(`[data-di="${i}"] canvas`);
-    if (cv && !reducedMotion()) { const c2 = document.createElement("canvas"); c2.width = cv.width; c2.height = cv.height; c2.getContext("2d")!.drawImage(cv, 0, 0); c2.className = "thumb-old"; cv.after(c2); c2.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 480, easing: "ease-out" }).finished.then(() => c2.remove()); cv.parentElement!.animate([{ transform: "scale(.94)" }, { transform: "none" }], { duration: 480, easing: "cubic-bezier(.2,1.3,.3,1)" }); }
-    const wall = document.getElementById("wall") as HTMLCanvasElement;
-    if (i === s.cur && !reducedMotion()) {
-      document.getElementById("wallOld")?.remove();
-      const old = document.createElement("canvas"); old.id = "wallOld"; old.width = wall.width; old.height = wall.height; try { old.getContext("2d")!.drawImage(wall, 0, 0); } catch {}
-      wall.after(old); flushSync(() => s.mutate((x) => { x.desks[i].s = k; }));
-      old.animate([{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: "scale(1.04)" }], { duration: 700, easing: "cubic-bezier(.4,0,.2,1)" }).finished.then(() => old.remove());
-    } else s.mutate((x) => { x.desks[i].s = k; });
-  }
-
   // Drag the panel down to close (L7951).
   const dragY = useRef<{ y0: number; dy: number; id: number } | null>(null);
   const onPointerDown = (e: React.PointerEvent) => { if (e.button !== 0 || (e.target as Element).closest("button,input,.tray,.dname,.dnrow,.desk")) return; dragY.current = { y0: e.clientY, dy: 0, id: e.pointerId }; el.current!.setPointerCapture(e.pointerId); el.current!.style.transition = "none"; };

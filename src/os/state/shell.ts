@@ -47,6 +47,10 @@ type ShellState = {
   shownDesk: number; iconAnim: number;
   /** Desktop whose wallpaper is painted on #wall (lags `cur` during the reduced-motion fade, L7814). */
   wallDesk: number;
+  /** Bumped by delayed re-layouts (sidebar/widgets transitions, view size) — source `setTimeout(()=>{dkGeom();dkFix();dkPlace(true)})`. */
+  layoutTick: number;
+  /** Bumped by renderIcons(true) (refresh): remounts the icons so their entrance animation replays. */
+  iconEpoch: number;
   /** Runs `fn` on the live objects (ported source code mutates in place), then publishes a new revision. */
   mutate: (fn: (st: ShellState) => void, opts?: { save?: boolean; trash?: boolean; fs?: boolean; apps?: boolean }) => void;
   setSel: (ids: string[], add?: boolean) => void;
@@ -68,7 +72,7 @@ export const useShell = create<ShellState>((set, get) => ({
   wsOpen: true, langOpen: false, desksOpen: false,
   iconsHidden: false, widgetsHidden: false,
   toast: null,
-  trash: [], dkView: { size: "m", align: true, icons: true }, fs: {} as FsData, apps: AL_DEFAULT, sel: new Set(), rev: 0, shownDesk: 0, iconAnim: 1, wallDesk: 0,
+  trash: [], dkView: { size: "m", align: true, icons: true }, fs: {} as FsData, apps: AL_DEFAULT, sel: new Set(), rev: 0, shownDesk: 0, iconAnim: 1, wallDesk: 0, layoutTick: 0, iconEpoch: 0,
   mutate: (fn, opts = { save: true }) => {
     const st = get(); fn(st);
     if (opts.save !== false) writeJSON(STORAGE_KEYS.desks, { l: st.desks, c: st.cur });
@@ -81,7 +85,8 @@ export const useShell = create<ShellState>((set, get) => ({
   init: () => {
     if (get().booted) return;
     const { desks, cur } = loadDesks(); const th = loadTheme();
-    let railOn = false; try { railOn = localStorage.getItem(STORAGE_KEYS.rail) === "1"; } catch {}
+    // Boot: `if(!keep) toggleIcons(false)` (L11935) hides the sidebar and its wrapper writes "0".
+    let railOn = false; try { railOn = localStorage.getItem(STORAGE_KEYS.rail) === "1"; if (!railOn) localStorage.setItem(STORAGE_KEYS.rail, "0"); } catch {}
     // Boot-time seeds in source script order (B-08): v1 (L11272), v2 design (L11782), then each app's shortcut.
     let lang: string | null = null; try { lang = localStorage.getItem(STORAGE_KEYS.lang); } catch {}
     const L = isLang(lang) ? lang : "en"; const t = (k: string, v?: Record<string, string | number>) => translate(L, k, v);
@@ -109,3 +114,21 @@ export const useShell = create<ShellState>((set, get) => ({
   hideToast: () => set({ toast: null }),
   saveDesks: () => { const { desks, cur } = get(); writeJSON(STORAGE_KEYS.desks, { l: desks, c: cur }); },
 }));
+
+/** Schedules a desktop re-layout after a CSS transition (`ms`), like the source's dkGeom/dkFix/dkPlace(true) timers. */
+export function requestRelayout(ms: number) { setTimeout(() => useShell.setState((s) => ({ layoutTick: s.layoutTick + 1 })), ms); }
+
+/** toggleIcons + its wrapper (L8605, L11933): sidebar visibility, persisted in `remotion-rail`. */
+export function toggleIcons(force?: boolean) {
+  const hidden = force === undefined ? !useShell.getState().iconsHidden : !force;
+  useShell.setState({ iconsHidden: hidden });
+  try { localStorage.setItem(STORAGE_KEYS.rail, hidden ? "0" : "1"); } catch {}
+  requestRelayout(540);
+}
+/** toggleWidgets + its wrapper (L8604, L11618): per-desktop widgets flag saved with the desktops. */
+export function toggleWidgets(force?: boolean) {
+  const hidden = force === undefined ? !useShell.getState().widgetsHidden : !force;
+  useShell.setState({ widgetsHidden: hidden });
+  useShell.getState().mutate((s) => { s.desks[s.cur].w = !hidden; });
+  requestRelayout(380);
+}

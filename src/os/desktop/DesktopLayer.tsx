@@ -13,6 +13,9 @@ import { Glyph, useDkName } from "./Glyph";
 import { DK_PAD, DK_SIZES, dkBlocked, dkCellAt, dkExt, dkFix, dkFree, dkId, dkNearest, dkNeighbour, dkXY, type Geo, type Item, type Rect } from "./model";
 import { openDkWin } from "./windows";
 import { desktopApi } from "./api";
+import { osActions } from "@/os/actions";
+import { fsFind } from "./fs";
+import { dkSetAlign, osDeskMenu, osIconMenu, osRefreshDesk, setAlignHook, type LayerApi } from "./menus";
 
 const SPARK26 = '<svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10 2.5c.6 4.3 2.8 6.5 7.1 7.1-4.3.6-6.5 2.8-7.1 7.1-.6-4.3-2.8-6.5-7.1-7.1 4.3-.6 6.5-2.8 7.1-7.1z"/><path d="M18.4 13.4c.3 2.1 1.3 3.1 3.4 3.4-2.1.3-3.1 1.3-3.4 3.4-.3-2.1-1.3-3.1-3.4-3.4 2.1-.3 3.1-1.3 3.4-3.4z" opacity=".75"/></svg>';
 const SC_ARROW = '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M8 16 16 8M10 8h6v6"/></svg>';
@@ -26,7 +29,7 @@ type Drag =
 type Target = { kind: "trash"; el: HTMLElement } | { kind: "folder"; el: HTMLElement; it: Item } | null;
 
 export function DesktopLayer() {
-  const { t, nf } = useI18n();
+  const { t, nf, loc } = useI18n();
   const dkName = useDkName();
   const s = useShell();
   const desk = s.desks[s.shownDesk] ?? s.desks[s.cur];
@@ -68,6 +71,9 @@ export function DesktopLayer() {
   // Layout measurement must run after the DOM is laid out; setting state here is the intended measure-then-render pattern.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useLayoutEffect(() => { relayout(); }, [relayout, s.cur, s.rev, s.widgetsHidden, s.iconsHidden, s.dkView.size]);
+  // Delayed re-layouts after transitions animate the icons to their new cells (dkPlace(true)).
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useLayoutEffect(() => { if (s.layoutTick) { setSettle(true); relayout(); } }, [relayout, s.layoutTick]);
   useEffect(() => {
     let tm: ReturnType<typeof setTimeout>;
     const on = () => { clearTimeout(tm); tm = setTimeout(() => { setSettle(true); relayout(); }, 120); };
@@ -112,10 +118,25 @@ export function DesktopLayer() {
       s.setSel([]); setSettle(false); requestAnimationFrame(() => pop(elOf(folder.id))); s.showToast(t("dkMovedIn", { x: folder.name! }));
     }, reducedMotion() ? 0 : 360);
   }
+  /** dkOpen as redefined by dkOpenTarget / dkOpenX (L11862–L11873): shortcuts resolve their target; apps launch their surface. */
   function open(it: Item | undefined, el: HTMLElement | null) {
-    if (!it) return; pop(el);
-    // Registered apps open real windows once the window manager is ported (B-02); until then the source's base behaviour.
-    if (it.type === "app") { s.showToast(t("opened", { x: dkName(it) })); return; }
+    if (it?.ref) { const r = fsFind(it.ref); if (r) { openX(r.node, el, r.root); return; } }
+    openX(it, el);
+  }
+  function openX(it: Item | undefined, el: HTMLElement | null, root?: string) {
+    if (!it) return;
+    if (it.type === "app") {
+      const k = it.app!; pop(el);
+      s.mutate((st) => { st.apps.recent = [k, ...st.apps.recent.filter((x) => x !== k)].slice(0, 12); }, { save: false, apps: true }); // alTouch
+      if (k === "remotionAI") { osActions.ai(); return; }
+      if (k === "files" || k === "explorer") { osActions.files(el); return; }
+      if (k === "terminal") { osActions.terminal(el); return; }
+      if (k === "launchpad" || k === "apps") { osActions.launcher(el); return; }
+      if (k === "settings") { osActions.sysMenu(true); return; }
+      s.showToast(t("opened", { x: k === "Keep Flow" ? "Keep Flow" : t(k) })); return;
+    }
+    if (it.type === "folder" && root && root !== "desktop") { const f = fsFind(it.id); osActions.files(el, { root, path: [...(f?.path.map((p) => p.id) ?? []), it.id] }); return; }
+    pop(el);
     if (it.type === "link") { s.showToast(t("opened", { x: it.name! })); return; } // link URL never opened: defect D-B20 reproduced
     openDkWin(it.type === "folder" ? { kind: "folder", id: it.id } : { kind: "ql", id: it.id }, el);
   }
@@ -127,11 +148,13 @@ export function DesktopLayer() {
     return item;
   }
   const clip = useRef<{ items: Item[]; cut: boolean; from: number } | null>(null);
+  // Selection is read live: menus call these after the outside-pointerdown handler may have cleared it (D-B21).
+  const liveSel = () => useShell.getState().sel;
   function copy(cut: boolean) {
-    const sel = items.filter((x) => s.sel.has(x.id)); if (!sel.length) return;
+    const sel = items.filter((x) => liveSel().has(x.id)); if (!sel.length) return;
     clip.current = { items: sel.map((x) => JSON.parse(JSON.stringify(x))), cut, from: s.cur };
     // Cut removes immediately; items are lost if never pasted (defect D-B03 reproduced).
-    if (cut) { s.mutate((st) => { st.desks[st.cur].items = (st.desks[st.cur].items ?? []).filter((x) => !s.sel.has(x.id)); }); s.setSel([]); }
+    if (cut) { const ids = new Set(liveSel()); s.mutate((st) => { st.desks[st.cur].items = (st.desks[st.cur].items ?? []).filter((x) => !ids.has(x.id)); }); s.setSel([]); }
     s.showToast(t("dkCopied", { n: nf(sel.length) }));
   }
   function clone(it: Item): Item { const c = JSON.parse(JSON.stringify(it)); const re = (x: Item) => { x.id = dkId(); (x.kids || []).forEach(re); }; re(c); return c; }
@@ -140,6 +163,32 @@ export function DesktopLayer() {
     cl.items.forEach((x) => { const it = cl.cut ? JSON.parse(JSON.stringify(x)) : clone(x); if (cl.cut) it.id = it.id || dkId(); const a = add(it, c, r, true); if (a) added.push(a.id); });
     if (cl.cut) clip.current = null; s.setSel(added);
   }
+  /** Source dkDuplicate (L11442): " (2)" before the extension, placed one column to the right. */
+  function duplicate() {
+    const sel = items.filter((x) => liveSel().has(x.id)); const ids: string[] = [];
+    sel.forEach((x) => { const c = clone(x); if (c.type !== "app") { const ext = dkExt(c.name); c.name = ext ? c.name!.replace(new RegExp("\\." + ext + "$"), " (2)." + ext) : c.name + " (2)"; } const a = add(c, x.c! + 1, x.r!, true); if (a) ids.push(a.id); });
+    s.setSel(ids);
+  }
+  /** Source osSortDesk (L11926): sort, then fill columns top to bottom skipping blocked cells. */
+  function sortDesk(by: "name" | "type" | "size" | "date") {
+    const g = computeGeo(); if (!g) return;
+    const cmp: Record<string, (a: Item, b: Item) => number> = { name: (a, b) => dkName(a).localeCompare(dkName(b), loc()), type: (a, b) => a.type.localeCompare(b.type) || dkExt(a.name || "").localeCompare(dkExt(b.name || "")), size: (a, b) => (b.size || 0) - (a.size || 0), date: (a, b) => (b.mod || 0) - (a.mod || 0) };
+    s.mutate((st) => {
+      const list = (st.desks[st.cur].items ?? []).slice().sort(cmp[by]), taken = new Set<string>(); list.forEach((it) => { delete it.fx; delete it.fy; });
+      for (const it of list) { let placed = false; for (let c = 0; c < g.cols && !placed; c++) for (let r = 0; r < g.rows && !placed; r++) { if (!taken.has(c + "," + r) && !dkBlocked(g, c, r)) { it.c = c; it.r = r; taken.add(c + "," + r); placed = true; } } }
+      st.desks[st.cur].items = list;
+    });
+    setSettle(true);
+  }
+  const menuApi = (): LayerApi => ({
+    t, nf, add, rename: (id) => setRenaming(id), open: (n) => open(n, elOf(n.id)), copy, paste, hasClip: () => !!clip.current, duplicate, del,
+    cellAt: (x, y) => { const g = computeGeo(); return g ? dkCellAt(g, x, y) : [0, 0]; }, sort: sortDesk, refresh: () => osRefreshDesk(t), name: dkName,
+  });
+  const onContextMenu = (e: React.MouseEvent) => {
+    if ((e.target as Element).closest(".dk-ren")) return; e.preventDefault();
+    const ic = (e.target as Element).closest<HTMLElement>(".dk-ic"); const it = ic ? items.find((x) => x.id === ic.dataset.id) : undefined;
+    if (it) osIconMenu(menuApi(), e.clientX, e.clientY, it); else osDeskMenu(menuApi(), e.clientX, e.clientY);
+  };
 
   /* ---------- pointer (L11341–L11384) ---------- */
   const onPointerDown = (e: React.PointerEvent) => {
@@ -200,18 +249,23 @@ export function DesktopLayer() {
     if (!ic) return; const it = items.find((x) => x.id === ic.dataset.id)!;
     if (e.key === "Enter") { e.preventDefault(); open(it, ic); return; }
     if (e.key === "F2") { e.preventDefault(); if (it.type !== "app") setRenaming(it.id); return; }
+    if (e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey)) { e.preventDefault(); const r = ic.getBoundingClientRect(); osIconMenu(menuApi(), r.left + r.width / 2, r.bottom, it); return; }
     if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); del(s.sel.size ? [...s.sel] : [it.id]); return; }
     const g = geo.current; if (g && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
       e.preventDefault(); const best = dkNeighbour(g, items, it, e.key);
       if (best) { elOf(best.id)?.focus(); if (!e.shiftKey) s.setSel([best.id]); else s.setSel([best.id], true); }
     }
   };
-  const addRef = useRef(add);
-  useEffect(() => { addRef.current = add; });
+  const addRef = useRef(add); const openRef = useRef(open);
+  useEffect(() => { addRef.current = add; openRef.current = open; });
   useEffect(() => {
     desktopApi.add = (...a) => addRef.current(...a);
+    desktopApi.open = (...a) => openRef.current(...a);
     desktopApi.cellAt = (x, y) => { const g = computeGeo(); return g ? dkCellAt(g, x, y) : [0, 0]; };
   }, [computeGeo]);
+  const alignRef = useRef<(on: boolean) => void>(() => {});
+  useEffect(() => { alignRef.current = (on) => { dkSetAlign(on, computeGeo(), DK_PAD); setSettle(true); }; });
+  useEffect(() => { setAlignHook((on) => alignRef.current(on)); return () => setAlignHook(null); }, []);
   // Outside pointerdown clears the selection (L11405).
   useEffect(() => {
     const h = (e: PointerEvent) => { if (!(e.target as Element).closest?.(".dk-layer,.dk-menu,.dk-win,#dock")) useShell.getState().setSel([]); };
@@ -222,7 +276,7 @@ export function DesktopLayer() {
   const cls = ["dk-layer", phone ? "phone" : "", s.dkView.icons ? "" : "noicons"].filter(Boolean).join(" ");
   return (
     <div className={cls} id="dkLayer" role="listbox" aria-multiselectable="true" ref={layer} data-drop={t("dkDropHere")} data-size={s.dkView.size}
-      onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerEnd} onPointerCancel={onPointerEnd} onKeyDown={onKeyDown}
+      onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerEnd} onPointerCancel={onPointerEnd} onKeyDown={onKeyDown} onContextMenu={onContextMenu}
       onDoubleClick={(e) => { const ic = (e.target as Element).closest<HTMLElement>(".dk-ic"); if (ic && !(e.target as Element).closest(".dk-ren")) open(items.find((x) => x.id === ic.dataset.id), ic); }}
       onClick={(e) => { if (!dkPhone()) return; const ic = (e.target as Element).closest<HTMLElement>(".dk-ic"); if (ic) { const id = ic.dataset.id!; if (s.sel.has(id) && s.sel.size === 1) open(items.find((x) => x.id === id), ic); else s.setSel([id]); } }}
       onFocus={(e) => { const ic = (e.target as Element).closest<HTMLElement>(".dk-ic"); if (ic && !s.sel.has(ic.dataset.id!) && !drag.current) s.setSel([ic.dataset.id!]); }}>
@@ -230,7 +284,7 @@ export function DesktopLayer() {
       {items.map((it, i) => {
         const p = posOf(it, g), sc = it.type === "app" || it.type === "link", on = s.sel.has(it.id);
         return (
-          <button key={it.id} type="button" className={"dk-ic" + (on ? " dk-on" : "") + (settle ? " settle" : "")} role="option" aria-selected={on} data-id={it.id} title={dkName(it)}
+          <button key={s.iconEpoch + ":" + it.id} type="button" className={"dk-ic" + (on ? " dk-on" : "") + (settle ? " settle" : "")} role="option" aria-selected={on} data-id={it.id} title={dkName(it)}
             style={{ ["--i" as string]: i, animation: s.iconAnim ? undefined : "none", transform: p ? `translate(${p.x}px,${p.y}px)` : undefined }}>
             <Glyph it={it} />
             {sc ? <i className="sc" aria-hidden="true"><SvgString html={SC_ARROW} /></i> : null}

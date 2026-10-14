@@ -13,9 +13,11 @@ import { paint, sceneFor } from "@/os/shell/wallpaper";
 import { useShell } from "@/os/state/shell";
 
 export type MenuItem = "-" | {
-  l?: string; ic?: string; kbd?: string; check?: boolean; sub?: MenuItem[] | (() => MenuItem[]); disabled?: boolean; danger?: boolean; run?: () => void;
+  l?: string; ic?: string | React.ReactNode; kbd?: string; check?: boolean; sub?: MenuItem[] | (() => MenuItem[]); disabled?: boolean; danger?: boolean; run?: () => void;
   /** Raw source HTML row (wallpaper swatches, app grid…). `onHtmlClick` receives the clicked element. */
   html?: string; onHtmlClick?: (el: Element) => boolean | void;
+  /** React content rendered in place of a source HTML row (same DOM as the source string). */
+  node?: React.ReactNode;
 };
 type Level = { items: MenuItem[]; x: number; y: number; altX?: number; openIdx?: number; focus?: boolean; adjust?: (el: HTMLElement) => void };
 type S = { levels: Level[]; open: (x: number, y: number, items: MenuItem[], adjust?: (el: HTMLElement) => void) => void; closeAll: () => void; closeFrom: (lvl: number) => void; sub: (lvl: number, idx: number, x: number, y: number, altX: number, focus: boolean) => void };
@@ -53,11 +55,12 @@ function MenuLevel({ lvl, level }: { lvl: number; level: Level }) {
   return (
     <div ref={ref} className="os-menu" role="menu" data-level={lvl} style={{ left: level.x, top: level.y }}>
       {level.items.map((it, i) => it === "-" ? <div key={i} className="sep" role="separator"></div>
+        : it.node ? <div key={i} style={{ display: "contents" }}>{it.node}</div>
         : it.html ? <div key={i} style={{ display: "contents" }} dangerouslySetInnerHTML={{ __html: it.html }} />
         : <button key={i} type="button" role={it.check !== undefined ? "menuitemcheckbox" : "menuitem"} aria-checked={it.check !== undefined ? !!it.check : undefined}
           aria-haspopup={it.sub ? "menu" : undefined} aria-expanded={it.sub ? level.openIdx === i : undefined} data-oi={i}
           className={[it.danger ? "danger" : "", it.sub && level.openIdx === i ? "open" : ""].filter(Boolean).join(" ")} disabled={it.disabled}>
-          <span className="ic">{it.check !== undefined ? (it.check ? <SvgString html={icons.OSI.check} /> : null) : it.ic ? <SvgString html={it.ic} /> : null}</span>
+          <span className="ic">{it.check !== undefined ? (it.check ? <SvgString html={icons.OSI.check} /> : null) : typeof it.ic === "string" ? <SvgString html={it.ic} /> : it.ic ?? null}</span>
           <span className="lb">{it.l}</span>{it.kbd ? <kbd>{it.kbd}</kbd> : null}{it.sub ? <span className="ar"><SvgString html={icons.OSI.chev} /></span> : null}
         </button>)}
     </div>
@@ -89,7 +92,7 @@ export function OsMenuRoot() {
       const b = tgt.closest?.(".os-menu button[data-oi]") as HTMLElement | null;
       if (b) { const lvl = +menuOf(b)!.dataset.level!; const it = st().levels[lvl].items[+b.dataset.oi!]; if (it === "-") return; if (it.sub) { openSub(b, true); return; } if (it.disabled) return; st().closeAll(); it.run?.(); return; }
       const m = menuOf(tgt);
-      if (m) { const lvl = +m.dataset.level!; for (const it of st().levels[lvl]?.items ?? []) if (it !== "-" && it.html && it.onHtmlClick) { const r = it.onHtmlClick(tgt); if (r !== false && r !== undefined) return; } return; }
+      if (m) { const lvl = +m.dataset.level!; for (const it of st().levels[lvl]?.items ?? []) if (it !== "-" && (it.html || it.node) && it.onHtmlClick) { const r = it.onHtmlClick(tgt); if (r !== false && r !== undefined) return; } return; }
       st().closeAll();
     };
     const key = (e: KeyboardEvent) => {

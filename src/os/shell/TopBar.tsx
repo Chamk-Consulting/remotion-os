@@ -98,7 +98,8 @@ export function TopBar() {
           <span className="code">{k.toUpperCase()}</span>{v.name}{k === lang ? <SvgString html={CK} /> : null}
         </button>))
       ;
-      case "whoAv": return <>{me.photo ? /* eslint-disable-next-line @next/next/no-img-element -- user photo is a data URL from localStorage (source L10230) */ <img src={me.photo} alt="" /> : me.org ? <SvgString html={PEOPLE_ICON} /> : me.ini}<span className="st-dot" style={{ ["--sc" as string]: dot }} /></>;
+      // eslint-disable-next-line @next/next/no-img-element -- user photo is a data URL from localStorage (source L10230)
+      case "whoAv": return <>{me.photo ? <img src={me.photo} alt="" /> : me.org ? <SvgString html={PEOPLE_ICON} /> : me.ini}<span className="st-dot" style={{ ["--sc" as string]: dot }} /></>;
       case "whoName": return me.short;
       case "whoRole": return t(roleOf(me, acc.prof));
       default: return fb;

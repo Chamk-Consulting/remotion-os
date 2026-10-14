@@ -9,6 +9,9 @@ import { SvgString } from "@/os/shell/svg";
 import { Glyph, useDkName } from "./Glyph";
 import { dkExt, fmtSize, type Item } from "./model";
 import { desktopApi } from "./api";
+import { fsFind } from "./fs";
+import { dkMenuShow } from "@/os/menu/DkMenu";
+import { osActions } from "@/os/actions";
 import { useDkWins, openDkWin, type DkWinState } from "./windows";
 
 const X = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>';
@@ -84,16 +87,26 @@ function OneWin({ w }: { w: DkWinState }) {
       </DkWin>
     );
   }
-  const r = dkFindAll(items, w.id);
+  // Shortcuts to Files-app documents open their target, which lives outside the desktop (fsFind, L11863).
+  const r = dkFindAll(items, w.id) ?? (() => { const f = fsFind(w.id); return f ? { it: f.node, list: f.list } : null; })();
   if (!r) return null;
   const it = r.it;
+  /** Folder-window item menu (L11501) and dkOutOfFolder (L11503). Delete has no toast/undo, as in the source. */
+  const kidMenu = (x: number, y: number, folder: Item, kid: Item, el: HTMLElement) => dkMenuShow(x, y, [
+    { l: t("dkOpen"), run: () => desktopApi.open(kid, el) },
+    { l: t("dkMoveOut"), run: () => { s.mutate(() => { folder.kids = (folder.kids || []).filter((z) => z !== kid); }); desktopApi.add({ ...kid }, (folder.c ?? 0) + 1, folder.r ?? 0, true); } },
+    ...(kid.type === "doc" ? [{ l: t("dkAskAI"), ai: true, run: () => osActions.askAI(kid) }] : []),
+    "-",
+    { l: t("dkDelete"), danger: true, run: () => { s.mutate((st) => { folder.kids = (folder.kids || []).filter((z) => z !== kid); st.trash.unshift({ ...kid, from: st.cur, at: Date.now() }); }, { save: true, trash: true }); popTrashBtn(); } },
+  ]);
   if (w.kind === "folder") {
     const k = it.kids || [];
     return (
       <DkWin w={w} title={it.name!} icon={<SvgString html={FOLD_IC} />} width={520}>
         {k.length ? <><div className="dk-fgrid">{k.map((x) => (
           <button key={x.id} type="button" className="dk-ic in" data-kid={x.id} data-fid={it.id} title={dkName(x)}
-            onDoubleClick={(e) => { if (x.type === "app" || x.type === "link") s.showToast(t("opened", { x: dkName(x) })); else openDkWin(x.type === "folder" ? { kind: "folder", id: x.id } : { kind: "ql", id: x.id }, e.currentTarget); }}>
+            onContextMenu={(e) => { e.preventDefault(); const el = e.currentTarget; kidMenu(e.clientX, e.clientY, it, x, el); }}
+            onDoubleClick={(e) => desktopApi.open(x, e.currentTarget)}>
             <Glyph it={x} size={46} /><span className="nm" dir="auto">{dkName(x)}</span></button>))}</div>
           <p className="dk-wfoot">{k.length === 1 ? t("dkItem1") : t("dkItems", { n: nf(k.length) })}</p></>
           : <p className="dk-wempty"><SvgString html={FOLD_IC} /><span>{t("dkFolderEmpty")}</span></p>}
@@ -114,6 +127,7 @@ function OneWin({ w }: { w: DkWinState }) {
 }
 function QlRow({ k, v }: { k: string; v: string }) { return <><dt>{k}</dt><dd dir="auto">{v}</dd></>; }
 
+function popTrashBtn() { const tb = document.querySelector<HTMLElement>('#dock [data-t="trash"]'); if (tb && !reducedMotion()) tb.animate([{ transform: "scale(1)" }, { transform: "scale(1.2) rotate(-6deg)" }, { transform: "none" }], { duration: 450, easing: "cubic-bezier(.2,1.4,.3,1)" }); }
 /** Dock trash: full state + click opens the trash window (L11504–L11516). */
 export function useTrashDock() {
   const n = useShell((s) => s.trash.length);
