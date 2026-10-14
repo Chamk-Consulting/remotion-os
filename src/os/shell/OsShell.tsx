@@ -15,6 +15,8 @@ import { Dock } from "./Dock";
 import { Toast } from "./Toast";
 import { DesktopLayer } from "@/os/desktop/DesktopLayer";
 import { DkWindows, useTrashDock } from "@/os/desktop/DkWindows";
+import { DesktopsPanel } from "@/os/desktop/DesktopsPanel";
+import { OsMenuRoot } from "@/os/menu/OsMenu";
 
 // OSI.chev (L11626), used by the rail peek button (L11930).
 const RAIL_PEEK = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>';
@@ -44,10 +46,11 @@ export function OsShell() {
           <Dock />
         </main>
         <div className="scrim" id="scrim" onClick={() => s.setDesksOpen(false)}></div>
-        <footer className="desks" id="desks" aria-label="Desktops"></footer>
+        <DesktopsPanel />
         <DkWindows />
       </div>
       <Toast />
+      <OsMenuRoot />
       <button type="button" className={"rail-peek" + (s.iconsHidden ? " show" : "")} aria-label={t("sbShow")} title={t("sbShow") + " (Ctrl+B)"} dangerouslySetInnerHTML={{ __html: RAIL_PEEK }} />
     </>
   );

@@ -43,6 +43,10 @@ type ShellState = {
   toast: { msg: string; n: number; undo?: () => void } | null;
   /* desktop layer (B-08) */
   trash: TrashItem[]; dkView: DkView; fs: FsData; apps: AppStore; sel: Set<string>; rev: number;
+  /** Desktop whose icons the layer currently shows; lags `cur` by the slide delay like the source's dkSwitch (L11328). */
+  shownDesk: number; iconAnim: number;
+  /** Desktop whose wallpaper is painted on #wall (lags `cur` during the reduced-motion fade, L7814). */
+  wallDesk: number;
   /** Runs `fn` on the live objects (ported source code mutates in place), then publishes a new revision. */
   mutate: (fn: (st: ShellState) => void, opts?: { save?: boolean; trash?: boolean; fs?: boolean; apps?: boolean }) => void;
   setSel: (ids: string[], add?: boolean) => void;
@@ -64,14 +68,14 @@ export const useShell = create<ShellState>((set, get) => ({
   wsOpen: true, langOpen: false, desksOpen: false,
   iconsHidden: false, widgetsHidden: false,
   toast: null,
-  trash: [], dkView: { size: "m", align: true, icons: true }, fs: {} as FsData, apps: AL_DEFAULT, sel: new Set(), rev: 0,
+  trash: [], dkView: { size: "m", align: true, icons: true }, fs: {} as FsData, apps: AL_DEFAULT, sel: new Set(), rev: 0, shownDesk: 0, iconAnim: 1, wallDesk: 0,
   mutate: (fn, opts = { save: true }) => {
     const st = get(); fn(st);
     if (opts.save !== false) writeJSON(STORAGE_KEYS.desks, { l: st.desks, c: st.cur });
     if (opts.trash) writeJSON(STORAGE_KEYS.trash, st.trash);
     if (opts.fs) writeJSON(STORAGE_KEYS.fs, st.fs);
     if (opts.apps) writeJSON(STORAGE_KEYS.apps, st.apps);
-    set({ desks: [...st.desks], trash: [...st.trash], rev: st.rev + 1 });
+    set({ desks: [...st.desks], trash: [...st.trash], rev: st.rev + 1, iconAnim: 0 });
   },
   setSel: (ids, add) => { const sel = add ? new Set(get().sel) : new Set<string>(); ids.forEach((i) => sel.add(i)); set({ sel }); },
   init: () => {
@@ -90,7 +94,7 @@ export const useShell = create<ShellState>((set, get) => ({
     seedV1(desks, t, flags); writeJSON(STORAGE_KEYS.desks, { l: desks, c: cur }); // the source saves after v1 normalisation
     if (seedV2(desks, t, flags)) writeJSON(STORAGE_KEYS.desks, { l: desks, c: cur });
     for (const sd of APP_SEEDS) { const r = seedApp(desks, apps, sd, flags); if (r.apps) writeJSON(STORAGE_KEYS.apps, apps); if (r.desks) writeJSON(STORAGE_KEYS.desks, { l: desks, c: cur }); }
-    set({ booted: true, desks, cur, isDark: th.dark, themeMode: th.mode, wsOpen: innerWidth >= 860, iconsHidden: !railOn, widgetsHidden: !desks[cur]?.w, trash, dkView, fs, apps });
+    set({ booted: true, desks, cur, isDark: th.dark, themeMode: th.mode, wsOpen: innerWidth >= 860, iconsHidden: !railOn, widgetsHidden: !desks[cur]?.w, trash, dkView, fs, apps, shownDesk: cur, wallDesk: cur });
   },
   setTheme: (dark) => { document.documentElement.classList.toggle("dark", dark); document.documentElement.classList.toggle("light", !dark); set({ isDark: dark }); },
   setThemeMode: (m) => { try { if (m === "auto") localStorage.removeItem(STORAGE_KEYS.theme); else localStorage.setItem(STORAGE_KEYS.theme, m); } catch {} set({ themeMode: m }); },

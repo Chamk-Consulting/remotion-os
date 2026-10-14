@@ -1,4 +1,5 @@
 "use client";
+import { stopAll } from "@/lib/events";
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useI18n, setLang } from "@/lib/i18n/I18nProvider";
 import { LANGS, type Lang } from "@/lib/i18n/langs";
@@ -78,9 +79,9 @@ export function TopBar() {
 
   const p = (id: string): Record<string, unknown> => {
     switch (id) {
-      case "wsBtn": return { className: s.wsOpen ? "on" : "", "aria-expanded": s.wsOpen, onClick: (e: React.MouseEvent) => { e.stopPropagation(); const open = !s.wsOpen; s.closeAll(); s.setWs(open); } };
-      case "deskBtn": return { className: s.desksOpen ? "on" : undefined, "aria-expanded": s.desksOpen, onClick: (e: React.MouseEvent) => { e.stopPropagation(); const open = !s.desksOpen; s.closeAll(); s.setDesksOpen(open); } };
-      case "langBtn": return { className: s.langOpen ? "on" : undefined, "aria-expanded": s.langOpen, onClick: (e: React.MouseEvent) => { e.stopPropagation(); const open = !s.langOpen; s.closeAll(); s.setLangMenu(open); } };
+      case "wsBtn": return { className: s.wsOpen ? "on" : "", "aria-expanded": s.wsOpen, onClick: (e: React.MouseEvent) => { stopAll(e); const open = !s.wsOpen; s.closeAll(); s.setWs(open); } };
+      case "deskBtn": return { className: s.desksOpen ? "on" : undefined, "aria-expanded": s.desksOpen, onClick: (e: React.MouseEvent) => { stopAll(e); const open = !s.desksOpen; s.closeAll(); s.setDesksOpen(open); } };
+      case "langBtn": return { className: s.langOpen ? "on" : undefined, "aria-expanded": s.langOpen, onClick: (e: React.MouseEvent) => { stopAll(e); const open = !s.langOpen; s.closeAll(); s.setLangMenu(open); } };
       case "langMenu": return { className: "pop langmenu" + (s.langOpen ? "" : " closed") };
       case "themeBtn": return { ref: themeRef, onClick: () => { const dark = !s.isDark; s.setThemeMode(dark ? "dark" : "light"); if (dark !== s.isDark) animateTheme(dark); } };
       case "whoAv": return { className: "avatar" + (me.org ? " org" : ""), style: { background: me.bg } };
@@ -93,7 +94,7 @@ export function TopBar() {
       case "langCode": return lang.toUpperCase();
       case "langMenu": return (Object.entries(LANGS) as [Lang, (typeof LANGS)[Lang]][]).map(([k, v]) => (
         <button key={k} role="menuitemradio" aria-checked={k === lang} data-lang={k} lang={k}
-          onClick={(e) => { e.stopPropagation(); s.setLangMenu(false); switchLang(k, lang, () => useShell.getState().showToast(translate(k, "langSet", { x: LANGS[k].name }))); }}>
+          onClick={(e) => { stopAll(e); s.setLangMenu(false); switchLang(k, lang, () => useShell.getState().showToast(translate(k, "langSet", { x: LANGS[k].name }))); }}>
           <span className="code">{k.toUpperCase()}</span>{v.name}{k === lang ? <SvgString html={CK} /> : null}
         </button>))
       ;

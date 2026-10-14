@@ -1,4 +1,5 @@
 "use client";
+import { stopAll } from "@/lib/events";
 /**
  * Free desktop icon layer (B-08) — port of L11274–L11460 + view options (L11760–L11765).
  * React renders the icons; pointer drags move them imperatively (as the source does) and commit to the store on drop.
@@ -28,7 +29,7 @@ export function DesktopLayer() {
   const { t, nf } = useI18n();
   const dkName = useDkName();
   const s = useShell();
-  const desk = s.desks[s.cur];
+  const desk = s.desks[s.shownDesk] ?? s.desks[s.cur];
   const items = desk?.items ?? [];
   const layer = useRef<HTMLDivElement | null>(null);
   const geo = useRef<Geo | null>(null);
@@ -230,7 +231,7 @@ export function DesktopLayer() {
         const p = posOf(it, g), sc = it.type === "app" || it.type === "link", on = s.sel.has(it.id);
         return (
           <button key={it.id} type="button" className={"dk-ic" + (on ? " dk-on" : "") + (settle ? " settle" : "")} role="option" aria-selected={on} data-id={it.id} title={dkName(it)}
-            style={{ ["--i" as string]: s.booted ? i : 0, transform: p ? `translate(${p.x}px,${p.y}px)` : undefined }}>
+            style={{ ["--i" as string]: i, animation: s.iconAnim ? undefined : "none", transform: p ? `translate(${p.x}px,${p.y}px)` : undefined }}>
             <Glyph it={it} />
             {sc ? <i className="sc" aria-hidden="true"><SvgString html={SC_ARROW} /></i> : null}
             {renaming === it.id ? <RenameBox it={it} onDone={(v) => { setRenaming(null); if (v && v !== it.name) s.mutate(() => { it.name = v; }); requestAnimationFrame(() => elOf(it.id)?.focus()); }} />
@@ -251,8 +252,8 @@ function RenameBox({ it, onDone }: { it: Item; onDone: (v: string | null) => voi
   useEffect(() => { const ta = ref.current!; ta.focus(); const ext = dkExt(it.name); ta.setSelectionRange(0, ext && it.type === "doc" ? it.name!.length - ext.length - 1 : it.name!.length); }, [it]);
   const fin = (save: boolean) => { if (done.current) return; done.current = true; const v = ref.current!.value.replace(/\s+/g, " ").trim(); onDone(save && v ? v : null); };
   return <textarea ref={ref} className="dk-ren" defaultValue={it.name} rows={2} maxLength={80} aria-label={t("dkRename")} dir="auto"
-    onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") { e.preventDefault(); fin(true); } else if (e.key === "Escape") { e.preventDefault(); fin(false); } }}
-    onBlur={() => fin(true)} onPointerDown={(e) => e.stopPropagation()} />;
+    onKeyDown={(e) => { stopAll(e); if (e.key === "Enter") { e.preventDefault(); fin(true); } else if (e.key === "Escape") { e.preventDefault(); fin(false); } }}
+    onBlur={() => fin(true)} onPointerDown={(e) => stopAll(e)} />;
 }
 // Re-exported for menus and other callers (port of dkCellAt).
 export { dkCellAt };

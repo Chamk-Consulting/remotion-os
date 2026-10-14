@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { useShell } from "@/os/state/shell";
 import { paint, sceneFor } from "./wallpaper";
 
@@ -7,8 +7,9 @@ import { paint, sceneFor } from "./wallpaper";
 export function Wallpaper() {
   const ref = useRef<HTMLCanvasElement | null>(null);
   const isDark = useShell((s) => s.isDark);
-  const scene = useShell((s) => s.desks[s.cur]?.s ?? s.cur);
-  useEffect(() => {
+  const scene = useShell((s) => s.desks[s.wallDesk]?.s ?? s.wallDesk);
+  // Layout effect: the new scene must be painted synchronously when a desktop slide starts (slideSpace clones the old one first).
+  useLayoutEffect(() => {
     const draw = () => { const c = ref.current; if (!c) return; const d = Math.min(devicePixelRatio || 1, 2); c.width = innerWidth * d; c.height = innerHeight * d; paint(c, sceneFor(scene, isDark), c.width, c.height); };
     draw(); let tm: ReturnType<typeof setTimeout>;
     const on = () => { clearTimeout(tm); tm = setTimeout(draw, 150); };

@@ -1,4 +1,5 @@
 "use client";
+import { stopAll } from "@/lib/events";
 /** Port of dkWin + folder window, Quick Look and trash window (L11461–L11515). */
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n/I18nProvider";
@@ -39,7 +40,7 @@ function DkWin({ w, title, icon, width, cls = "", children }: { w: DkWinState; t
   const d = useRef<{ x: number; y: number } | null>(null);
   return (
     <section ref={ref} className={"dk-win " + cls} data-key={w.key} role="dialog" aria-label={title} style={{ width: W, left: pos.left, top: pos.top }}
-      onPointerDownCapture={() => front(w.key)} onKeyDownCapture={(e) => { if (e.key === "Escape") { e.stopPropagation(); doClose(); } }}>
+      onPointerDownCapture={() => front(w.key)} onKeyDownCapture={(e) => { if (e.key === "Escape") { stopAll(e); doClose(); } }}>
       <header className="dk-wh"
         onPointerDown={(e) => { if ((e.target as Element).closest("button")) return; const el = ref.current!; d.current = { x: e.clientX - el.offsetLeft, y: e.clientY - el.offsetTop }; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); el.classList.add("moving"); }}
         onPointerMove={(e) => { if (!d.current) return; const el = ref.current!; const l = Math.max(-W + 80, Math.min(innerWidth - 80, e.clientX - d.current.x)), tp = Math.max(58, Math.min(innerHeight - 50, e.clientY - d.current.y)); el.style.left = l + "px"; el.style.top = tp + "px"; }}
