@@ -3,6 +3,8 @@ import { useEffect, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { resolveApp, type AppKey } from "@/apps/registry";
 import { LegacyBridge } from "./LegacyBridge";
+import { I18nProvider } from "@/lib/i18n/I18nProvider";
+import { OsShell } from "./shell/OsShell";
 
 const noop = () => () => {};
 /** Client-only value: the OS needs window/localStorage (ADR-02); the server renders nothing. */
@@ -21,5 +23,7 @@ export function OsEntry({ appKey }: { appKey?: AppKey }) {
   const redirect = isClient && !appKey ? hashTarget() : null;
   useEffect(() => { if (redirect) router.replace(`/apps/${redirect.key}`); }, [redirect, router]);
   if (!isClient || redirect) return null;
+  // Preview of the React shell (Phase B, behind a flag until parity): /?shell=react
+  if (!appKey && new URLSearchParams(location.search).get("shell") === "react") return <I18nProvider><OsShell /></I18nProvider>;
   return <LegacyBridge app={appKey ? resolveApp(appKey) : null} />;
 }
