@@ -13,6 +13,8 @@ import { WorkspaceMenu } from "./WorkspaceMenu";
 import { Widgets } from "./Widgets";
 import { Dock } from "./Dock";
 import { Toast } from "./Toast";
+import { DesktopLayer } from "@/os/desktop/DesktopLayer";
+import { DkWindows, useTrashDock } from "@/os/desktop/DkWindows";
 
 // OSI.chev (L11626), used by the rail peek button (L11930).
 const RAIL_PEEK = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>';
@@ -21,6 +23,7 @@ export function OsShell() {
   const s = useShell();
   const { t } = useI18n();
   useEffect(() => { s.init(); }, [s]);
+  useTrashDock();
   // Escape closes the shell menus (source L7976).
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if (e.key === "Escape") useShell.getState().closeAll(); };
@@ -35,12 +38,14 @@ export function OsShell() {
         <TopBar />
         <main className="main">
           <Rail />
+          <DesktopLayer />
           <WorkspaceMenu />
           <Widgets />
           <Dock />
         </main>
         <div className="scrim" id="scrim" onClick={() => s.setDesksOpen(false)}></div>
         <footer className="desks" id="desks" aria-label="Desktops"></footer>
+        <DkWindows />
       </div>
       <Toast />
       <button type="button" className={"rail-peek" + (s.iconsHidden ? " show" : "")} aria-label={t("sbShow")} title={t("sbShow") + " (Ctrl+B)"} dangerouslySetInnerHTML={{ __html: RAIL_PEEK }} />

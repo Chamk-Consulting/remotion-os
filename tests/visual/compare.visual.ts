@@ -19,7 +19,9 @@ for (const s of SCENES) {
     await page.clock.setFixedTime(FIXED_NOW);
     await serveGoogleFontsLocally(page); await page.route(/cdnjs/, (r) => r.abort());
     await seed(page, s);
-    await page.goto(s.app ? `/apps/${s.app}` : "/");
+    // SHELL=react compares the React shell preview (Phase B) instead of the bridge for desktop scenes.
+    if (process.env.SHELL_PREVIEW && s.app) test.skip(true, "apps still run through the bridge");
+    await page.goto(s.app ? `/apps/${s.app}` : process.env.SHELL_PREVIEW ? "/?shell=react" : "/");
     await page.waitForTimeout(800);
     for (const f of page.frames()) await f.evaluate(() => document.fonts.ready).catch(() => {});
     await page.waitForTimeout(2500);
@@ -28,7 +30,8 @@ for (const s of SCENES) {
     const diff = new PNG({ width: ref.width, height: ref.height });
     const n = pixelmatch(ref.data, shot.data, diff.data, ref.width, ref.height, { threshold: 0.1 });
     const ratio = n / (ref.width * ref.height);
-    if (ratio > 0) { fs.writeFileSync(`test-results/visual/${s.name}.diff.png`, PNG.sync.write(diff)); fs.writeFileSync(`test-results/visual/${s.name}.actual.png`, PNG.sync.write(shot)); }
+    const tag = process.env.SHELL_PREVIEW ? ".react" : "";
+    if (ratio > 0) { fs.writeFileSync(`test-results/visual/${s.name}${tag}.diff.png`, PNG.sync.write(diff)); fs.writeFileSync(`test-results/visual/${s.name}${tag}.actual.png`, PNG.sync.write(shot)); }
     console.log(`${s.name}: ${(ratio * 100).toFixed(3)} % differing`);
     expect(ratio).toBeLessThanOrEqual(0.001);
     await ctx.close();

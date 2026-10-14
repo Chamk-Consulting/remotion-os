@@ -6,8 +6,12 @@
 import { create } from "zustand";
 import { STORAGE_KEYS, readJSON, writeJSON } from "@/lib/storage/keys";
 import { scenes } from "@/os/shell/wallpaper";
+import { AL_DEFAULT, APP_SEEDS, seedApp, seedFs, seedV1, seedV2, type AppStore, type FsData, type Item, type TrashItem, type Flags } from "@/os/desktop/model";
+import { translate } from "@/lib/i18n/core";
+import { isLang } from "@/lib/i18n/langs";
 
-export type Desk = { n: string; s: number; items?: unknown[]; w?: boolean; _id?: string };
+export type Desk = { n: string; s: number; items?: Item[]; w?: boolean; _id?: string };
+export type DkView = { size: "s" | "m" | "l"; align: boolean; icons: boolean };
 export type Workspace = { k?: string; n?: number };
 type ThemeMode = "light" | "dark" | "auto";
 
@@ -37,6 +41,11 @@ type ShellState = {
   wsOpen: boolean; langOpen: boolean; desksOpen: boolean;
   iconsHidden: boolean; widgetsHidden: boolean;
   toast: { msg: string; n: number; undo?: () => void } | null;
+  /* desktop layer (B-08) */
+  trash: TrashItem[]; dkView: DkView; fs: FsData; apps: AppStore; sel: Set<string>; rev: number;
+  /** Runs `fn` on the live objects (ported source code mutates in place), then publishes a new revision. */
+  mutate: (fn: (st: ShellState) => void, opts?: { save?: boolean; trash?: boolean; fs?: boolean; apps?: boolean }) => void;
+  setSel: (ids: string[], add?: boolean) => void;
   init: () => void;
   setTheme: (dark: boolean) => void; setThemeMode: (m: ThemeMode) => void;
   setWs: (open: boolean) => void; setLangMenu: (open: boolean) => void; setDesksOpen: (open: boolean) => void;
@@ -55,11 +64,33 @@ export const useShell = create<ShellState>((set, get) => ({
   wsOpen: true, langOpen: false, desksOpen: false,
   iconsHidden: false, widgetsHidden: false,
   toast: null,
+  trash: [], dkView: { size: "m", align: true, icons: true }, fs: {} as FsData, apps: AL_DEFAULT, sel: new Set(), rev: 0,
+  mutate: (fn, opts = { save: true }) => {
+    const st = get(); fn(st);
+    if (opts.save !== false) writeJSON(STORAGE_KEYS.desks, { l: st.desks, c: st.cur });
+    if (opts.trash) writeJSON(STORAGE_KEYS.trash, st.trash);
+    if (opts.fs) writeJSON(STORAGE_KEYS.fs, st.fs);
+    if (opts.apps) writeJSON(STORAGE_KEYS.apps, st.apps);
+    set({ desks: [...st.desks], trash: [...st.trash], rev: st.rev + 1 });
+  },
+  setSel: (ids, add) => { const sel = add ? new Set(get().sel) : new Set<string>(); ids.forEach((i) => sel.add(i)); set({ sel }); },
   init: () => {
     if (get().booted) return;
     const { desks, cur } = loadDesks(); const th = loadTheme();
     let railOn = false; try { railOn = localStorage.getItem(STORAGE_KEYS.rail) === "1"; } catch {}
-    set({ booted: true, desks, cur, isDark: th.dark, themeMode: th.mode, wsOpen: innerWidth >= 860, iconsHidden: !railOn, widgetsHidden: desks[cur]?.w === false });
+    // Boot-time seeds in source script order (B-08): v1 (L11272), v2 design (L11782), then each app's shortcut.
+    let lang: string | null = null; try { lang = localStorage.getItem(STORAGE_KEYS.lang); } catch {}
+    const L = isLang(lang) ? lang : "en"; const t = (k: string, v?: Record<string, string | number>) => translate(L, k, v);
+    const flags: Flags = { has: (k) => { try { return !!localStorage.getItem(k); } catch { return false; } }, set: (k) => { try { localStorage.setItem(k, "1"); } catch {} } };
+    const trash = readJSON<TrashItem[]>(STORAGE_KEYS.trash, []).slice(0, 60);
+    const dkView: DkView = { size: "m", align: true, icons: true, ...readJSON<Partial<DkView>>(STORAGE_KEYS.dkView, {}) };
+    const fsRaw = readJSON<FsData | null>(STORAGE_KEYS.fs, null); const fs = fsRaw && typeof fsRaw === "object" ? fsRaw : seedFs();
+    const sa = readJSON<Partial<AppStore> | null>(STORAGE_KEYS.apps, null);
+    const apps: AppStore = sa ? { inst: sa.inst || {}, fav: sa.fav || {}, recent: Array.isArray(sa.recent) ? sa.recent : [] } : structuredClone(AL_DEFAULT);
+    seedV1(desks, t, flags); writeJSON(STORAGE_KEYS.desks, { l: desks, c: cur }); // the source saves after v1 normalisation
+    if (seedV2(desks, t, flags)) writeJSON(STORAGE_KEYS.desks, { l: desks, c: cur });
+    for (const sd of APP_SEEDS) { const r = seedApp(desks, apps, sd, flags); if (r.apps) writeJSON(STORAGE_KEYS.apps, apps); if (r.desks) writeJSON(STORAGE_KEYS.desks, { l: desks, c: cur }); }
+    set({ booted: true, desks, cur, isDark: th.dark, themeMode: th.mode, wsOpen: innerWidth >= 860, iconsHidden: !railOn, widgetsHidden: !desks[cur]?.w, trash, dkView, fs, apps });
   },
   setTheme: (dark) => { document.documentElement.classList.toggle("dark", dark); document.documentElement.classList.toggle("light", !dark); set({ isDark: dark }); },
   setThemeMode: (m) => { try { if (m === "auto") localStorage.removeItem(STORAGE_KEYS.theme); else localStorage.setItem(STORAGE_KEYS.theme, m); } catch {} set({ themeMode: m }); },
