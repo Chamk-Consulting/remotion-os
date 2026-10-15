@@ -191,7 +191,7 @@ function hrSeed(){const t=hrIso(new Date());const A=(n: number)=>hrAdd(t,n);
    E("e12","EMP-0012","Nathan","Perrin","M.","Infirmier","d2","s1","Soins – équipe A","e6","cdd","2025-12-01","2026-06-30","","left",100,35,280000,{birth:"1994-08-16",docs:[doc("contract","2025-12-01","Contrat CDD – N. Perrin.pdf",151e3)],x:{leftOn:"2026-06-30"}}));
   S.audit.push({id:"a0",ts:new Date().toISOString(),role:"admin",user:"Nassim",act:"seed",ref:"",detail:"Données de démonstration fictives (12 employés)"});
   return S}
-function hrSt(){if(HR.st)return HR.st;let s=null;try{s=JSON.parse(localStorage.getItem(HR_KEY)||"null")}catch{HR.loadErr=true}if(!s||s.v!==1||!Array.isArray(s.emps)){if(s&&!Array.isArray(s?.emps))HR.loadErr=true;s=hrSeed()}HR.st=s;return s}
+function hrSt(): HrState{if(HR.st)return HR.st;let s=null;try{s=JSON.parse(localStorage.getItem(HR_KEY)||"null")}catch{HR.loadErr=true}if(!s||s.v!==1||!Array.isArray(s.emps)){if(s&&!Array.isArray(s?.emps))HR.loadErr=true;s=hrSeed()}HR.st=s;return s}
 function hrSave(now?: boolean){clearTimeout(HR.t);const go=()=>{try{localStorage.setItem(HR_KEY,JSON.stringify(HR.st))}catch(e){console.warn("hr save",e)}};if(now)go();else HR.t=setTimeout(go,200)}
 function hrReset(){HR.st=hrSeed();HR.loadErr=false;hrSave(true)}
 
@@ -699,4 +699,4 @@ export function hrRender(anim: boolean) { try { hrSt(); if (HR.ui.group === unde
 
 /* ---------- OS integration (replaces L24424–L24441: the React window wiring is in HrApp.tsx) ---------- */
 HR.ui.cards = null;
-export { HR, hrSt, hrSave, hrSize, hrInk, hrListPaint, hrW, hrRoot };
+export { HR, hrSt, hrSave, hrSize, hrInk, hrListPaint, hrW, hrRoot, hrE, hri, hrRM, hrNf, hrCount, HRI };

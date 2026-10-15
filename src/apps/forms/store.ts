@@ -9,11 +9,12 @@
  * source's own text with types added, including the later wrapper (L14340) that makes feLoad seed the reusable
  * blocks (L13866) and save — a first read by another app writes `remotion-forms`, as in the source.
  */
-import { translate } from "@/lib/i18n/core";
-import { isLang } from "@/lib/i18n/langs";
+import { I18N, translate } from "@/lib/i18n/core";
+import { isLang, type Lang } from "@/lib/i18n/langs";
 
 /** t (L7507) in the current OS language, for the reusable-block names. */
-const t = (k: string) => { const h = document.documentElement.lang; return translate(isLang(h) ? h : "en", k); };
+const lang = (): Lang => { const h = document.documentElement.lang; return isLang(h) ? h : "en"; };
+const t = (k: string) => translate(lang(), k);
 /** FE.mem (L12488): the uploaded images kept in memory when storage is full. */
 const FE_MEM: { mem?: Record<string, unknown> } = {};
 export type FeField = { id: string; type: string; label: unknown; key: string; fields?: FeField[]; [k: string]: unknown };
@@ -116,6 +117,14 @@ export function feBlocksSeed(){const F=feField;return [
   {id:"b4",name:t("fe_blk4"),desc:t("fe_blk4d"),scope:"priv",ver:1,upd:Date.now()-864e5,fields:[F("sat","fe_fSat",{key:"satisfaction"}),F("nps","fe_fNps",{key:"nps"}),F("textarea","fe_fComments",{key:"commentaires"})],cols:1}]}
 export function feBlocksEnsure():void{if(!Array.isArray(feS!.blocks)){feS!.blocks=feBlocksSeed();feSave()}if(!Array.isArray(feS!.favs))feS!.favs=[];if(!Array.isArray(feS!.recent))feS!.recent=[]}
 {const _ld0=feLoad;feLoad=function(){_ld0();feBlocksEnsure()}}
+
+/* ---------- names in the current language (L12406–L12408, L12491–L12493) ---------- */
+const feTx=(k: string,L: string,vars?: Record<string, string>)=>{const d=I18N[L as Lang]||I18N.fr;let s=d[k]??I18N.en[k]??I18N.fr[k]??k;if(vars)for(const v in vars)s=s.split("{"+v+"}").join(vars[v]);return s};
+const feCL=(): string=>(feDoc()?.lang as string | undefined)||lang();
+export const fv=(v: unknown,L?: string): string=>{if(v&&typeof v==="object"){const l=L||feCL();const o=v as Record<string, string>;return o[l]||o.fr||o.en||Object.values(o).find(Boolean)||""}return typeof v==="string"&&v.startsWith("fe_")&&I18N.fr[v]!==undefined?feTx(v,L||feCL()):((v as string)??"")};
+export const feDoc=()=>{if(!feS)return null;let d=feS.docs[feS.cur];if(!d){const e=feEntry(feS.cur);d=feS.docs[feS.cur]=feMakeDoc(e?.kind||"blank",e?.name);if(e&&e.status==="pub"){d.status="pub";d.everPub=true}}return d};
+export const feEntry=(id: string)=>feS!.forms.find(f=>f.id===id);
+export const feName=(e: FeEntryT)=>{const d=feS!.docs[e.id];return fv(d?d.title:e.name||"fe_untitled",lang())};
 
 /** The Forms app writes `remotion-forms` from its own document: drop the cached copy so the next feLoad re-reads it. */
 if (typeof window !== "undefined") window.addEventListener("storage", (e) => { if (e.key === "remotion-forms" || e.key === null) feS = null; });

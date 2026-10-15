@@ -37,7 +37,9 @@ registerNativeApp("billing", {
   onResize: () => { biSize(); biInk(false); biFitDocs(); },
 });
 
-// L23806: another tab changed the billing store while the window is open → reload it and repaint the page.
+// L23806: another document changed the billing store while the window is open → reload it and repaint the page.
+// While the window is closed the cached copy is dropped too: bridged apps (other documents, e.g. Calendar's billing
+// consumer) write the same key, and a stale copy would be saved back over their changes.
 if (typeof window !== "undefined") {
-  addEventListener("storage", (e) => { if (e.key !== BI_KEY || !useWm.getState().wins.billing) return; try { BI.st = null; biSt(); biRefresh(); } catch {} });
+  addEventListener("storage", (e) => { if (e.key !== BI_KEY) return; if (!useWm.getState().wins.billing) { BI.st = null; return; } try { BI.st = null; biSt(); biRefresh(); } catch {} });
 }

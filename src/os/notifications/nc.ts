@@ -24,7 +24,7 @@ export const TODAY_EVENTS = raw.TODAY_EVENTS as [string, number, number, number,
 export type X = { t: (k: string, v?: Record<string, string | number>) => string; nf: (n: number) => string; fmtT: (ms: number | Date) => string; fmtD: (ms: number | Date) => string; money: (v: number) => string; dayLabel: (ms: number) => string };
 type Txt = string | ((n: NcItem, x: X) => string);
 export type Field = [ic: string, label: string, value: string, raw?: 1];
-export type NcItem = { id: number; kind: string; pri: string; t: Txt; s: Txt; d: Txt; at: number; unread: boolean; f: (n: NcItem, x: X) => Field[]; snoozed?: boolean; installed?: boolean; busy?: boolean; open?: () => void };
+export type NcItem = { id: number; kind: string; pri: string; t: Txt; s: Txt; d: Txt; at: number; unread: boolean; f: (n: NcItem, x: X) => Field[]; snoozed?: boolean; installed?: boolean; busy?: boolean; open?: (() => void) | null };
 
 const lang = () => { const h = document.documentElement.lang; return isLang(h) ? h : "en"; };
 export function helpers(): X {

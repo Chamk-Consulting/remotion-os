@@ -368,7 +368,7 @@ function biLegalVer(){const S=BI.st;S!.legalVers=S!.legalVers||{};const j=JSON.s
 const biSnapLegal=(snap: BiSnapT)=>(BI.st!.legalVers||{})[snap.legal]||BI.st!.legal;
 /* ---------- store ---------- */
 function biSave(now?: boolean){clearTimeout(BI.t);const go=()=>{try{localStorage.setItem(BI_KEY,JSON.stringify(BI.st))}catch(e){console.warn("billing save",e)}};if(now)go();else BI.t=setTimeout(go,200)}
-function biSt(){if(BI.st)return BI.st;let s=null;try{s=JSON.parse(localStorage.getItem(BI_KEY)||"null")}catch(e){}if(!s||s.v!==1)s=biSeed();BI.st=s;return s}
+function biSt(): BiState{if(BI.st)return BI.st;let s=null;try{s=JSON.parse(localStorage.getItem(BI_KEY)||"null")}catch(e){}if(!s||s.v!==1)s=biSeed();BI.st=s;return s}
 function biReset(){BI.st=biSeed();biSave(true)}
 /* ===== v61 · Facturation & Revenus — synthetic demonstration data (every person, price and organisation here is fictitious) ===== */
 function biRng(seed: number){let a=seed>>>0;return ()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
@@ -1344,4 +1344,4 @@ const BI_DOC_CSS=`.bi-doc{--acc:#e8590c;position:relative;box-sizing:border-box;
 pendingGlobal.push(()=>{if(document.getElementById("bi-doc-css"))return;const s=document.createElement("style");s.id="bi-doc-css";s.textContent=BI_DOC_CSS;document.head.appendChild(s)});
 
 /* ---------- used by the React window wiring (BillingApp.tsx) and the tests ---------- */
-export { BI, BI_KEY, BiErr, biSt, biSave, biReset, biRoot, biRender, biRefresh, biSize, biInk, biFitDocs, biEdLeave, biW, biDivRound, biMulRound, biParseMoney, biParseQty, biLine, biTotals, biM };
+export { BI, BI_KEY, BiErr, biSt, biSave, biReset, biRoot, biRender, biRefresh, biSize, biInk, biFitDocs, biEdLeave, biW, biDivRound, biMulRound, biParseMoney, biParseQty, biLine, biTotals, biM, biBal, biOverdue, biGo };

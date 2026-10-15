@@ -22,7 +22,7 @@ for (const s of SCENES) {
     // SHELL=react compares the React shell preview (Phase B) instead of the bridge for desktop scenes.
     // SHELL_PREVIEW: the React shell (default since slice 11; app bodies still come through the bridge inside OS windows).
     // Otherwise: the whole legacy OS through the bridge (`?shell=legacy`), kept as the rollback path.
-    const q = process.env.SHELL_PREVIEW ? "" : "?shell=legacy";
+    const q = process.env.SHELL_PREVIEW ? (s.query ? "?" + s.query : "") : "?shell=legacy";
     await page.goto((s.app ? `/apps/${s.app}` : "/") + q);
     await page.waitForTimeout(800);
     for (const f of page.frames()) await f.evaluate(() => document.fonts.ready).catch(() => {});
