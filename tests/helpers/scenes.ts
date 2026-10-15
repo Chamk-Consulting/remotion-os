@@ -11,6 +11,9 @@ const rightClick = async (root: Root, page: Page, sel: string) => { const b = (a
 const subOpen = async (root: Root, lvl: number, label: string) => { await root.locator(`.os-menu[data-level="${lvl}"] button[data-oi]`, { hasText: label }).first().click(); await root.locator(`.os-menu[data-level="${lvl + 1}"]`).waitFor(); };
 /** Open the keyboard from its menu (note composer becomes the target), then settle the `.main` lift. */
 const kbOpen = async (root: Root, page: Page) => { await root.locator("#kbBtn").click(); await page.waitForTimeout(300); await root.locator('#kbMenu [data-act="toggle"]').click(); await page.waitForTimeout(900); await root.locator("#kbBtn").focus(); await root.locator("#noteInput").focus(); await page.waitForTimeout(1200); };
+/** Lock from the system menu / sign out from the account menu, then let the entrance animation finish. Pointer parked in a corner (parallax). */
+const lockIt = async (root: Root, page: Page) => { await root.locator("#sysBtn").click(); await page.waitForTimeout(400); await root.locator('#sysMenu [data-act="lock"]').click(); await page.mouse.move(0, 0); await page.waitForTimeout(1800); };
+const signOutIt = async (root: Root, page: Page) => { await root.locator("#accBtn").click(); await page.waitForTimeout(600); await root.locator('#accMenu [data-act="signout"]').click(); await page.mouse.move(0, 0); await page.waitForTimeout(3200); };
 export const SOLO = ["documents", "forms", "files", "terminal", "calcsci", "billing", "hrPeople", "patients", "calendar", "cabinet", "planning"];
 export const SCENES: Scene[] = [
   ...(["desktop", "tablet", "mobile"] as const).flatMap((vp) => (["light", "dark"] as const).map((scheme) => ({ name: `shell-${vp}-${scheme}`, vp, scheme }))),
@@ -52,6 +55,16 @@ export const SCENES: Scene[] = [
   { name: "kb-menu-settings-dark", vp: "desktop", scheme: "dark", act: async (root, page) => { await root.locator("#kbBtn").click(); await page.waitForTimeout(400); await root.locator('#kbMenu [data-go="settings"]').click(); await page.waitForTimeout(1200); } },
   { name: "kb-float-ar", vp: "desktop", scheme: "light", lang: "ar", act: async (root, page) => { await kbOpen(root, page); await root.locator("#kbFloat").click(); await page.waitForTimeout(1500); } },
   { name: "kb-pad-tablet-light", vp: "tablet", scheme: "light", act: async (root, page) => { await kbOpen(root, page); await root.locator("#kbPad").click(); await page.waitForTimeout(1500); } },
+  // Phase B slice 8: lock, power and sign-in screens.
+  { name: "lock-auth-light", vp: "desktop", scheme: "light", act: async (root, page) => { await lockIt(root, page); } },
+  { name: "lock-pin-dark", vp: "desktop", scheme: "dark", act: async (root, page) => { await lockIt(root, page); await root.locator('#lkCard [data-face-go="pin"]').click(); await page.waitForTimeout(800); for (const k of ["1", "2"]) await root.locator(`#lkCard [data-pin="${k}"]`).click(); await page.waitForTimeout(600); } },
+  { name: "lock-users-a11y-fr", vp: "desktop", scheme: "light", lang: "fr", act: async (root, page) => { await lockIt(root, page); await root.locator("#lkSwitch").click(); await page.waitForTimeout(800); await root.locator("#lkA11y").click(); await page.waitForTimeout(800); } },
+  { name: "lock-error-tablet", vp: "tablet", scheme: "light", act: async (root, page) => { await lockIt(root, page); await root.locator("#lkPass").fill("ab"); await root.locator("#unlockBtn").click(); await page.waitForTimeout(1600); } },
+  { name: "power-off-dark", vp: "desktop", scheme: "dark", act: async (root, page) => { await root.locator("#sysBtn").click(); await page.waitForTimeout(400); await root.locator('#sysMenu [data-act="shutdown"]').click(); await page.waitForTimeout(3200); } },
+  { name: "si-main-light", vp: "desktop", scheme: "light", act: async (root, page) => { await signOutIt(root, page); } },
+  { name: "si-reset-dark", vp: "desktop", scheme: "dark", act: async (root, page) => { await signOutIt(root, page); await root.locator("#siScroll [data-forgot]").click(); await page.waitForTimeout(1000); } },
+  { name: "si-sso-ar", vp: "desktop", scheme: "light", lang: "ar", act: async (root, page) => { await signOutIt(root, page); await root.locator('#siScroll [data-tab="sso"]').click(); await page.waitForTimeout(1000); } },
+  { name: "si-tablet-dark", vp: "tablet", scheme: "dark", act: async (root, page) => { await signOutIt(root, page); } },
   ...SOLO.map((app) => ({ name: `app-${app}-desktop-light`, vp: "desktop" as const, scheme: "light" as const, app })),
 ];
 /** Seeds storage before boot so both sides start from the same state. */

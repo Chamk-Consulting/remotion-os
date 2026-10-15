@@ -10,6 +10,8 @@ import { systemDark, useShell } from "@/os/state/shell";
 
 const curLang = (): Lang => { const h = document.documentElement.lang; return isLang(h) ? h : "en"; };
 
+/** Popovers of the lock / sign-in / registration screens, closed before an animated language switch. */
+export const overlayHooks: { closePops: () => void } = { closePops: () => {} };
 /** switchLang: view transition with staggered panels, blur fallback, instant under reduced motion; toast in the NEW language. */
 export function switchLang(next: Lang) {
   const current = curLang(); if (next === current) return;
@@ -17,11 +19,14 @@ export function switchLang(next: Lang) {
   const apply = () => setLang(next);
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) { apply(); done(); return; }
   const d = document as Document & { startViewTransition?: (cb: () => void) => { finished: Promise<void> } };
+  // isOverlay (L7656): the registration, sign-in or lock screen when one is up; its popovers close first.
+  const ov = ["rg", "si", "lock"].map((id) => document.getElementById(id)).find((e) => e?.classList.contains("on")) ?? null;
   if (d.startViewTransition) {
-    document.documentElement.classList.add("vt-lang"); document.documentElement.classList.toggle("vt-ov", false);
+    if (ov) overlayHooks.closePops();
+    document.documentElement.classList.add("vt-lang"); document.documentElement.classList.toggle("vt-ov", !!ov);
     d.startViewTransition(apply).finished.finally(() => { document.documentElement.classList.remove("vt-lang", "vt-ov"); done(); });
   } else {
-    const sh = document.getElementById("shell")!;
+    const sh = ov || document.getElementById("shell")!;
     sh.animate([{ opacity: 1, filter: "blur(0)", transform: "none" }, { opacity: 0, filter: "blur(6px)", transform: "translateY(-6px)" }], { duration: 200, easing: "ease-in", fill: "forwards" }).finished.then(() => {
       apply();
       sh.animate([{ opacity: 0, filter: "blur(6px)", transform: "translateY(10px)" }, { opacity: 1, filter: "blur(0)", transform: "none" }], { duration: 480, easing: "cubic-bezier(.2,1,.3,1)", fill: "forwards" }).finished.then(() => { sh.getAnimations().forEach((a) => a.cancel()); done(); });

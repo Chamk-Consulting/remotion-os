@@ -9,5 +9,23 @@ const dropWebkitBackdropDuplicate = () => ({
   },
 });
 dropWebkitBackdropDuplicate.postcss = true;
-const config = { plugins: [dropWebkitBackdropDuplicate] };
+// Build-time fix 2: Lightning CSS moves a `font` shorthand AFTER the longhands it resets (e.g. `font-variant-numeric`
+// declared after `font:` in `.lk-left .lock-time`), so the longhand is lost (the lock clock lost its tabular digits).
+// Such longhands are moved into a copy of the rule placed right after it, with `:where(*)` appended to each selector
+// (same specificity, later in the cascade, and not merged back by the minifier).
+const RESET_BY_FONT = /^font-(variant(-[a-z]+)?|feature-settings|kerning|variation-settings|optical-sizing|size-adjust|language-override)$/;
+const keepLonghandsAfterFont = () => ({
+  postcssPlugin: "keep-longhands-after-font",
+  Rule(rule) {
+    if (rule.selectors.some((s) => s.includes("::") || s.includes(":where(*)"))) return;
+    let seen = false; const moved = [];
+    rule.each((d) => { if (d.type !== "decl") return; if (d.prop === "font") seen = true; else if (seen && RESET_BY_FONT.test(d.prop)) moved.push(d); });
+    if (!moved.length) return;
+    const copy = rule.clone({ selectors: rule.selectors.map((s) => s + ":where(*)") }); copy.removeAll();
+    moved.forEach((d) => { copy.append(d.clone()); d.remove(); });
+    rule.after(copy);
+  },
+});
+keepLonghandsAfterFont.postcss = true;
+const config = { plugins: [dropWebkitBackdropDuplicate, keepLonghandsAfterFont] };
 export default config;

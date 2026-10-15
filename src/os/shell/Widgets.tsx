@@ -72,7 +72,7 @@ export function Widgets() {
   };
   const slot = (id: string, fb: React.ReactNode): React.ReactNode => {
     switch (id) {
-      case "time": return <>{hh}:{mm}{ap ? <small>{ap.value}</small> : null}</>;
+      case "time": return <>{`${hh}:${mm}`}{ap ? <small>{ap.value}</small> : null}</>;
       case "date": return new Intl.DateTimeFormat(L, { timeZone: TZ, weekday: "long", month: "short", day: "numeric", year: "numeric" }).format(now);
       case "temp": return nf(18) + "°C";
       case "fore": return [20, 22, 21, 19, 20].map((tp, i) => { const d = new Date(); d.setDate(d.getDate() + i + 1); return <div key={i}><SvgString html={SUN_SM} /><div><b>{new Intl.DateTimeFormat(L, { weekday: "short" }).format(d)}</b><span>{nf(tp)}°</span></div></div>; });

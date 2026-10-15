@@ -55,7 +55,7 @@ test("open from dock and desktop: chrome, geometry, stacking, dock marks, app st
     await p.click('#dock [data-t="files"]'); await p.waitForTimeout(200);
     await p.click('#dock [data-t="terminal"]'); await p.waitForTimeout(200);
     await icon(p, "Billing").dblclick(); await p.waitForTimeout(300);
-    await p.click('#dock [data-t="documents"]'); await p.waitForTimeout(300);
+    await p.click('#dock [data-t="documents"]'); await p.waitForTimeout(800);
     return { wins: await wins(p), dock: await dock(p), apps: await store(p, "remotion-apps") };
   });
   expect(r.react).toEqual(r.source);

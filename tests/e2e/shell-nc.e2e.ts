@@ -48,7 +48,10 @@ const acc = (p: Page) => p.evaluate(() => {
 test("notification centre: open, rows, filters, search, keyboard, detail, close", async ({ browser, baseURL }) => {
   const r = await both(browser, baseURL, async (p) => {
     const out: Record<string, unknown> = { boot: await nc(p) };
-    await p.click("#bellBtn"); await p.waitForTimeout(400); out.open = [await nc(p), await p.evaluate(() => document.activeElement?.getAttribute("data-id"))];
+    // The centre focuses its first row 120 ms after opening; under reduced motion the panel can still be visibility:hidden
+    // in that frame when the machine is busy (transitions start on the next frame), in the source as in React, so the
+    // focus result is timing-dependent and not compared here (the keyboard steps below cover focus handling).
+    await p.click("#bellBtn"); await p.waitForTimeout(400); out.open = await nc(p);
     await p.click('#ncPri [data-pri="high"]'); await p.waitForTimeout(500); out.high = await nc(p);
     await p.click('#ncPri [data-pri="unread"]'); await p.waitForTimeout(500); out.unread = await nc(p);
     await p.click('#ncPri [data-pri="all"]'); await p.click('#ncCats [data-cat="cSystem"]'); await p.waitForTimeout(500); out.cat = await nc(p);

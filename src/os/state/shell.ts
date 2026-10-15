@@ -41,6 +41,7 @@ type ShellState = {
   wsOpen: boolean; langOpen: boolean; desksOpen: boolean;
   /** System (gear) menu, its requested sub-view (setSysMenu(true, view)), search palette, shortcuts panel, hidden top bar. */
   sysOpen: boolean; sysView: { v: string; n: number } | null; palOpen: boolean; scOpen: boolean; navHidden: boolean;
+  /** `.shell.boot` entrance animation (source boot(), L9901). */ booting: boolean;
   iconsHidden: boolean; widgetsHidden: boolean;
   toast: { msg: string; n: number; undo?: () => void } | null;
   /* desktop layer (B-08) */
@@ -76,7 +77,7 @@ export const useShell = create<ShellState>((set, get) => ({
   workspaces: [{ k: "mainWorkspace" }, { k: "development" }, { k: "design" }, { k: "research" }, { k: "personal" }], selWs: 0,
   // Source: #wsMenu is open in the markup and closed at boot only below 860 px (L27215, defect/intent U-07 reproduced).
   wsOpen: true, langOpen: false, desksOpen: false,
-  sysOpen: false, sysView: null, palOpen: false, scOpen: false, navHidden: false,
+  sysOpen: false, sysView: null, palOpen: false, scOpen: false, navHidden: false, booting: false,
   iconsHidden: false, widgetsHidden: false,
   toast: null,
   trash: [], dkView: { size: "m", align: true, icons: true }, fs: {} as FsData, apps: AL_DEFAULT, sel: new Set(), rev: 0, shownDesk: 0, iconAnim: 1, wallDesk: 0, layoutTick: 0, iconEpoch: 0, wsStore: {}, osxWs: null,

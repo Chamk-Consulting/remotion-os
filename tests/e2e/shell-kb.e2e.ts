@@ -68,7 +68,8 @@ test("keyboard menu: button, rows of every view, keyboard navigation, outside cl
 test("on-screen keyboard: open from the menu, note composer target, typing, auto-capitals, suggestions, Enter adds the note", async ({ browser, baseURL }) => {
   const r = await both(browser, baseURL, async (p) => {
     const out: unknown[] = [];
-    await p.click("#kbBtn"); await p.click('#kbMenu [data-act="toggle"]'); await p.waitForTimeout(400);
+    // Wait for the menu's own 60 ms "focus the toggle" timer first: clicking inside that window is a race in both builds.
+    await p.click("#kbBtn"); await p.waitForTimeout(300); await p.click('#kbMenu [data-act="toggle"]'); await p.waitForTimeout(400);
     out.push(await kb(p), await field(p), await p.evaluate(() => document.getElementById("noteForm")!.hidden), await liftNow(p, "#noteInput"));
     await typeKeys(p, "pat"); out.push(await kb(p), await field(p));
     await p.click("#kbSugg button >> nth=0"); out.push(await brief(p), await field(p));
@@ -163,7 +164,7 @@ test("the keyboard types into a field of an app window (bridged iframe in the Re
     const bridged = await p.locator('iframe[data-bridge="files"]').count();
     const scope = bridged ? p.frameLocator('iframe[data-bridge="files"]').locator(".os-win") : p.locator('.os-win[data-osw="files"]');
     const q = scope.locator('input[type="search"]').first();
-    await q.click(); await p.click("#kbBtn"); await p.click('#kbMenu [data-act="toggle"]'); await p.waitForTimeout(400);
+    await q.click(); await p.click("#kbBtn"); await p.waitForTimeout(300); await p.click('#kbMenu [data-act="toggle"]'); await p.waitForTimeout(400);
     await typeKeys(p, "inv"); await key(p, "Backspace"); await p.waitForTimeout(200);
     return [await q.inputValue(), await q.evaluate((e: HTMLInputElement) => [e.selectionStart, e.inputMode, e.ownerDocument.activeElement === e]), await brief(p)];
   });

@@ -22,6 +22,11 @@ import { ShortcutsPanel } from "@/os/shortcuts/ShortcutsPanel";
 import { Palette } from "@/os/shortcuts/Palette";
 import { useGlobalShortcuts } from "@/os/shortcuts/useGlobalShortcuts";
 import { SysMenu } from "./SysMenu";
+import { LockScreen, PowerScreen } from "@/os/lock/LockScreen";
+import { SignIn } from "@/os/signin/SignIn";
+import { isLocked, isPower } from "@/os/lock/lock";
+import { isSignin } from "@/os/signin/si";
+import { overlayGate } from "@/os/shortcuts/useGlobalShortcuts";
 import { Keyboard } from "@/os/keyboard/Keyboard";
 import { KbMenu } from "@/os/keyboard/KbMenu";
 import { NotificationCenter } from "@/os/notifications/NotificationCenter";
@@ -34,6 +39,8 @@ import { closeAllHooks } from "@/os/state/shell";
 // closeAll also closes the notification centre and the account menu (L7972); openNc closes the palette first.
 closeAllHooks.push(closeNc, () => { if (useAccount.getState().open) accApi.open(false); });
 ncApi.closeSearch = closeSearch;
+// Global shortcuts are off behind the power, lock, sign-in (and registration) screens (L9916–L9917).
+overlayGate.blocked = () => isPower() || isLocked() || isSignin();
 import { DkMenuRoot } from "@/os/menu/DkMenu";
 import { osSidebar } from "@/os/desktop/menus";
 
@@ -52,7 +59,7 @@ export function OsShell() {
     document.addEventListener("keydown", k); return () => document.removeEventListener("keydown", k);
   }, []);
   if (!s.booted) return null;
-  const cls = ["shell", s.iconsHidden ? "icons-hidden" : "", s.widgetsHidden ? "widgets-hidden" : "", s.desksOpen ? "desks-open" : "", s.navHidden ? "nav-hidden" : ""].filter(Boolean).join(" ");
+  const cls = ["shell", s.iconsHidden ? "icons-hidden" : "", s.widgetsHidden ? "widgets-hidden" : "", s.desksOpen ? "desks-open" : "", s.navHidden ? "nav-hidden" : "", s.booting ? "boot" : ""].filter(Boolean).join(" ");
   return (
     <>
       <Wallpaper />
@@ -77,6 +84,9 @@ export function OsShell() {
       <ShortcutsPanel />
       <SysMenu />
       <Palette />
+      <LockScreen />
+      <SignIn />
+      <PowerScreen />
       <OsMenuRoot />
       <DkMenuRoot />
       <button type="button" className={"rail-peek" + (s.iconsHidden ? " show" : "")} aria-label={t("sbShow")} title={t("sbShow") + " (Ctrl+B)"} onClick={() => osSidebar(true, t)} dangerouslySetInnerHTML={{ __html: RAIL_PEEK }} />
