@@ -43,6 +43,12 @@ export const DYNAMIC_DOCK = Object.keys(APP_WINDOWS).filter((k) => APP_WINDOWS[k
 /** Source OS_OPEN keys → window key (the L11857 chain, now from the registry; unknown keys are not handled: D-B06 fix). */
 export const OPEN_KEY: Record<string, string> = { files: "files", explorer: "files", launchpad: "apps", apps: "apps", terminal: "terminal", forms: "forms", documents: "documents", docs: "documents", calcsci: "calcsci", calculator: "calcsci", billing: "billing", hrPeople: "hrPeople", patients: "patients", calendar: "calendar", cabinet: "cabinet", planning: "planning" };
 
+/** Apps ported natively (Phase C) register their window body here; the others keep the legacy bridge body. */
+type NativeApp = { body: () => React.ReactNode; beforeOpen?: () => void; onClose?: () => void; onResize?: () => void };
+const NATIVE: Record<string, NativeApp> = {};
+export function registerNativeApp(key: string, def: NativeApp) { NATIVE[key] = def; }
+export const isNativeApp = (key: string) => !!NATIVE[key];
+
 /** Opens (or brings back) an app window — the per-app open functions. */
 export function openApp(key: string, from?: Element | null) {
   // The launcher, Files and Terminal are native React windows (B-15).
@@ -55,8 +61,10 @@ export function openApp(key: string, from?: Element | null) {
   const st = useShell.getState();
   if (sp.touch === "always") st.mutate((s) => { if (s.apps.inst[key] !== 1) s.apps.inst[key] = 1; s.apps.recent = [key, ...s.apps.recent.filter((x) => x !== key)].slice(0, 12); }, { save: false, apps: true });
   if (sp.touch === "terminal") { const d = (raw.AL_APPS as unknown as [string, string, number][]).find((a) => a[0] === "terminal"); const inst = st.apps.inst.terminal !== undefined ? !!st.apps.inst.terminal : !!d?.[2]; if (!inst) st.mutate((s) => { s.apps.inst.terminal = 1; }, { save: false, apps: true }); }
+  const nat = NATIVE[key]; nat?.beforeOpen?.();
   const g = sp.geo();
-  const o: WinOpts = { title: sp.title, icon: sp.icon(), cls: sp.cls, w: g.w, h: g.h, x: g.x, y: g.y, minW: sp.minW, minH: sp.minH, from: from ?? null, relabelAria: sp.relabelAria, body: <LegacyAppFrame appKey={key} /> };
+  const o: WinOpts = { title: sp.title, icon: sp.icon(), cls: sp.cls, w: g.w, h: g.h, x: g.x, y: g.y, minW: sp.minW, minH: sp.minH, from: from ?? null, relabelAria: sp.relabelAria,
+    body: nat ? nat.body() : <LegacyAppFrame appKey={key} />, onClose: nat?.onClose, onResize: nat?.onResize };
   osWinOpen(key, o);
 }
 

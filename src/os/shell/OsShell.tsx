@@ -25,6 +25,7 @@ import { useGlobalShortcuts } from "@/os/shortcuts/useGlobalShortcuts";
 import { SysMenu } from "./SysMenu";
 import { GhostLayer } from "@/os/desktop/ghost";
 // Native OS apps (B-15): importing them registers osActions.launcher / files / terminal.
+import "@/apps/hr/HrApp";
 import "@/apps/launcher/Launcher";
 import "@/apps/files/FilesApp";
 import "@/apps/terminal/Terminal";
