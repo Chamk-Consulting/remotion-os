@@ -994,4 +994,4 @@ function paOpenPatient(pid: string,sec?: string,o: { focus?: string }={}){paOpen
 (()=>{const order=["dash","list","record","archives","dups","corr","complete","documents","forms","settings","audit"];const copy=Object.assign({},PA_P);Object.keys(PA_P).forEach(k=>delete PA_P[k]);order.forEach(k=>{if(copy[k])PA_P[k]=copy[k]});Object.keys(copy).forEach(k=>{if(!PA_P[k])PA_P[k]=copy[k]})})();
 
 /* ---------- used by the React window wiring (PatientsApp.tsx) and the tests ---------- */
-export { PA, PA_KEY, PA_P, paSt, paSave, paRoot, paRender, paRefresh, paSize, paInk, paListPaint, paW, paOpenPatient, paFind };
+export { PA, PA_KEY, PA_P, paSt, paSave, paRoot, paRender, paRefresh, paSize, paInk, paListPaint, paW, paOpenPatient, paFind, PA_HOOKS, PA_CHAN, PA_CSTATE, paName, paConsent, paAvatar, paDate, paDigits, paNorm, paFld, paOpts, paRegister, paOpenBilling, paClinOk, paCompleteness, paErr, PaErr };

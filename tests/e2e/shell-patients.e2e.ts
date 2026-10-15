@@ -1,8 +1,8 @@
 /**
  * Phase C slice 14 — Patients & Records (native port, gated with ?health=native): dual-run parity (source file:// vs
- * React shell). Calendar and Cabinet are still bridged, so the cards and buttons they add to the patient record
- * through PA_HOOKS (source L26060–L26065, L26661) are taken out of BOTH trees before comparing; they come back into the
- * comparison when those apps are ported (doc 15, slice 14).
+ * React shell). Since slice 15 the Calendar is native too, so what it adds to the record through PA_HOOKS (L26060–L26065:
+ * appointment cards, "Book appointment", the linked-appointment field of an encounter) is compared. Cabinet is still
+ * bridged: its "today's visit" card (L26661) is taken out of BOTH trees until it is ported.
  */
 import { test, expect, type Page, type Browser } from "@playwright/test";
 import path from "node:path";
@@ -37,9 +37,9 @@ function norm(v: unknown) {
     .replace(/\\"size\\":\d+/g, "\\\"size\\\":0").replace(/"size":\d+/g, '"size":0').replace(/\b\d+([.,]\d+)?\s?(Ko|KB|kB|ko|Mo|MB)\b/g, "N KB");
   return JSON.parse(s);
 }
-/** Serialised subtree, without the parts that Calendar / Cabinet inject into Patients (see the file header). */
+/** Serialised subtree, without the card Cabinet injects into Patients (see the file header). */
 const tree = (p: Page, sel: string) => p.evaluate((sel) => {
-  const hook = (e: Element) => e.matches("[data-paappt],[data-paapptopen],[data-paapptcal]") || (e.matches("section.pa-card") && (!!e.querySelector(".cl-pa,[data-paapptcal]") || /\((Gestion Calendrier|Calendar|Kalender|Gestion Cabinet|Practice|Praxis|التقويم|العيادة)\)/.test(e.querySelector("h3")?.textContent || ""))) || (e.matches(".hr-fld") && !!e.querySelector("#ce-appt"));
+  const hook = (e: Element) => e.matches("section.pa-card") && /\((Gestion Cabinet|Practice|Praxis|العيادة)\)/.test(e.querySelector("h3")?.textContent || "");
   const keep = (n: string) => ["id", "role", "hidden", "disabled", "type", "dir", "placeholder", "tabindex", "title", "lang", "value", "checked", "selected", "href"].includes(n) || n.startsWith("aria-") || n.startsWith("data-");
   const walk = (e: Element): string[] => {
     if (hook(e)) return [];

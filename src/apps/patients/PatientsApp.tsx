@@ -15,11 +15,8 @@ import { registerNativeApp } from "@/os/windows/apps";
 import { useWm } from "@/os/windows/wm";
 import { PA, PA_KEY, PA_P, paInk, paInstallGlobal, paListPaint, paRefresh, paRender, paRoot, paSave, paSize, paSt } from "./patients";
 import { hrRM } from "@/apps/hr/hr";
+import { healthNative } from "@/apps/health/flag";
 
-export const healthNative = () => {
-  if (process.env.NEXT_PUBLIC_HEALTH_NATIVE === "1") return true;
-  try { return new URLSearchParams(location.search).get("health") === "native"; } catch { return false; }
-};
 
 function PatientsBody() {
   const { lang } = useI18n();
