@@ -8,7 +8,7 @@ import raw from "@/apps/registry.data.json";
 import icons from "@/os/shell/data/icons.json";
 import { useShell } from "@/os/state/shell";
 import { SvgString } from "@/os/shell/svg";
-import { osActions, registerOsAction } from "@/os/actions";
+import { osActions } from "@/os/actions";
 import { osFocus, osRestore, osWinOpen, useWm, type Tr, type WinOpts } from "./wm";
 import { LegacyAppFrame } from "./LegacyAppFrame";
 
@@ -45,7 +45,10 @@ export const OPEN_KEY: Record<string, string> = { files: "files", explorer: "fil
 
 /** Opens (or brings back) an app window — the per-app open functions. */
 export function openApp(key: string, from?: Element | null) {
-  if (key === "apps") { osActions.launcher(from); return; } // the launcher is a React port target (B-15)
+  // The launcher, Files and Terminal are native React windows (B-15).
+  if (key === "apps") { osActions.launcher(from); return; }
+  if (key === "files") { osActions.files(from); return; }
+  if (key === "terminal") { osActions.terminal(from); return; }
   const sp = APP_WINDOWS[key]; if (!sp) return;
   const ex = useWm.getState().wins[key];
   if (ex && !ex.closing) { if (ex.min) osRestore(key); osFocus(key); return; }
@@ -57,7 +60,4 @@ export function openApp(key: string, from?: Element | null) {
   osWinOpen(key, o);
 }
 
-// Files and Terminal run through the bridge until B-15 ports them. The Files location (Get info, folders in roots) is not passed
-// to the bridge: the legacy app opens at its own default location (recorded as a bridge limitation in doc 15).
-registerOsAction("files", (from) => openApp("files", from));
-registerOsAction("terminal", (from) => openApp("terminal", from));
+

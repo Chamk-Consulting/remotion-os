@@ -22,6 +22,11 @@ import { ShortcutsPanel } from "@/os/shortcuts/ShortcutsPanel";
 import { Palette } from "@/os/shortcuts/Palette";
 import { useGlobalShortcuts } from "@/os/shortcuts/useGlobalShortcuts";
 import { SysMenu } from "./SysMenu";
+import { GhostLayer } from "@/os/desktop/ghost";
+// Native OS apps (B-15): importing them registers osActions.launcher / files / terminal.
+import "@/apps/launcher/Launcher";
+import "@/apps/files/FilesApp";
+import "@/apps/terminal/Terminal";
 import { LockScreen, PowerScreen } from "@/os/lock/LockScreen";
 import { SignIn } from "@/os/signin/SignIn";
 import { Register } from "@/os/register/Register";
@@ -92,6 +97,7 @@ export function OsShell() {
       <PowerScreen />
       <OsMenuRoot />
       <DkMenuRoot />
+      <GhostLayer />
       <button type="button" className={"rail-peek" + (s.iconsHidden ? " show" : "")} aria-label={t("sbShow")} title={t("sbShow") + " (Ctrl+B)"} onClick={() => osSidebar(true, t)} dangerouslySetInnerHTML={{ __html: RAIL_PEEK }} />
     </>
   );

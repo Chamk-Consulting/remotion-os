@@ -106,7 +106,9 @@ export const useShell = create<ShellState>((set, get) => ({
     const apps: AppStore = sa ? { inst: sa.inst || {}, fav: sa.fav || {}, recent: Array.isArray(sa.recent) ? sa.recent : [] } : structuredClone(AL_DEFAULT);
     seedV1(desks, t, flags); writeJSON(STORAGE_KEYS.desks, { l: desks, c: cur }); // the source saves after v1 normalisation
     if (seedV2(desks, t, flags)) writeJSON(STORAGE_KEYS.desks, { l: desks, c: cur });
-    for (const sd of APP_SEEDS) { const r = seedApp(desks, apps, sd, flags); if (r.apps) writeJSON(STORAGE_KEYS.apps, apps); if (r.desks) writeJSON(STORAGE_KEYS.desks, { l: desks, c: cur }); }
+    // App seeds run in source order: forms (L13595) before the v55 desktop ids (L20855), the others (L22594+) after, so their saves carry the ids.
+    const runSeed = (sd: (typeof APP_SEEDS)[number]) => { const r = seedApp(desks, apps, sd, flags); if (r.apps) writeJSON(STORAGE_KEYS.apps, apps); if (r.desks) writeJSON(STORAGE_KEYS.desks, { l: desks, c: cur }); };
+    APP_SEEDS.filter((sd) => sd.app === "forms").forEach(runSeed);
     // v55 (L20851): restore the open workspace, the other workspaces' desktops and this workspace's desktop ids.
     let selWs = 0; const workspaces = [...get().workspaces]; let wsStore: Record<string, { l: Desk[]; c: number }> = {};
     const ws = readJSON<{ sel?: number; st?: Record<string, { l: Desk[]; c: number }>; n?: number } | null>(STORAGE_KEYS.wsDesks, null);
@@ -116,6 +118,7 @@ export const useShell = create<ShellState>((set, get) => ({
       const mine = wsStore[selWs]; if (mine && Array.isArray(mine.l)) desks.forEach((d, i) => { if (mine.l[i] && mine.l[i]._id) d._id = mine.l[i]._id; });
     }
     desks.forEach((d) => { if (!d._id) d._id = newDeskId(); });
+    APP_SEEDS.filter((sd) => sd.app !== "forms").forEach(runSeed);
     set({ booted: true, workspaces, selWs, wsStore, osxWs: selWs, desks, cur, isDark: th.dark, themeMode: th.mode, wsOpen: innerWidth >= 860, iconsHidden: !railOn, widgetsHidden: !desks[cur]?.w, trash, dkView, fs, apps, shownDesk: cur, wallDesk: cur });
   },
   setTheme: (dark) => { document.documentElement.classList.toggle("dark", dark); document.documentElement.classList.toggle("light", !dark); set({ isDark: dark }); },

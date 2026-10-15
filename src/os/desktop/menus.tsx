@@ -17,6 +17,7 @@ import { setDeskWall } from "./DesktopsPanel";
 import { Glyph } from "./Glyph";
 import { FM, fmRootKey, fsEach, fsFind, fsMove, type FsDest } from "./fs";
 import type { Item } from "./model";
+import { fmPasteTo, fmRefresh } from "@/apps/files/fm";
 
 const OIC = icons.OIC as Record<string, string>;
 const AL_APPS = raw.AL_APPS as unknown as [string, string, number][];
@@ -83,8 +84,7 @@ export function itemMenuItems(api: Pick<LayerApi, "t" | "nf" | "add">, nodes: It
     { l: t("fmCopy"), ic: OIC.copy, kbd: "Ctrl+C", run: () => ctx.copy(false) },
     { l: t("fmCut"), ic: OIC.cut, kbd: "Ctrl+X", run: () => ctx.copy(true) },
     { l: t("fmDuplicate"), ic: OIC.dup, kbd: "Ctrl+D", run: () => ctx.dup() },
-    // fmRefresh() re-renders the Files window once it is ported (B-15).
-    { l: fav ? t("fmRmFav") : t("fmAddFav"), ic: fav ? OIC.starF : OIC.star, run: () => { const v = !nodes.every((n) => n.fav); useShell.getState().mutate(() => { nodes.forEach((n) => (n.fav = v)); }, { save: true, fs: true }); } },
+    { l: fav ? t("fmRmFav") : t("fmAddFav"), ic: fav ? OIC.starF : OIC.star, run: () => { const v = !nodes.every((n) => n.fav); useShell.getState().mutate(() => { nodes.forEach((n) => (n.fav = v)); }, { save: true, fs: true }); fmRefresh(); } },
     "-",
     { l: t("fmDelete"), ic: OIC.del, danger: true, kbd: t("fmDel"), run: () => ctx.del() },
     "-",
@@ -142,7 +142,7 @@ export function osDeskMenu(api: LayerApi, x: number, y: number) {
     ] },
     "-",
     // FM.clip (Files app) wins over the desktop clipboard; fmPasteTo arrives with the Files app (B-15).
-    { l: t("cmPaste"), ic: OIC.paste, kbd: "Ctrl+V", disabled: !api.hasClip() && !FM.clip, run: () => api.paste(at) },
+    { l: t("cmPaste"), ic: OIC.paste, kbd: "Ctrl+V", disabled: !api.hasClip() && !FM.clip, run: () => { if (FM.clip) fmPasteTo({ root: "desktop", desk: useShell.getState().cur, path: [] }, at); else api.paste(at); } },
     "-",
     { l: t("cmTerminal"), ic: OIC.term, run: () => osActions.terminal() },
     "-",

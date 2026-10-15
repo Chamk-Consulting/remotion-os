@@ -7,6 +7,8 @@ export type ItemType = "app" | "folder" | "doc" | "link";
 export interface Item {
   id: string; type: ItemType; app?: string; name?: string; size?: number; mod?: number; text?: string | null; url?: string;
   kids?: Item[]; c?: number | null; r?: number | null; fx?: number; fy?: number; col?: "y"; tags?: string[]; fav?: boolean; ref?: string; sc?: 1;
+  /** Files "Home" pseudo-folders (fmItems, L12029): the root they stand for. Never stored. */
+  virt?: string;
 }
 export interface Desk { n: string; s: number; items?: Item[]; w?: boolean; _id?: string }
 export interface AppStore { inst: Record<string, 0 | 1>; fav: Record<string, 1>; recent: string[] }

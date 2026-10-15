@@ -32,6 +32,7 @@ for (const s of SCENES) {
     const n = pixelmatch(ref.data, shot.data, diff.data, ref.width, ref.height, { threshold: 0.1 });
     const ratio = n / (ref.width * ref.height);
     const tag = process.env.SHELL_PREVIEW ? ".react" : "";
+    if (process.env.SAVE_ACTUAL) fs.writeFileSync(`test-results/visual/${s.name}${tag}.actual.png`, PNG.sync.write(shot)); // progress screenshots of the build under test
     if (ratio > 0) { fs.writeFileSync(`test-results/visual/${s.name}${tag}.diff.png`, PNG.sync.write(diff)); fs.writeFileSync(`test-results/visual/${s.name}${tag}.actual.png`, PNG.sync.write(shot)); }
     console.log(`${s.name}: ${(ratio * 100).toFixed(3)} % differing`);
     expect(ratio).toBeLessThanOrEqual(0.001);

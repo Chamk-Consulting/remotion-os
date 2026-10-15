@@ -1,4 +1,5 @@
 "use client";
+import { trashAct } from "@/apps/files/fm";
 import { stopAll } from "@/lib/events";
 /** Port of dkWin + folder window, Quick Look and trash window (L11461–L11515). */
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -73,13 +74,9 @@ function OneWin({ w }: { w: DkWinState }) {
   const deskName = (i: number) => s.desks[i]?.n || t("desktopN", { n: nf(i + 1) });
   if (w.kind === "trash") {
     const act = (a: string, id?: string) => {
-      if (a === "empty") { s.mutate((st) => { st.trash = []; }, { save: false, trash: true }); s.showToast(t("dkEmptied")); return; } // no confirmation (as source)
-      const i = s.trash.findIndex((x) => x.id === id); if (i < 0) return; const it = s.trash[i];
-      const { from, at: _at, ...rest } = it; void _at; const target = Math.min(from ?? s.cur, s.desks.length - 1);
-      s.mutate((st) => { st.trash.splice(i, 1); }, { save: false, trash: true });
-      if (target === s.cur) desktopApi.add(rest as Item, rest.c ?? 0, rest.r ?? 0, true);
-      else s.mutate((st) => { (st.desks[target].items ??= []).push(rest as Item); });
-      s.showToast(t("dkRestored", { x: dkName(it) }));
+      if (a === "empty") { trashAct("empty"); return; } // no confirmation (as source)
+      // dkTrashAct as redefined with the Files manager (L12134): items deleted from a Files root go back there.
+      trashAct("restore", id);
     };
     return (
       <DkWin w={w} title={t("dkTrash")} icon={<SvgString html={TRASH_IC} />} width={460}>

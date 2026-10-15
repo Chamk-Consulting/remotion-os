@@ -20,7 +20,7 @@ import { dkSetAlign, osDeskMenu, osIconMenu, osRefreshDesk, setAlignHook, type L
 
 const SPARK26 = '<svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10 2.5c.6 4.3 2.8 6.5 7.1 7.1-4.3.6-6.5 2.8-7.1 7.1-.6-4.3-2.8-6.5-7.1-7.1 4.3-.6 6.5-2.8 7.1-7.1z"/><path d="M18.4 13.4c.3 2.1 1.3 3.1 3.4 3.4-2.1.3-3.1 1.3-3.4 3.4-.3-2.1-1.3-3.1-3.4-3.4 2.1-.3 3.1-1.3 3.4-3.4z" opacity=".75"/></svg>';
 const SC_ARROW = '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M8 16 16 8M10 8h6v6"/></svg>';
-const dkPhone = () => innerWidth <= 860;
+export const dkPhone = () => innerWidth <= 860;
 const rectOf = (r: DOMRect): Rect => ({ left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height });
 const trashBtn = () => document.querySelector<HTMLElement>('#dock [data-t="trash"]');
 
@@ -147,7 +147,7 @@ export function DesktopLayer() {
   }
   function add(item: Item, c: number, r: number, quiet?: boolean) {
     const g = computeGeo(); const n = g ? dkNearest(g, items, c ?? 0, r ?? 0) : [0, 0]; if (!n) { s.showToast(t("dkNoRoom")); return null; }
-    item.id = item.id || dkId(); item.c = n[0]; item.r = n[1];
+    if (!item.id) { delete (item as Partial<Item>).id; item.id = dkId(); } item.c = n[0]; item.r = n[1]; // key order as the source ({type, app, …, id, c, r})
     s.mutate((st) => { (st.desks[st.cur].items ??= []).push(item); }); s.setSel([item.id]); if (!quiet) s.showToast(t("dkAdded", { x: dkName(item) }));
     requestAnimationFrame(() => { const el = elOf(item.id); if (el && !reducedMotion()) el.animate([{ opacity: 0, transform: el.style.transform + " scale(.3)" }, { opacity: 1, transform: el.style.transform + " scale(1.08)", offset: .7 }, { opacity: 1, transform: el.style.transform }], { duration: 520, easing: "cubic-bezier(.2,1.2,.3,1)" }); });
     return item;
@@ -261,11 +261,15 @@ export function DesktopLayer() {
       if (best) { elOf(best.id)?.focus(); if (!e.shiftKey) s.setSel([best.id]); else s.setSel([best.id], true); }
     }
   };
-  const addRef = useRef(add); const openRef = useRef(open);
-  useEffect(() => { addRef.current = add; openRef.current = open; });
+  const addRef = useRef(add); const openRef = useRef(open); const targetRef = useRef(targetAt);
+  useEffect(() => { addRef.current = add; openRef.current = open; targetRef.current = targetAt; });
   useEffect(() => {
     desktopApi.add = (...a) => addRef.current(...a);
     desktopApi.open = (...a) => openRef.current(...a);
+    // Ghost drags (ghost.tsx) use the same drop targets, marks and cell hint as icon drags.
+    desktopApi.targetAt = (x, y) => targetRef.current(x, y);
+    desktopApi.mark = (tg) => mark(tg);
+    desktopApi.hint = (cell) => setHint(cell);
     desktopApi.cellAt = (x, y) => { const g = computeGeo(); return g ? dkCellAt(g, x, y) : [0, 0]; };
   }, [computeGeo]);
   const alignRef = useRef<(on: boolean) => void>(() => {});
