@@ -17,6 +17,8 @@ export const setSlots = (ids) => { SLOTS = new Set(ids); };
 
 function styleObj(s) {
   const o = {}; for (const decl of s.split(";")) { const i = decl.indexOf(":"); if (i < 0) continue; const k = decl.slice(0, i).trim(); const v = decl.slice(i + 1).trim(); if (!k) continue; o[k.startsWith("--") ? k : camel(k)] = v; }
+  // Custom properties (--x) are not in React's CSSProperties type: cast those objects.
+  if (Object.keys(o).some((k) => k.startsWith("--"))) return `{${esc(o)} as import("react").CSSProperties}`;
   return `{${esc(o).slice(1, -1)}}`.replace(/^\{/, "{{").replace(/\}$/, "}}");
 }
 function attrs(el) {
@@ -82,6 +84,7 @@ if (process.argv[2] === "--gen") {
     ["LockAuthMarkup", "face:auth", ["lockAv", "lockName", "lockRole", "lkMsg", "unlockBtn", "lkEye"]],
     ["PowerMarkup", "id:power", ["powerMsg"]],
     ["SignInMarkup", "id:si", ["siLangCode", "siTheme", "siQ", "siScroll"]],
+    ["RegisterMarkup", "id:rg", ["rgLangCode", "rgTheme"]],
   ];
   fs.mkdirSync("src/os/shell/generated", { recursive: true });
   for (const [name, sel, slots] of SECTIONS) {

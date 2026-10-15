@@ -14,6 +14,15 @@ const kbOpen = async (root: Root, page: Page) => { await root.locator("#kbBtn").
 /** Lock from the system menu / sign out from the account menu, then let the entrance animation finish. Pointer parked in a corner (parallax). */
 const lockIt = async (root: Root, page: Page) => { await root.locator("#sysBtn").click(); await page.waitForTimeout(400); await root.locator('#sysMenu [data-act="lock"]').click(); await page.mouse.move(0, 0); await page.waitForTimeout(1800); };
 const signOutIt = async (root: Root, page: Page) => { await root.locator("#accBtn").click(); await page.waitForTimeout(600); await root.locator('#accMenu [data-act="signout"]').click(); await page.mouse.move(0, 0); await page.waitForTimeout(3200); };
+/** The floating cubes of the registration art loop forever (CSS keyframes, also under reduced motion), so their phase
+ * depends on how long the page has been open: they are paused at time 0 in both builds before the screenshot. */
+const freezeArt = (root: Root) => root.evaluate(() => document.querySelectorAll("#rgArt *").forEach((e) => e.getAnimations().forEach((a) => { a.pause(); a.currentTime = 0; })));
+const regIt = async (root: Root, page: Page) => { await signOutIt(root, page); await root.locator("#siScroll [data-register]").click(); await page.waitForTimeout(1500); await freezeArt(root); };
+const regStep1 = async (root: Root, page: Page) => {
+  await root.locator("#rgFirst").fill("Lina"); await root.locator("#rgLast").fill("Haddad"); await root.locator("#rgEmail").fill("lina@clinic.tn");
+  await root.locator("#rgPass").fill("Str0ng!Passw0rd"); await root.locator("#rgPass2").fill("Str0ng!Passw0rd"); await root.locator("#rgAgree").check();
+  await root.locator("#rgBody [data-next]").click(); await page.waitForTimeout(1200);
+};
 export const SOLO = ["documents", "forms", "files", "terminal", "calcsci", "billing", "hrPeople", "patients", "calendar", "cabinet", "planning"];
 export const SCENES: Scene[] = [
   ...(["desktop", "tablet", "mobile"] as const).flatMap((vp) => (["light", "dark"] as const).map((scheme) => ({ name: `shell-${vp}-${scheme}`, vp, scheme }))),
@@ -65,6 +74,11 @@ export const SCENES: Scene[] = [
   { name: "si-reset-dark", vp: "desktop", scheme: "dark", act: async (root, page) => { await signOutIt(root, page); await root.locator("#siScroll [data-forgot]").click(); await page.waitForTimeout(1000); } },
   { name: "si-sso-ar", vp: "desktop", scheme: "light", lang: "ar", act: async (root, page) => { await signOutIt(root, page); await root.locator('#siScroll [data-tab="sso"]').click(); await page.waitForTimeout(1000); } },
   { name: "si-tablet-dark", vp: "tablet", scheme: "dark", act: async (root, page) => { await signOutIt(root, page); } },
+  // Phase B slice 9: registration wizard.
+  { name: "rg-account-light", vp: "desktop", scheme: "light", act: async (root, page) => { await regIt(root, page); } },
+  { name: "rg-profile-dark", vp: "desktop", scheme: "dark", act: async (root, page) => { await regIt(root, page); await regStep1(root, page); await freezeArt(root); } },
+  { name: "rg-org-found-fr", vp: "desktop", scheme: "light", lang: "fr", act: async (root, page) => { await regIt(root, page); await regStep1(root, page); await root.locator("#rgBody [data-next]").click(); await page.waitForTimeout(900); await root.locator("#rgInvite").fill("REM-ABCD-1234"); await root.locator('#rgBody [data-detect="invite"]').click(); await page.waitForTimeout(1800); await freezeArt(root); } },
+  { name: "rg-account-ar-tablet", vp: "tablet", scheme: "light", lang: "ar", act: async (root, page) => { await regIt(root, page); } },
   ...SOLO.map((app) => ({ name: `app-${app}-desktop-light`, vp: "desktop" as const, scheme: "light" as const, app })),
 ];
 /** Seeds storage before boot so both sides start from the same state. */

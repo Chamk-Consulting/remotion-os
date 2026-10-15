@@ -24,6 +24,8 @@ import { useGlobalShortcuts } from "@/os/shortcuts/useGlobalShortcuts";
 import { SysMenu } from "./SysMenu";
 import { LockScreen, PowerScreen } from "@/os/lock/LockScreen";
 import { SignIn } from "@/os/signin/SignIn";
+import { Register } from "@/os/register/Register";
+import { isRegister } from "@/os/register/register";
 import { isLocked, isPower } from "@/os/lock/lock";
 import { isSignin } from "@/os/signin/si";
 import { overlayGate } from "@/os/shortcuts/useGlobalShortcuts";
@@ -40,7 +42,7 @@ import { closeAllHooks } from "@/os/state/shell";
 closeAllHooks.push(closeNc, () => { if (useAccount.getState().open) accApi.open(false); });
 ncApi.closeSearch = closeSearch;
 // Global shortcuts are off behind the power, lock, sign-in (and registration) screens (L9916–L9917).
-overlayGate.blocked = () => isPower() || isLocked() || isSignin();
+overlayGate.blocked = () => isPower() || isLocked() || isSignin() || isRegister();
 import { DkMenuRoot } from "@/os/menu/DkMenu";
 import { osSidebar } from "@/os/desktop/menus";
 
@@ -86,6 +88,7 @@ export function OsShell() {
       <Palette />
       <LockScreen />
       <SignIn />
+      <Register />
       <PowerScreen />
       <OsMenuRoot />
       <DkMenuRoot />

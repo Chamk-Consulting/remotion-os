@@ -18,7 +18,7 @@ import { nextQuote, useLock } from "@/os/lock/lock";
 import { closeSiPop, defEmail, installSi, loadSi, setSiTab, siCaps, siEye, siFieldInput, siGoScreen, siOnLang, siPointerMove, siProv, siRegister, siSubmit, siTakePw, siTile, useSi, type Tab } from "./si";
 
 const H = ({ h }: { h: string }) => <SvgString html={h} />;
-const SII = {
+export const SII = {
   mail: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.5 6.5 8.5 6.5 8.5-6.5"/></svg>',
   lock: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4.5" y="10.5" width="15" height="10.5" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg>',
   org: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M4 21V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v16M15 10h4a1 1 0 0 1 1 1v10M2.5 21h19M8 8h3M8 12h3M8 16h3"/></svg>',
@@ -33,7 +33,7 @@ const SII = {
 };
 const hexLogo = (s = 28) => `<svg width="${s}" height="${s}" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2.6c.7 0 1.4.2 2 .5l8.6 5c1.2.7 2 2 2 3.4v9c0 1.4-.8 2.7-2 3.4l-8.6 5a4 4 0 0 1-4 0l-8.6-5a4 4 0 0 1-2-3.4v-9c0-1.4.8-2.7 2-3.4l8.6-5c.6-.3 1.3-.5 2-.5z" fill="#22b14c"/><circle cx="16" cy="16" r="5.6" fill="none" stroke="#fff" stroke-width="3"/></svg>`;
 const PROV: [string, string | null, string][] = [["Microsoft", "Entra ID", '<span class="mono" style="background:#2f8ef0">M</span>'], ["Google", "Workspace", '<span class="mono" style="background:#e8453c">G</span>'], ["Apple", null, '<span class="mono" style="background:#1d2420">A</span>'], ["passkey", "WebAuthn", `<span class="mono" style="background:#22b14c">${SII.key.replace('stroke="currentColor"', 'stroke="#fff"')}</span>`]];
-const GOV: [string, string, string, string][] = [["Pro Santé Connect", "pscSub", SII.psc, "#eaf0ff"], ["FranceConnect", "fcSub", SII.fc, "#eaf0ff"], ["European eID", "eidSub", SII.eid, "transparent"]];
+export const GOV: [string, string, string, string][] = [["Pro Santé Connect", "pscSub", SII.psc, "#eaf0ff"], ["FranceConnect", "fcSub", SII.fc, "#eaf0ff"], ["European eID", "eidSub", SII.eid, "transparent"]];
 
 export function SignIn() {
   const { t, lang } = useI18n();
