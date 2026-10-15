@@ -44,7 +44,7 @@ const hrStore = (p: Page) => p.evaluate(() => { const s = JSON.parse(localStorag
 const dlg = (p: Page) => tree(p, `${W} .hr-dlg`);
 const drw = (p: Page) => tree(p, `${W} .hr-drw`);
 const hrToast = (p: Page) => p.locator(`${W} .hr-toast`).evaluate((e) => [e.className, e.textContent]);
-const openHr = async (p: Page) => { await p.dblclick('#dkLayer .dk-ic[title="HR & People"]'); await p.locator(`${W} .hr-pg`).waitFor(); await p.waitForTimeout(900); };
+const openHr = async (p: Page) => { /* the workspace menu opened at load can still cover the icons under load */ await p.waitForFunction(() => document.getElementById("wsMenu")?.classList.contains("closed"), null, { timeout: 10000 }).catch(() => {}); await p.dblclick('#dkLayer .dk-ic[title="HR & People"]'); await p.locator(`${W} .hr-pg`).waitFor(); await p.waitForTimeout(900); };
 const go = async (p: Page, view: string) => { await p.click(`${W} [data-hrgo="${view}"]`); await p.waitForTimeout(400); };
 const pick = async (p: Page, label: string) => { await p.locator('.os-menu[data-level="0"] button', { hasText: label }).first().click(); await p.waitForTimeout(250); };
 const r2 = async (browser: Browser, baseURL: string | undefined, fn: (p: Page) => Promise<unknown>) => { const r = await both(browser, baseURL, fn); return { source: normHr(r.source), react: normHr(r.react) }; };
