@@ -281,8 +281,31 @@ export function DesktopLayer() {
     document.addEventListener("pointerdown", h, true); return () => document.removeEventListener("pointerdown", h, true);
   }, []);
 
+  // Files dropped from the computer (L11550–L11561): up to 12 documents at the drop cell, small text files keep their text.
+  const [fileDrop, setFileDrop] = useState(false);
+  useEffect(() => {
+    const el = layer.current; if (!el) return; let depth = 0;
+    const isFiles = (e: DragEvent) => [...(e.dataTransfer?.types || [])].includes("Files");
+    const enter = (e: DragEvent) => { if (!isFiles(e)) return; e.preventDefault(); depth++; setFileDrop(true); };
+    const over = (e: DragEvent) => { if (!isFiles(e)) return; e.preventDefault(); e.dataTransfer!.dropEffect = "copy"; setHint(desktopApi.cellAt(e.clientX, e.clientY)); };
+    const leave = () => { if (--depth <= 0) { depth = 0; setFileDrop(false); setHint(null); } };
+    const drop = async (e: DragEvent) => {
+      if (!isFiles(e)) return; e.preventDefault(); depth = 0; setFileDrop(false); setHint(null);
+      const [c, r] = desktopApi.cellAt(e.clientX, e.clientY); const ids: string[] = []; const files = [...e.dataTransfer!.files];
+      for (const f of files.slice(0, 12)) {
+        let text: string | null = null;
+        if (f.size < 200000 && (/^text\/|json|xml|csv|markdown/.test(f.type) || /\.(md|txt|csv|json|html?|css|js|ts|py|xml|ya?ml|log)$/i.test(f.name))) { try { text = (await f.text()).slice(0, 20000); } catch {} }
+        const it = addRef.current({ type: "doc", name: f.name, size: f.size, mod: f.lastModified || Date.now(), text } as Item, c, r, true); if (it) ids.push(it.id);
+      }
+      const st = useShell.getState(); st.setSel(ids);
+      if (ids.length) st.showToast(ids.length === 1 ? t("dkAdded", { x: files[0].name }) : t("dkItems", { n: nf(ids.length) }));
+    };
+    el.addEventListener("dragenter", enter); el.addEventListener("dragover", over); el.addEventListener("dragleave", leave); el.addEventListener("drop", drop);
+    return () => { el.removeEventListener("dragenter", enter); el.removeEventListener("dragover", over); el.removeEventListener("dragleave", leave); el.removeEventListener("drop", drop); };
+  }, [t, nf]);
+
   const g = geoState;
-  const cls = ["dk-layer", phone ? "phone" : "", s.dkView.icons ? "" : "noicons"].filter(Boolean).join(" ");
+  const cls = ["dk-layer", phone ? "phone" : "", s.dkView.icons ? "" : "noicons", fileDrop ? "filedrop" : ""].filter(Boolean).join(" ");
   return (
     <div className={cls} id="dkLayer" role="listbox" aria-multiselectable="true" ref={layer} data-drop={t("dkDropHere")} data-size={s.dkView.size}
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerEnd} onPointerCancel={onPointerEnd} onKeyDown={onKeyDown} onContextMenu={onContextMenu}

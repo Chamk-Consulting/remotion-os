@@ -3,6 +3,7 @@
  * React OS shell (Phase B, in progress). Mirrors the source DOM (L6857–L7177): same ids and classes, so the verbatim
  * legacy CSS applies unchanged. Enabled with `?shell=react` until it reaches parity (doc 12 rows P-A*).
  */
+import { AiPanel } from "@/os/ai/AiPanel";
 import { useEffect } from "react";
 import { useShell } from "@/os/state/shell";
 import { useI18n } from "@/lib/i18n/I18nProvider";
@@ -50,14 +51,27 @@ ncApi.closeSearch = closeSearch;
 overlayGate.blocked = () => isPower() || isLocked() || isSignin() || isRegister();
 import { DkMenuRoot } from "@/os/menu/DkMenu";
 import { osSidebar } from "@/os/desktop/menus";
+import { osAppMode } from "@/os/windows/appmode";
 
 // OSI.chev (L11626), used by the rail peek button (L11930).
 const RAIL_PEEK = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>';
 
-export function OsShell() {
+/** `bootApp`: the standalone route `/apps/<key>` starts straight in that app (osBootApp L21038, key validated by the route). */
+export function OsShell({ bootApp }: { bootApp?: string } = {}) {
   const s = useShell();
   const { t } = useI18n();
   useEffect(() => { s.init(); bootAccount(); bootNc(); return startAutoAway(); }, [s]);
+  useEffect(() => {
+    if (!bootApp) return;
+    document.body.classList.add("os-appmode", "os-standalone", "os-booting");
+    const tm = setTimeout(() => { try { osAppMode(bootApp, true); } catch (e) { console.warn(e); } document.body.classList.remove("os-booting"); }, 60);
+    return () => clearTimeout(tm);
+  }, [bootApp]);
+  // Ctrl+B shows / hides the sidebar outside text fields (L11935).
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "b" && !(e.target as Element).closest?.("input,textarea,[contenteditable=true]")) { e.preventDefault(); osSidebar(useShell.getState().iconsHidden, t); } };
+    document.addEventListener("keydown", h); return () => document.removeEventListener("keydown", h);
+  }, [t]);
   useTrashDock();
   useGlobalShortcuts();
   // Escape closes the shell menus (source L7976).
@@ -79,6 +93,7 @@ export function OsShell() {
           <Widgets />
           <Dock />
         </main>
+        <AiPanel />
         <div className="scrim" id="scrim" onClick={() => s.setDesksOpen(false)}></div>
         <DesktopsPanel />
         <WindowLayer />

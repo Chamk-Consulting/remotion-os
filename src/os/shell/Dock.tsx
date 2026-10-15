@@ -59,5 +59,16 @@ function DockAppButton({ k, label, leaving, cls, onGone }: { k: string; label: s
     b.animate([{ opacity: 1, transform: "none", width: b.offsetWidth + "px" }, { opacity: 0, transform: "scale(.3)", width: "0px" }], { duration: 320, easing: "cubic-bezier(.4,0,.2,1)" }).finished.then(onGone);
   }, [leaving, onGone]);
   // feDockBtn creates the Forms button without type="button"; the others set it.
+  // clDockBtn (L26083): the calendar's button is a date tile (`.cl-dockg`, today in the clinic's time zone), not a glyph.
+  if (k === "calendar") return <button ref={ref} type="button" data-t={k} className={cls} aria-label={label} title={label}><span className="glyph cl-dockg"><b>{calDockDay()}</b></span></button>;
   return <button ref={ref} type={k === "forms" ? undefined : "button"} data-t={k} className={cls} aria-label={label} title={label}><span className="glyph" style={{ background: DK[k][0] }}><SvgString html={DK[k][1]} /></span></button>;
+}
+
+/** `+clToday().slice(8)` (L25451): the day of the month now, in the calendar's saved time zone (prefs.tz) or the
+ * organisation's (CL_ORG_TZ "Europe/Paris"), read from the calendar's own store `remotion-calendar`. */
+function calDockDay() {
+  let tz = "Europe/Paris";
+  try { const s = JSON.parse(localStorage.getItem("remotion-calendar") || "null"); if (s && s.v === 1 && Array.isArray(s.appts) && s.prefs?.tz) tz = s.prefs.tz; } catch {}
+  const o: Record<string, string> = {}; new Intl.DateTimeFormat("en-US", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()).forEach((p) => (o[p.type] = p.value));
+  return +o.day;
 }

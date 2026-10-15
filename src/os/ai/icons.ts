@@ -1,0 +1,65 @@
+/**
+ * Remotion AI icons (source L10451–L10509), copied verbatim: `aiSv` builds the stroke icons, `AIX` the panel set,
+ * `AI_FI` the file-type glyphs.
+ */
+export const aiSv = (d: string, w = 18, sw = 1.9, f = "none") =>`<svg width="${w}" height="${w}" viewBox="0 0 24 24" fill="${f}" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+export const AIX = {
+  spark:(w=26)=>`<svg width="${w}" height="${w}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10 2.5c.6 4.3 2.8 6.5 7.1 7.1-4.3.6-6.5 2.8-7.1 7.1-.6-4.3-2.8-6.5-7.1-7.1 4.3-.6 6.5-2.8 7.1-7.1z"/><path d="M18.4 13.4c.3 2.1 1.3 3.1 3.4 3.4-2.1.3-3.1 1.3-3.4 3.4-.3-2.1-1.3-3.1-3.4-3.4 2.1-.3 3.1-1.3 3.4-3.4z" opacity=".75"/></svg>`,
+  plus:aiSv('<path d="M12 5v14M5 12h14"/>',18,2),
+  filter:aiSv('<path d="M4 6h16M7 12h10M10 18h4"/>',18,2),
+  search:aiSv('<circle cx="11" cy="11" r="6.5"/><path d="m20 20-3.8-3.8"/>',17,2),
+  cal:aiSv('<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>'),
+  calSm:aiSv('<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',14),
+  pdf:aiSv('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M8.5 16.5c1.6-1 3.4-4 3.6-6.2.1-1-1-1.2-1.2-.2-.4 2 2.4 5.2 4.6 5.4 1 .1 1.1-1 .1-1.2-2-.4-5.4.6-7.1 2.2z" stroke-width="1.4"/>'),
+  box:aiSv('<path d="M12 2.8 20 7v10l-8 4.2L4 17V7z"/><path d="M4 7l8 4.2L20 7M12 11.2v10"/>'),
+  fsearch:aiSv('<path d="M13 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4"/><path d="M13 3v5h5v2"/><circle cx="16" cy="16" r="3"/><path d="m20.5 20.5-2.3-2.3"/>'),
+  chart:aiSv('<rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="M8 16v-4M12 16V8M16 16v-6"/>'),
+  mail:aiSv('<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m4 7 8 6 8-6"/>'),
+  cube:aiSv('<path d="M12 2.8 20 7v10l-8 4.2L4 17V7z"/><path d="M4 7l8 4.2L20 7"/>'),
+  mic:aiSv('<rect x="5" y="3.5" width="14" height="17" rx="2.5"/><path d="M12 8v5M9.5 10.5a2.5 2.5 0 0 0 5 0M10 16h4"/>'),
+  cols:aiSv('<rect x="3.5" y="4" width="17" height="16" rx="2.5"/><path d="M12 4v16M6.5 9h3M14.5 9h3M6.5 12.5h3M14.5 12.5h3"/>'),
+  alert:aiSv('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5M12 16v.1"/>'),
+  share:aiSv('<path d="M12 15V3.5M7.5 8 12 3.5 16.5 8"/><path d="M5 13v5.5A2 2 0 0 0 7 20.5h10a2 2 0 0 0 2-2V13"/>',19),
+  dots:`<svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="19" cy="12" r="1.9"/></svg>`,
+  expand:aiSv('<path d="M14 4h6v6M20 4l-6.5 6.5M10 20H4v-6M4 20l6.5-6.5"/>',18),
+  shrink:aiSv('<path d="M20 4l-6 6M14 5v5h5M4 20l6-6M10 19v-5H5"/>',18),
+  x:aiSv('<path d="M6 6l12 12M18 6 6 18"/>',19,2.1),
+  clock:aiSv('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',19),
+  clip:aiSv('<path d="m20.5 11.5-8.2 8.2a5 5 0 0 1-7.1-7.1l8.6-8.6a3.4 3.4 0 0 1 4.8 4.8l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8"/>',19),
+  send:aiSv('<path class="pl" d="M21 3 10.5 13.5M21 3l-6.5 18-4-7.5-7.5-4z"/>',21,2),
+  stop:`<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="3"/></svg>`,
+  book:aiSv('<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/>',16),
+  globe:aiSv('<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.6 2.6 2.6 14.4 0 17M12 3.5c-2.6 2.6-2.6 14.4 0 17"/>',16),
+  file:aiSv('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>',16),
+  list:aiSv('<path d="M9 6h11M9 12h11M9 18h11M4.5 6h.1M4.5 12h.1M4.5 18h.1"/>',16,2.2),
+  gauge:aiSv('<circle cx="12" cy="12" r="8.5"/><path d="M12 12l4-3M12 7v.1M7 12h.1M17 12h.1"/>',16),
+  chevD:aiSv('<path d="m6 9 6 6 6-6"/>',13,2.4),
+  arr:aiSv('<path class="ar" d="M5 12h14M13 6l6 6-6 6"/>',15,2.2),
+  arrL:aiSv('<path d="M19 12H5M11 6l-6 6 6 6"/>',19,2.1),
+  dck:aiSv('<path d="m2 12.5 4 4L13 8M10 15.5l1 1L18.5 8"/>',13,2.2),
+  flag:`<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 21V4h11l-1.5 4L16 12H7v9z"/></svg>`,
+  copy:aiSv('<rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',16),
+  up:aiSv('<path d="M7 10v10H4V10zM7 10l4-7a2.3 2.3 0 0 1 2.4 2.6L13 9h5.5a2 2 0 0 1 2 2.3l-1.2 7A2 2 0 0 1 17.3 20H7"/>',16),
+  down:aiSv('<path d="M17 14V4h3v10zM17 14l-4 7a2.3 2.3 0 0 1-2.4-2.6L11 15H5.5a2 2 0 0 1-2-2.3l1.2-7A2 2 0 0 1 6.7 4H17"/>',16),
+  ext:aiSv('<path d="M14 4h6v6M20 4l-9 9M18 14v4.5A1.5 1.5 0 0 1 16.5 20h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10"/>',16),
+  target:aiSv('<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/>'),
+  ccheck:`<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="currentColor"/><path d="m7.5 12.3 3 3 6-6.3" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  dl:aiSv('<path d="M12 3.5v12M7 11l5 5 5-5M5 20.5h14"/>',17),
+  save:aiSv('<path d="M5 3.5h11l3.5 3.5v12a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 19V5A1.5 1.5 0 0 1 5 3.5z"/><path d="M8 3.5v5h7v-5M7.5 20.5v-6h9v6"/>',17),
+  eye:aiSv('<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',18),
+  orig:aiSv('<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',16),
+  refresh:aiSv('<path d="M20 11a8 8 0 0 0-14.5-4.5M4 4v4h4M4 13a8 8 0 0 0 14.5 4.5M20 20v-4h-4"/>',15),
+  pin:aiSv('<path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',18),
+  card:aiSv('<rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="9" cy="11" r="2.2"/><path d="M5.8 16c.6-1.5 1.8-2.3 3.2-2.3s2.6.8 3.2 2.3M15 10h3.5M15 13.5h2.5"/>',18),
+  sendSm:aiSv('<path d="M21 3 10.5 13.5M21 3l-6.5 18-4-7.5-7.5-4z"/>',16),
+  trash:aiSv('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',17),
+  pen:aiSv('<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="m13.5 6.5 4 4"/>',17)
+};
+/** `AIX[name]` lookup by a string key (conversation icons are stored as names). */
+export const aixByName = (k: string): string | undefined => { const v = (AIX as Record<string, unknown>)[k]; return typeof v === "string" ? v : undefined; };
+export const AI_FI: Record<string, string> = {
+  pdf:`<svg width="26" height="30" viewBox="0 0 26 30" aria-hidden="true"><path d="M3 3a2 2 0 0 1 2-2h11l7 7v19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="#fff" stroke="#e2453c" stroke-width="1.8"/><path d="M16 1v7h7" fill="none" stroke="#e2453c" stroke-width="1.8"/><path d="M8 21.5c2-1.3 4.2-5 4.4-7.6.1-1.3-1.2-1.4-1.4-.2-.5 2.4 3 6.4 5.6 6.6 1.2.1 1.3-1.2.1-1.4-2.4-.5-6.6.8-8.7 2.6z" fill="none" stroke="#e2453c" stroke-width="1.5" stroke-linejoin="round"/></svg>`,
+  docx:`<svg width="26" height="30" viewBox="0 0 26 30" aria-hidden="true"><path d="M3 3a2 2 0 0 1 2-2h11l7 7v19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="#2f6fe0"/><path d="M16 1v5a2 2 0 0 0 2 2h5" fill="#9cc0ff"/><path d="M8 13h10M8 17h10M8 21h7" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>`,
+  md:`<svg width="26" height="30" viewBox="0 0 26 30" aria-hidden="true"><path d="M3 3a2 2 0 0 1 2-2h11l7 7v19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M16 1v7h7" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 14h10M8 18h10M8 22h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
+  pdfBig:`<svg width="34" height="40" viewBox="0 0 26 30" aria-hidden="true"><path d="M3 3a2 2 0 0 1 2-2h11l7 7v19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="#fff" stroke="#e2453c" stroke-width="1.6"/><path d="M16 1v7h7" fill="none" stroke="#e2453c" stroke-width="1.6"/><rect x="1" y="15" width="16" height="8" rx="1.5" fill="#e2453c"/><text x="9" y="21.2" text-anchor="middle" font-size="5.6" font-weight="700" fill="#fff" font-family="system-ui,sans-serif">PDF</text></svg>`
+};

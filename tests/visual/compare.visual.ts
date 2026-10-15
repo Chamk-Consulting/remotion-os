@@ -20,8 +20,10 @@ for (const s of SCENES) {
     await serveGoogleFontsLocally(page); await page.route(/cdnjs/, (r) => r.abort());
     await seed(page, s);
     // SHELL=react compares the React shell preview (Phase B) instead of the bridge for desktop scenes.
-    if (process.env.SHELL_PREVIEW && s.app) test.skip(true, "apps still run through the bridge");
-    await page.goto(s.app ? `/apps/${s.app}` : process.env.SHELL_PREVIEW ? "/?shell=react" : "/");
+    // SHELL_PREVIEW: the React shell (default since slice 11; app bodies still come through the bridge inside OS windows).
+    // Otherwise: the whole legacy OS through the bridge (`?shell=legacy`), kept as the rollback path.
+    const q = process.env.SHELL_PREVIEW ? "" : "?shell=legacy";
+    await page.goto((s.app ? `/apps/${s.app}` : "/") + q);
     await page.waitForTimeout(800);
     for (const f of page.frames()) await f.evaluate(() => document.fonts.ready).catch(() => {});
     await page.waitForTimeout(2500);

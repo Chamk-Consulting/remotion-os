@@ -14,8 +14,9 @@ const hashTarget = () => { const m = /#app=([A-Za-z]+)/.exec(location.hash); con
 
 /**
  * Entry for `/` and `/apps/[appKey]`.
- * Phase B status: the React shell is built behind a preview flag; until it reaches parity the OS runs through the
- * legacy bridge, so the deployed app is never less complete than the source.
+ * Phase B slice 11: the React shell serves both routes (apps still open their bodies through the legacy bridge inside
+ * OS windows until Phase C). The whole legacy OS stays reachable for diagnosis and rollback with `?shell=legacy`, and a
+ * build with `NEXT_PUBLIC_OS_SHELL=legacy` makes it the default again (doc 14, rollback).
  */
 export function OsEntry({ appKey }: { appKey?: AppKey }) {
   const router = useRouter();
@@ -23,7 +24,8 @@ export function OsEntry({ appKey }: { appKey?: AppKey }) {
   const redirect = isClient && !appKey ? hashTarget() : null;
   useEffect(() => { if (redirect) router.replace(`/apps/${redirect.key}`); }, [redirect, router]);
   if (!isClient || redirect) return null;
-  // Preview of the React shell (Phase B, behind a flag until parity): /?shell=react
-  if (!appKey && new URLSearchParams(location.search).get("shell") === "react") return <I18nProvider><OsShell /></I18nProvider>;
-  return <LegacyBridge app={appKey ? resolveApp(appKey) : null} />;
+  const q = new URLSearchParams(location.search).get("shell");
+  const legacy = q === "legacy" || (q !== "react" && process.env.NEXT_PUBLIC_OS_SHELL === "legacy");
+  if (legacy) return <LegacyBridge app={appKey ? resolveApp(appKey) : null} />;
+  return <I18nProvider><OsShell bootApp={appKey} /></I18nProvider>;
 }

@@ -1,4 +1,5 @@
 "use client";
+import { toggleAI, useAiBtn } from "@/os/ai/ai";
 import { stopAll } from "@/lib/events";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { useI18n } from "@/lib/i18n/I18nProvider";
@@ -55,6 +56,7 @@ export function TopBar() {
     document.addEventListener("click", h); return () => document.removeEventListener("click", h);
   }, []);
 
+  const aiOn = useAiBtn((x) => x.on);
   const p = (id: string): Record<string, unknown> => {
     switch (id) {
       case "wsBtn": return { className: s.wsOpen ? "on" : "", "aria-expanded": s.wsOpen, onClick: (e: React.MouseEvent) => { stopAll(e); const open = !s.wsOpen; s.closeAll(); s.setWs(open); } };
@@ -63,6 +65,8 @@ export function TopBar() {
       case "langMenu": return { className: "pop langmenu" + (s.langOpen ? "" : " closed") };
       case "sysBtn": return { className: s.sysOpen ? "on" : undefined, "aria-expanded": s.sysOpen, onClick: (e: React.MouseEvent) => { stopAll(e); const open = !s.sysOpen; s.closeAll(); setSysMenu(open); } };
       case "kbBtn": return { className: (kb.menuOpen ? "on" : "") + (kb.open ? " live" : "") || undefined, "aria-expanded": kb.menuOpen, onClick: (e: React.MouseEvent) => { stopAll(e); const open = !useKb.getState().menuOpen; s.closeAll(); setKbMenu(open); } };
+      // #aiBtn (L10586, L10707): toggles the Remotion AI panel; `.on` / aria-expanded follow it.
+      case "aiBtn": return { className: aiOn ? "on" : "", "aria-expanded": aiOn, onClick: (e: React.MouseEvent) => { e.stopPropagation(); toggleAI(); } };
       case "searchBtn": return { onClick: (e: React.MouseEvent) => { stopAll(e); openSearch(); } };
       case "bellBtn": return { className: "bell" + (nc.open ? " on" : "") + (nc.set.dnd ? " dnd" : ""), "aria-controls": "nc", "aria-expanded": nc.open, onClick: (e: React.MouseEvent) => { stopAll(e); ringBell(); if (useNc.getState().open) closeNc(); else openNc(); } };
       case "bellBadge": return { className: "badge-n" + (unread ? "" : " gone") };

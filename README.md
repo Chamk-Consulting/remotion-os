@@ -12,10 +12,10 @@ pnpm build && ./tools/serve.sh   # production server on :3100 (used by tests)
 
 | Route | What it shows |
 |---|---|
-| `/` | The full OS. Until the React shell reaches parity, it runs the original file through the **legacy bridge** (same origin, same storage) |
-| `/apps/<key>` | One app in standalone app mode (11 keys: documents, forms, files, terminal, calcsci, billing, hrPeople, patients, calendar, cabinet, planning) |
+| `/` | The full OS in the **React shell**. App bodies (Forms, Documents, Calculator, Billing, HR, healthcare apps) still come from the original file through the **legacy bridge** inside OS windows until Phase C (same origin, same storage) |
+| `/apps/<key>` | One app in standalone app mode, in the React shell (11 keys: documents, forms, files, terminal, calcsci, billing, hrPeople, patients, calendar, cabinet, planning) |
 | `/#app=<key>` | Old pop-out links redirect to `/apps/<key>` |
-| `/?shell=react` | **Preview** of the React shell (Phase B, in progress) |
+| `?shell=legacy` | The whole original OS through the bridge, on `/` or `/apps/<key>` (rollback / diagnosis). A build with `NEXT_PUBLIC_OS_SHELL=legacy` makes it the default |
 
 ## Tests
 

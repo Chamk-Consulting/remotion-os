@@ -87,6 +87,12 @@ export const SCENES: Scene[] = [
   { name: "fm-grid-desktop-dark", vp: "desktop", scheme: "dark", act: async (root, page) => { await root.locator('#dock [data-t="files"]').click(); await page.waitForTimeout(700); await root.locator('.fm [data-fmt="grid"]').click(); await page.waitForTimeout(300); } },
   { name: "fm-ar-tablet", vp: "tablet", scheme: "light", lang: "ar", act: async (root, page) => { await root.locator('#dock [data-t="files"]').click(); await page.waitForTimeout(800); } },
   { name: "tm-session-dark", vp: "desktop", scheme: "dark", act: async (root, page) => { await root.locator('#dock [data-t="terminal"]').click(); await page.waitForTimeout(700); for (const c of ["help", "ls", "cd Documents", "ls", "bogus"]) { await root.locator(".tm .tm-in").fill(c); await root.locator(".tm .tm-in").press("Enter"); } await page.waitForTimeout(300); } },
+  // slice 11: Remotion AI panel (P-B01–P-B06)
+  { name: "ai-prep-light", vp: "desktop", scheme: "light", act: async (root, page) => { await root.locator("#aiBtn").click(); await page.waitForTimeout(900); } },
+  { name: "ai-hello-dark", vp: "desktop", scheme: "dark", act: async (root, page) => { await root.locator("#aiBtn").click(); await page.waitForTimeout(700); await root.locator("#aiNewBtn").click(); await page.waitForTimeout(700); } },
+  { name: "ai-form-chat-light", vp: "desktop", scheme: "light", act: async (root, page) => { await root.locator("#aiBtn").click(); await page.waitForTimeout(700); await root.locator("#aiNewBtn").click(); await page.waitForTimeout(300); await root.locator('#aiThread [data-sugg="form"]').click(); await page.waitForTimeout(2600); } },
+  { name: "ai-form-panel-fr", vp: "desktop", scheme: "light", lang: "fr", act: async (root, page) => { await root.locator("#aiBtn").click(); await page.waitForTimeout(700); await root.locator("#aiNewBtn").click(); await page.waitForTimeout(300); await root.locator('#aiThread [data-sugg="form"]').click(); await page.waitForTimeout(2600); await root.locator('#aiFC [data-fca="full"]').click(); await page.waitForTimeout(900); } },
+  { name: "ai-tablet-ar", vp: "tablet", scheme: "light", lang: "ar", act: async (root, page) => { await root.locator("#aiBtn").click(); await page.waitForTimeout(900); } },
   ...SOLO.map((app) => ({ name: `app-${app}-desktop-light`, vp: "desktop" as const, scheme: "light" as const, app })),
 ];
 /** Seeds storage before boot so both sides start from the same state. */
