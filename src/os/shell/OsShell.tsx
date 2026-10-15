@@ -22,6 +22,8 @@ import { ShortcutsPanel } from "@/os/shortcuts/ShortcutsPanel";
 import { Palette } from "@/os/shortcuts/Palette";
 import { useGlobalShortcuts } from "@/os/shortcuts/useGlobalShortcuts";
 import { SysMenu } from "./SysMenu";
+import { Keyboard } from "@/os/keyboard/Keyboard";
+import { KbMenu } from "@/os/keyboard/KbMenu";
 import { NotificationCenter } from "@/os/notifications/NotificationCenter";
 import { AccountMenu, accApi } from "@/os/account/AccountMenu";
 import { bootAccount, startAutoAway, useAccount } from "@/os/account/store";
@@ -70,6 +72,8 @@ export function OsShell() {
       <Toast />
       <NotificationCenter />
       <AccountMenu />
+      <Keyboard />
+      <KbMenu />
       <ShortcutsPanel />
       <SysMenu />
       <Palette />

@@ -14,6 +14,8 @@ import { SvgString } from "./svg";
 import { setThemeModeFull, switchLang } from "./shellActions";
 import { setSysMenu } from "@/os/shortcuts/actions";
 import { openSearch } from "@/os/shortcuts/Palette";
+import { useKb } from "@/os/keyboard/kb";
+import { setKbMenu } from "@/os/keyboard/KbMenu";
 
 const CK = '<svg class="ck" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m5 12 5 5 9-10"/></svg>';
 
@@ -27,7 +29,7 @@ export function fitTop() {
 export function TopBar() {
   const { t, lang, nf } = useI18n();
   const s = useShell();
-  const acc = useAccount(); const nc = useNc();
+  const acc = useAccount(); const nc = useNc(); const kb = useKb();
   const me = acc.accounts.find((a) => a.id === acc.accId) ?? BASE_ACCOUNTS[0];
   const dot = STATUSES.find((x) => x[0] === acc.status)![2];
   const unread = nc.items.filter((n) => !n.snoozed && n.unread).length;
@@ -60,6 +62,7 @@ export function TopBar() {
       case "langBtn": return { className: s.langOpen ? "on" : undefined, "aria-expanded": s.langOpen, onClick: (e: React.MouseEvent) => { stopAll(e); const open = !s.langOpen; s.closeAll(); s.setLangMenu(open); } };
       case "langMenu": return { className: "pop langmenu" + (s.langOpen ? "" : " closed") };
       case "sysBtn": return { className: s.sysOpen ? "on" : undefined, "aria-expanded": s.sysOpen, onClick: (e: React.MouseEvent) => { stopAll(e); const open = !s.sysOpen; s.closeAll(); setSysMenu(open); } };
+      case "kbBtn": return { className: (kb.menuOpen ? "on" : "") + (kb.open ? " live" : "") || undefined, "aria-expanded": kb.menuOpen, onClick: (e: React.MouseEvent) => { stopAll(e); const open = !useKb.getState().menuOpen; s.closeAll(); setKbMenu(open); } };
       case "searchBtn": return { onClick: (e: React.MouseEvent) => { stopAll(e); openSearch(); } };
       case "bellBtn": return { className: "bell" + (nc.open ? " on" : "") + (nc.set.dnd ? " dnd" : ""), "aria-controls": "nc", "aria-expanded": nc.open, onClick: (e: React.MouseEvent) => { stopAll(e); ringBell(); if (useNc.getState().open) closeNc(); else openNc(); } };
       case "bellBadge": return { className: "badge-n" + (unread ? "" : " gone") };

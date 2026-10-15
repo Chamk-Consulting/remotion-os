@@ -77,6 +77,7 @@ if (process.argv[2] === "--gen") {
     ["WidgetsMarkup", "sel:section.widgets", ["temp", "time", "date", "fore", "evCount", "calTitle", "calGrid", "n3d", "t5d", ".notes"]],
     ["ShortcutsMarkup", "id:scDlg", ["scNav", "scBody"]],
     ["PaletteMarkup", "id:palette", ["palList"]],
+    ["KeyboardMarkup", "id:kb", ["kbSugg", "kbKeys"]],
   ];
   fs.mkdirSync("src/os/shell/generated", { recursive: true });
   for (const [name, sel, slots] of SECTIONS) {

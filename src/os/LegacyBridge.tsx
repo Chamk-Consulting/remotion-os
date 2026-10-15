@@ -7,6 +7,7 @@
  * Standalone boot does what the source's osBootApp (L21038) does, but from the parent and validated against the registry,
  * so camelCase keys work (approved fix D-B01: /apps/hrPeople boots HR). Pop-outs are rewritten to /apps/<key>.
  */
+import { kbAttachDoc } from "@/os/keyboard/kb";
 import { useEffect, useRef } from "react";
 import type { AppManifest } from "@/apps/registry";
 
@@ -33,6 +34,8 @@ export function prepareLegacy(frame: HTMLIFrameElement, appKey: string | null, e
     // would in the single-document source. The item's text / field / action functions keep running in the frame.
     try { w.eval("pushNc=function(n){var p=window.parent;if(p&&p.__remotionPushNc){p.__remotionPushNc(n,typeof NC_KIND!=='undefined'?NC_KIND[n.kind]:undefined)}}"); } catch {}
     // Pointer input inside the frame never reaches the OS window: forward it so the window comes forward (and D-B23 applies).
+    // The on-screen keyboard types into the app's fields, as it does in the single-document source.
+    { const off = kbAttachDoc(frame.contentDocument!); w.addEventListener("pagehide", off); }
     if (hooks) { const d = frame.contentDocument!; d.addEventListener("pointerdown", hooks.down, true); d.addEventListener("click", hooks.click, true); d.addEventListener("pointerup", hooks.up, true); }
   }
   if (appKey) {

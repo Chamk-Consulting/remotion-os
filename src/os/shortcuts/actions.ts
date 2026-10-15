@@ -9,6 +9,7 @@ import { osDeskFull } from "@/os/windows/appmode";
 import { renderWs } from "@/os/windows/workspaces";
 import { setThemeModeFull, switchLang } from "@/os/shell/shellActions";
 import { widgetsApi } from "@/os/shell/widgetsApi";
+import { openNoteComposer } from "@/os/keyboard/kb";
 import { scApi } from "./ShortcutsPanel";
 import { openSearch } from "./Palette";
 import type { Row } from "./catalogue";
@@ -38,7 +39,7 @@ export const ACTIONS: Record<string, () => void> = {
   dOverview: () => { const o = !st().desksOpen; st().closeAll(); st().setDesksOpen(o); },
   dNew: () => panelApi.addDesk(true), dClose: () => panelApi.closeDesk(),
   // The widgets come back through the class only (not saved with the desktop), as in the source.
-  note: () => { st().closeAll(); useShell.setState({ widgetsHidden: false }); widgetsApi.openNoteComposer(); const c = document.querySelector(".notes")?.closest(".card"); c?.classList.add("flash"); setTimeout(() => document.querySelector(".card.flash")?.classList.remove("flash"), 1300); },
+  note: () => { st().closeAll(); useShell.setState({ widgetsHidden: false }); openNoteComposer(); const c = document.querySelector(".notes")?.closest(".card"); c?.classList.add("flash"); setTimeout(() => document.querySelector(".card.flash")?.classList.remove("flash"), 1300); },
   // "Show desktop" toggles the widgets in the source (reproduced).
   showDesk: () => { st().closeAll(); toggleWidgets(); },
   icons: () => toggleIcons(),

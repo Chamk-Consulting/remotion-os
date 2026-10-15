@@ -3,6 +3,7 @@
  * Search palette `#palette` (L8800–L8872): grows out of the search bar (clip-path from the button), suggested items when
  * empty, then apps / actions / shortcuts / widget items filtered accent-insensitively; ↑↓ Enter, hover, click.
  */
+import { useKb } from "@/os/keyboard/kb";
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { LANGS, type Lang } from "@/lib/i18n/langs";
@@ -32,6 +33,7 @@ export function openSearch() {
   pal.style.left = left + "px"; pal.style.top = top + "px"; pal.style.setProperty("--c0", c0);
   pal.style.transition = "none"; void pal.offsetWidth; pal.style.transition = "";
   useShell.setState({ palOpen: true });
+  if (useKb.getState().open && inp) inp.inputMode = "none";
   setTimeout(() => inp?.focus({ preventScroll: true }), 30);
 }
 export function closeSearch() { if (!useShell.getState().palOpen) return; useShell.setState({ palOpen: false }); const inp = document.getElementById("palInput"); if (document.activeElement === inp) (inp as HTMLInputElement).blur(); }
@@ -57,8 +59,8 @@ export function Palette() {
     });
     const actions: Item[] = [
       { label: t(s.isDark ? "lightMode" : "darkMode"), ic: s.isDark ? SI.sun : PI.moon, combo: "Ctrl+Shift+T", run: ACTIONS.theme },
-      // kbOpen (on-screen keyboard) is not ported yet: it is closed, so the row offers to open it.
-      { label: t("kbOpenV"), ic: MI.kbd, combo: "Ctrl+Shift+K", run: ACTIONS.vkb },
+      // renderPalette reads kbOpen at render time (not subscribed: the label refreshes with the next render, like the source).
+      { label: t(useKb.getState().open ? "kbCloseV" : "kbOpenV"), ic: MI.kbd, combo: "Ctrl+Shift+K", run: ACTIONS.vkb },
       { label: t("kbShortcuts"), ic: MI.cmd, combo: "Ctrl+Slash", run: () => scApi.open() },
       { label: t("newNote2"), ic: PI.note, combo: "Ctrl+Alt+N", run: ACTIONS.note },
       { label: t("dNew"), ic: CAT_IC.monitor, combo: "Ctrl+Win+D", run: ACTIONS.dNew },

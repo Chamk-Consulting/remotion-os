@@ -9,6 +9,8 @@ export type Scene = { name: string; vp: keyof typeof VIEWPORTS; scheme: "light" 
 export async function shellRoot(page: Page): Promise<Root> { for (const f of page.frames()) if (await f.locator("#dkLayer").count().catch(() => 0)) return f; return page; }
 const rightClick = async (root: Root, page: Page, sel: string) => { const b = (await root.locator(sel).first().boundingBox())!; await page.mouse.click(b.x + b.width / 2, b.y + 30, { button: "right" }); await root.locator('.os-menu[data-level="0"]').waitFor(); };
 const subOpen = async (root: Root, lvl: number, label: string) => { await root.locator(`.os-menu[data-level="${lvl}"] button[data-oi]`, { hasText: label }).first().click(); await root.locator(`.os-menu[data-level="${lvl + 1}"]`).waitFor(); };
+/** Open the keyboard from its menu (note composer becomes the target), then settle the `.main` lift. */
+const kbOpen = async (root: Root, page: Page) => { await root.locator("#kbBtn").click(); await page.waitForTimeout(300); await root.locator('#kbMenu [data-act="toggle"]').click(); await page.waitForTimeout(900); await root.locator("#kbBtn").focus(); await root.locator("#noteInput").focus(); await page.waitForTimeout(1200); };
 export const SOLO = ["documents", "forms", "files", "terminal", "calcsci", "billing", "hrPeople", "patients", "calendar", "cabinet", "planning"];
 export const SCENES: Scene[] = [
   ...(["desktop", "tablet", "mobile"] as const).flatMap((vp) => (["light", "dark"] as const).map((scheme) => ({ name: `shell-${vp}-${scheme}`, vp, scheme }))),
@@ -43,6 +45,13 @@ export const SCENES: Scene[] = [
   { name: "acc-main-light", vp: "desktop", scheme: "light", act: async (root, page) => { await root.locator("#accBtn").click(); await page.waitForTimeout(900); } },
   { name: "acc-units-dark", vp: "desktop", scheme: "dark", act: async (root, page) => { await root.locator("#accBtn").click(); await page.waitForTimeout(400); await root.locator('#accMenu .kbm-item[data-go="units"]').click(); await page.waitForTimeout(1000); } },
   { name: "acc-status-fr", vp: "desktop", scheme: "light", lang: "fr", act: async (root, page) => { await root.locator("#accBtn").click(); await page.waitForTimeout(400); await root.locator("#accStBtn").click(); await page.waitForTimeout(900); } },
+  // Phase B slice 7: on-screen keyboard and keyboard menu. The `.main` lift is settled by re-focusing the field (D-A31).
+  { name: "kb-open-light", vp: "desktop", scheme: "light", act: async (root, page) => { await kbOpen(root, page); } },
+  { name: "kb-typed-dark", vp: "desktop", scheme: "dark", act: async (root, page) => { await kbOpen(root, page); for (const c of ["KeyP", "KeyA", "KeyT"]) await root.locator(`#kbKeys [data-code="${c}"]`).click(); await root.locator('#kbKeys [data-code="ShiftLeft"]').click(); await page.waitForTimeout(900); } },
+  { name: "kb-menu-light", vp: "desktop", scheme: "light", act: async (root, page) => { await root.locator("#kbBtn").click(); await page.waitForTimeout(1200); } },
+  { name: "kb-menu-settings-dark", vp: "desktop", scheme: "dark", act: async (root, page) => { await root.locator("#kbBtn").click(); await page.waitForTimeout(400); await root.locator('#kbMenu [data-go="settings"]').click(); await page.waitForTimeout(1200); } },
+  { name: "kb-float-ar", vp: "desktop", scheme: "light", lang: "ar", act: async (root, page) => { await kbOpen(root, page); await root.locator("#kbFloat").click(); await page.waitForTimeout(1500); } },
+  { name: "kb-pad-tablet-light", vp: "tablet", scheme: "light", act: async (root, page) => { await kbOpen(root, page); await root.locator("#kbPad").click(); await page.waitForTimeout(1500); } },
   ...SOLO.map((app) => ({ name: `app-${app}-desktop-light`, vp: "desktop" as const, scheme: "light" as const, app })),
 ];
 /** Seeds storage before boot so both sides start from the same state. */

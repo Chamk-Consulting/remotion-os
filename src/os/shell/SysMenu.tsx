@@ -38,8 +38,8 @@ export function SysMenu() {
     if (!s.sysOpen) return;
     showView(vp.current, "main", 0, true); placeMenu(ref.current!, anchor(), (w) => w - 70);
     const v = s.sysView?.v;
-    const id = v ? setTimeout(() => showView(vp.current, v, 1, false), 120) : setTimeout(() => ref.current!.querySelector<HTMLElement>('[data-view="main"] .kbm-item')?.focus({ preventScroll: true }), 60);
-    return () => clearTimeout(id);
+    // Timers are not cancelled on close, like the source (L8758–L8761).
+    if (v) setTimeout(() => showView(vp.current, v, 1, false), 120); else setTimeout(() => ref.current!.querySelector<HTMLElement>('[data-view="main"] .kbm-item')?.focus({ preventScroll: true }), 60);
   }, [s.sysOpen, s.sysView]);
   useEffect(() => {
     const out = (e: MouseEvent) => { if (!(e.target as Element).closest?.("#sysMenu,#sysBtn")) { if (useShell.getState().sysOpen) setSysMenu(false); } };

@@ -1,5 +1,7 @@
 "use client";
 import { widgetsApi } from "./widgetsApi";
+import { flushSync } from "react-dom";
+import { kbNoteAdded, openNoteComposer } from "@/os/keyboard/kb";
 import { Children, isValidElement, useEffect, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { useShell } from "@/os/state/shell";
@@ -24,7 +26,9 @@ export function Widgets() {
   useEffect(() => { if (composer) input.current?.focus({ preventScroll: true }); }, [composer]);
   // openNoteComposer (L8120) and the calendar's "today" (ACTIONS.calToday) for shortcuts and the palette.
   useEffect(() => {
-    widgetsApi.openNoteComposer = () => { setComposer(true); input.current?.focus({ preventScroll: true }); };
+    // Shows the composer synchronously (source: noteForm.hidden=false), so the keyboard can type into it at once.
+    widgetsApi.openNoteComposer = () => { flushSync(() => setComposer(true)); };
+    widgetsApi.noteInput = () => input.current;
     widgetsApi.calToday = () => { const d = new Date(); setCal({ y: d.getFullYear(), m: d.getMonth() }); };
   }, []);
 
@@ -53,13 +57,13 @@ export function Widgets() {
     switch (id) {
       case "prev": case "prevYear": return { onClick: prevMonth }; // prevYear also −1 month: defect D-A01 reproduced
       case "next": return { onClick: () => setCal(({ y, m }) => (m === 11 ? { y: y + 1, m: 0 } : { y, m: m + 1 })) };
-      case "noteNew": return { onClick: () => { if (!composer) setComposer(true); else input.current?.focus(); } };
+      case "noteNew": return { onClick: () => { if (!composer) openNoteComposer(); else input.current?.focus(); } };
       case "noteForm": return {
         hidden: !composer, onSubmit: (e: React.FormEvent) => {
           e.preventDefault(); const v = input.current!.value.trim(); if (!v) return;
           const time = new Intl.DateTimeFormat(L, { hour: "2-digit", minute: "2-digit", timeZone: TZ }).format(new Date());
           setNotes((n) => [{ id: Date.now(), b: v, p: t("justNow"), time, fresh: true }, ...n]);
-          input.current!.value = ""; showToast(t("noteAdded"));
+          input.current!.value = ""; kbNoteAdded(input.current!); showToast(t("noteAdded"));
         },
       };
       case "noteInput": return { ref: input };
