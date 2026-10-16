@@ -21,7 +21,6 @@ const at = (re: RegExp) => { const i = html.findIndex((l) => re.test(l)); if (i 
 const SRC = html.slice(at(/^\/\* ===== v58 · Calculator & scientific tools — engine/), at(/^\/\* ===== v58 · Calculator & scientific tools — OS integration/)).join("\n");
 type Fn = (...a: never[]) => unknown;
 // The source runs with its globals: lang, t, nf (L7507–L7509), OSW and toast (only used by window code).
-// eslint-disable-next-line @typescript-eslint/no-implied-eval
 const S = new Function("const lang=\"en\";const t=k=>k;const nf=n=>new Intl.NumberFormat(\"en-US\").format(n);const OSW={};const toast=()=>{};\n" + SRC +
   "\nreturn {CA,CA_T,CA_UD,CA_CATS,CA_CONSTS,caSt,caSet,caUnitsBuild,caUnitsOf,caEval,caFmt,caFmtQ,caMoney,caNumIn,caConvert,caConstGet,caVals,caCtx,caErrMsg};")() as Record<string, never>;
 
