@@ -17,7 +17,7 @@ import { useI18n } from "@/lib/i18n/I18nProvider";
 import { SvgString } from "@/os/shell/svg";
 import icons from "@/os/shell/data/icons.json";
 import { appModeHooks, osClose, osFocus, osMax, osMin, osRestore, osTopWin, patchWin, useWm, winEls } from "./wm";
-import { openApp } from "./apps";
+import { isNativeApp, openApp, pendingSolo } from "./apps";
 import { osSnapRect } from "./geometry";
 
 export const OSA_IC = icons.OSA_IC as Record<string, string>;
@@ -33,6 +33,7 @@ function osAppOpen(k: string) { const w = useWm.getState().wins[k]; if (!w || w.
 
 export function osAppMode(k0: string, stand = false) {
   const k = osSoloKey(k0); if (!k) return;
+  const fresh = !useWm.getState().wins[k] && document.body.classList.contains("os-appmode");
   const w = osAppOpen(k); if (!w) { setTimeout(() => osAppMode(k, stand), 120); return; }
   if (osa().key && osa().key !== k) osAppModeExit(true);
   setOsa({ key: k, stand });
@@ -40,7 +41,12 @@ export function osAppMode(k0: string, stand = false) {
   if (w.snap) patchWin(k, { snap: null }); // the source keeps the data-snap attribute (snapAttr)
   const el = winEls.get(k); const first = el?.getBoundingClientRect();
   document.body.classList.add("os-appmode"); document.body.classList.toggle("os-standalone", !!stand);
-  patchWin(k, { solo: true });
+  // D-B26 (reproduced): when app mode is already on (standalone boot), the source opens the window before marking it
+  // solo, so the app renders into a window hidden by `body.os-appmode .os-win:not(.os-solo)` and every size it measures
+  // on that first render is 0 (the Calendar and Planning agendas then stay at the start of the day, Planning starts in
+  // its day view). For a freshly opened native window, solo is applied right after the body's first effects (apps.tsx).
+  if (fresh && isNativeApp(k)) pendingSolo.set(k, () => patchWin(k, { solo: true }));
+  else patchWin(k, { solo: true });
   if (stand) document.title = osSoloName(k) + " · Remotion";
   if (el && first && !reducedMotion() && !stand) requestAnimationFrame(() => { const r = el.getBoundingClientRect(); el.animate([{ transform: `translate(${first.left - r.left}px,${first.top - r.top}px) scale(${first.width / r.width},${first.height / r.height})`, transformOrigin: "0 0", borderRadius: "14px" }, { transform: "none", transformOrigin: "0 0", borderRadius: "0" }], { duration: 460, easing: "cubic-bezier(.2,1,.3,1)" }); });
   setTimeout(() => useWm.getState().wins[k]?.o.onResize?.(), 60);

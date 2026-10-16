@@ -4,10 +4,9 @@
  * once with constant props; the imperative island in ./patients.ts fills it. Dock button, desktop seed (remotion-dk-pa1),
  * app-store touch and the window title / aria relabel are handled by the shell (APP_WINDOWS.patients), as for HR.
  *
- * Gated (healthcare suite): Calendar and Cabinet add cards and actions to the patient record through PA_HOOKS
- * (L26060–L26065, L26661) and call Patients directly. Until they are native too, the live route keeps the bridged
- * Patients so those integrations stay intact; the native body is used with `?health=native` (tests, review) or a build
- * with NEXT_PUBLIC_HEALTH_NATIVE=1. See doc 15, slice 14.
+ * Healthcare suite switch (src/apps/health/flag.ts): Calendar and Cabinet add cards and actions to the patient record
+ * through PA_HOOKS (L26060–L26065, L26661) and call Patients directly, so the four healthcare apps move together. Native
+ * by default since slice 16; `?health=legacy` or a build with NEXT_PUBLIC_HEALTH_NATIVE=0 serves the bridged apps.
  */
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { useI18n } from "@/lib/i18n/I18nProvider";

@@ -142,7 +142,8 @@ test("account menu: status, profile, profiles, accounts, units, links", async ({
 
 test("bridged app notifications reach the shell notification centre (React shell + legacy bridge)", async ({ browser, baseURL }) => {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, baseURL, reducedMotion: "reduce" });
-  const p = await ctx.newPage(); await open(p, "/?shell=react");
+  // Since slice 16 the healthcare apps are native by default; this test is about the bridge, so it asks for it (?health=legacy).
+  const p = await ctx.newPage(); await open(p, "/?shell=react&health=legacy");
   await p.locator('#dkLayer .dk-ic[title="Patients"]').last().dblclick();
   const f = p.frameLocator('iframe[data-bridge="patients"]'); await f.locator("body.os-appmode").waitFor(); await p.waitForTimeout(800);
   const frame = p.frames().find((x) => x.url().includes("/legacy/"))!;

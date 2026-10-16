@@ -9,7 +9,8 @@ import icons from "@/os/shell/data/icons.json";
 import { useShell } from "@/os/state/shell";
 import { SvgString } from "@/os/shell/svg";
 import { osActions } from "@/os/actions";
-import { osFocus, osRestore, osWinOpen, useWm, type Tr, type WinOpts } from "./wm";
+import { useEffect } from "react";
+import { osFocus, osRestore, osWinOpen, useWm, winEls, type Tr, type WinOpts } from "./wm";
 import { LegacyAppFrame } from "./LegacyAppFrame";
 
 const DK = raw.DK_APPS as unknown as Record<string, [string, string]>;
@@ -49,6 +50,17 @@ const NATIVE: Record<string, NativeApp> = {};
 export function registerNativeApp(key: string, def: NativeApp) { NATIVE[key] = def; }
 export const isNativeApp = (key: string) => !!NATIVE[key];
 
+/**
+ * D-B26 (see appmode.tsx): a window opened while app mode is already on is shown (made solo) right after its native
+ * body's first effects have run — parent effects run after their children's — and before the next frame, as in the
+ * source where the opener renders into the hidden window and app mode then shows it in the same task.
+ */
+export const pendingSolo = new Map<string, () => void>();
+function NativeBody({ appKey, children }: { appKey: string; children: React.ReactNode }) {
+  useEffect(() => { const f = pendingSolo.get(appKey); if (f) { pendingSolo.delete(appKey); winEls.get(appKey)?.classList.add("os-solo"); f(); } }, [appKey]);
+  return <>{children}</>;
+}
+
 /** Opens (or brings back) an app window — the per-app open functions. */
 export function openApp(key: string, from?: Element | null) {
   // The launcher, Files and Terminal are native React windows (B-15).
@@ -64,7 +76,7 @@ export function openApp(key: string, from?: Element | null) {
   const nat = NATIVE[key]; nat?.beforeOpen?.();
   const g = sp.geo();
   const o: WinOpts = { title: sp.title, icon: sp.icon(), cls: sp.cls, w: g.w, h: g.h, x: g.x, y: g.y, minW: sp.minW, minH: sp.minH, from: from ?? null, relabelAria: sp.relabelAria,
-    body: nat ? nat.body() : <LegacyAppFrame appKey={key} />, onClose: nat?.onClose, onResize: nat?.onResize };
+    body: nat ? <NativeBody appKey={key}>{nat.body()}</NativeBody> : <LegacyAppFrame appKey={key} />, onClose: nat?.onClose, onResize: nat?.onResize };
   osWinOpen(key, o);
 }
 

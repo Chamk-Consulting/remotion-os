@@ -1,7 +1,7 @@
 /**
  * Phase C slice 15 — Gestion Calendrier (native port, gated with ?health=native with the rest of the healthcare suite):
- * dual-run parity (source file:// vs React shell). Cabinet is still bridged, so what it adds to the calendar through
- * CL_HOOKS (source L26657–L26658: room readiness tags, the reception button in the drawer) is taken out of BOTH trees.
+ * dual-run parity (source file:// vs React shell). Since slice 16 Cabinet is native too, so what it adds to the calendar
+ * through CL_HOOKS (L26657–L26658: room readiness tags, the reception button in the drawer) is compared as well.
  */
 import { test, expect, type Page, type Browser } from "@playwright/test";
 import path from "node:path";
@@ -39,9 +39,9 @@ function norm(v: unknown) {
     .replace(/\\"size\\":\d+/g, "\\\"size\\\":0").replace(/"size":\d+/g, '"size":0').replace(/\b\d+([.,]\d+)?\s?(Ko|KB|kB|ko|Mo|MB)\b/g, "N KB");
   return JSON.parse(s);
 }
-/** Serialised subtree, without the parts that Cabinet injects into the calendar (see the file header). */
+/** Serialised subtree. */
 const tree = (p: Page, sel: string) => p.evaluate((sel) => {
-  const hook = (e: Element) => e.matches("[data-clcab]") || (e.matches(".pa-tag") && !!e.parentElement?.matches(".cl-rc > .hr-ch"));
+  const hook = (_e: Element) => false;
   const keep = (n: string) => ["id", "role", "hidden", "disabled", "type", "dir", "placeholder", "tabindex", "title", "lang", "value", "checked", "selected", "href"].includes(n) || n.startsWith("aria-") || n.startsWith("data-");
   const walk = (e: Element): string[] => {
     if (hook(e)) return [];

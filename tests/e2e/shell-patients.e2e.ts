@@ -1,8 +1,8 @@
 /**
  * Phase C slice 14 — Patients & Records (native port, gated with ?health=native): dual-run parity (source file:// vs
- * React shell). Since slice 15 the Calendar is native too, so what it adds to the record through PA_HOOKS (L26060–L26065:
- * appointment cards, "Book appointment", the linked-appointment field of an encounter) is compared. Cabinet is still
- * bridged: its "today's visit" card (L26661) is taken out of BOTH trees until it is ported.
+ * React shell). Calendar (slice 15) and Cabinet (slice 16) are native too, so everything they add to the record through
+ * PA_HOOKS is compared: appointment cards, "Book appointment", the encounter's linked-appointment field (L26060–L26065)
+ * and today's visit (L26661).
  */
 import { test, expect, type Page, type Browser } from "@playwright/test";
 import path from "node:path";
@@ -37,9 +37,9 @@ function norm(v: unknown) {
     .replace(/\\"size\\":\d+/g, "\\\"size\\\":0").replace(/"size":\d+/g, '"size":0').replace(/\b\d+([.,]\d+)?\s?(Ko|KB|kB|ko|Mo|MB)\b/g, "N KB");
   return JSON.parse(s);
 }
-/** Serialised subtree, without the card Cabinet injects into Patients (see the file header). */
+/** Serialised subtree. */
 const tree = (p: Page, sel: string) => p.evaluate((sel) => {
-  const hook = (e: Element) => e.matches("section.pa-card") && /\((Gestion Cabinet|Practice|Praxis|العيادة)\)/.test(e.querySelector("h3")?.textContent || "");
+  const hook = (_e: Element) => false;
   const keep = (n: string) => ["id", "role", "hidden", "disabled", "type", "dir", "placeholder", "tabindex", "title", "lang", "value", "checked", "selected", "href"].includes(n) || n.startsWith("aria-") || n.startsWith("data-");
   const walk = (e: Element): string[] => {
     if (hook(e)) return [];
