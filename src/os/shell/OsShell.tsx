@@ -27,6 +27,7 @@ import { GhostLayer } from "@/os/desktop/ghost";
 // Native OS apps (B-15): importing them registers osActions.launcher / files / terminal.
 import "@/apps/hr/HrApp";
 import "@/apps/billing/BillingApp";
+import "@/apps/calculator/CalculatorApp";
 import "@/apps/patients/PatientsApp";
 import "@/apps/calendar/CalendarApp";
 import "@/apps/cabinet/CabinetApp";

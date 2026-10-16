@@ -24,6 +24,9 @@ const regStep1 = async (root: Root, page: Page) => {
   await root.locator("#rgPass").fill("Str0ng!Passw0rd"); await root.locator("#rgPass2").fill("Str0ng!Passw0rd"); await root.locator("#rgAgree").check();
   await root.locator("#rgBody [data-next]").click(); await page.waitForTimeout(1200);
 };
+/** Opens the Calculator from the launcher (the desktop icon's title depends on the language). */
+const openCalc = async (root: Root, page: Page) => { await root.locator('#dock [data-t="launchpad"]').click(); await page.waitForTimeout(700); await root.locator('.al .al-card[data-app="calcsci"]').click({ timeout: 10000 }); await page.waitForTimeout(1500); };
+const caGo = async (root: Root, page: Page, v: string) => { await root.locator(`.os-win[data-osw="calcsci"] [data-cago="${v}"]`).first().evaluate((e) => (e as HTMLElement).click()); await page.waitForTimeout(900); };
 export const SOLO = ["documents", "forms", "files", "terminal", "calcsci", "billing", "hrPeople", "patients", "calendar", "cabinet", "planning"];
 export const SCENES: Scene[] = [
   ...(["desktop", "tablet", "mobile"] as const).flatMap((vp) => (["light", "dark"] as const).map((scheme) => ({ name: `shell-${vp}-${scheme}`, vp, scheme }))),
@@ -126,6 +129,11 @@ export const SCENES: Scene[] = [
   { name: "pl-week-light", vp: "desktop", scheme: "light", query: "health=native", act: async (root, page) => { await root.locator('#dock [data-t="launchpad"]').click(); await page.waitForTimeout(700); await root.locator('.al .al-card[data-app="planning"]').click({ timeout: 10000 }); await page.waitForTimeout(1500); } },
   { name: "pl-wait-dark", vp: "desktop", scheme: "dark", query: "health=native", act: async (root, page) => { await root.locator('#dock [data-t="launchpad"]').click(); await page.waitForTimeout(700); await root.locator('.al .al-card[data-app="planning"]').click({ timeout: 10000 }); await page.waitForTimeout(1500); await root.locator('.os-win[data-osw="planning"] [data-plgo="wait"]').first().evaluate((e) => (e as HTMLElement).click()); await page.waitForTimeout(800); } },
   { name: "pl-ar-tablet", vp: "tablet", scheme: "light", lang: "ar", query: "health=native", act: async (root, page) => { await root.locator('#dock [data-t="launchpad"]').click(); await page.waitForTimeout(700); await root.locator('.al .al-card[data-app="planning"]').click({ timeout: 10000 }); await page.waitForTimeout(1500); } },
+  { name: "ca-home-light", vp: "desktop", scheme: "light", act: async (root, page) => { await openCalc(root, page); } },
+  { name: "ca-std-dark", vp: "desktop", scheme: "dark", act: async (root, page) => { await openCalc(root, page); await caGo(root, page, "std"); for (const k of ["1", "2", "+", "7", "*", "3", "="]) await root.locator(`.os-win[data-osw="calcsci"] [data-sk="${k}"]`).click(); await page.waitForTimeout(500); } },
+  { name: "ca-graph-light", vp: "desktop", scheme: "light", act: async (root, page) => { await openCalc(root, page); await caGo(root, page, "graph"); await page.waitForTimeout(800); } },
+  { name: "ca-loan-fr", vp: "desktop", scheme: "light", lang: "fr", act: async (root, page) => { await openCalc(root, page); await caGo(root, page, "loan"); await page.waitForTimeout(800); } },
+  { name: "ca-ar-tablet", vp: "tablet", scheme: "light", lang: "ar", act: async (root, page) => { await openCalc(root, page); await caGo(root, page, "cv_temp"); await page.waitForTimeout(800); } },
   ...SOLO.map((app) => ({ name: `app-${app}-desktop-light`, vp: "desktop" as const, scheme: "light" as const, app })),
 ];
 /** Seeds storage before boot so both sides start from the same state. */
