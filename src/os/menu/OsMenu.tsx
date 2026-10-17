@@ -41,7 +41,10 @@ function MenuLevel({ lvl, level }: { lvl: number; level: Level }) {
   const placed = useRef(false);
   // osPlace (L11694): clamp to viewport, flip to altX, transform-origin at the pointer, pop-in animation.
   useLayoutEffect(() => {
-    const m = ref.current!; if (placed.current) return; placed.current = true;
+    const m = ref.current!;
+    // L11688: the source keeps the menu's items on its element (`m._items`); Documents' table-cell menu reads them back (L18524).
+    (m as HTMLDivElement & { _items?: unknown })._items = level.items;
+    if (placed.current) return; placed.current = true;
     const W = m.offsetWidth, H = m.offsetHeight, { x, y, altX } = level; let px = x, py = y;
     if (px + W > innerWidth - 8) px = altX !== undefined ? altX - W : innerWidth - W - 8;
     if (px < 8) px = altX !== undefined && altX + W < innerWidth ? altX : 8;

@@ -2171,5 +2171,5 @@ export {
   feTok, feParse, feRefs, feFormulaEval, feNumOf, feAgeOf, feScoreOf, feDeps, feValStr, feCond, feCondOne, feLogicNorm, feVis, feVisLeaves,
   feTblRows, feCsvParse, feChartData, feSubSt, feCount, feListForms, feSp, feAutoSp, feBmLabel,
   feEach, feFind, fePvPrefill, fePvValidate, feFldHTML, fePvFld, feCtl, feAutofillSuggest, feA11y, feImportParse,
-  FE_T, FE_PRE, FE_TPL, FE_G, FE_WIDE, FE_NUM,
+  FE_T, FE_PRE, FE_TPL, FE_G, FE_WIDE, FE_NUM, FEI, feLoadScript, feBodySVG,
 };

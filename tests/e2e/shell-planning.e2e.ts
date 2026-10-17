@@ -35,7 +35,7 @@ async function both(browser: Browser, baseURL: string | undefined, fn: (p: Page)
 const T36 = NOW.getTime().toString(36);
 function norm(v: unknown) {
   const map = new Map<string, string>();
-  const s = JSON.stringify(v).replace(/demo[0-9a-f]{12}/g, "demoTOKEN").replace(/\b[0-9a-f]{24}\b/g, "TOKEN24").replace(/\/b\/[0-9a-f]{8}…/g, "/b/TOKEN…").replace(/\/b\/demo[0-9a-f]{4}…/g, "/b/demoTOKEN…")
+  const s = JSON.stringify(v).replace(/demo[0-9a-f]{6,12}(?![0-9a-f])/g, "demoTOKEN").replace(/\b[0-9a-f]{24}\b/g, "TOKEN24").replace(/\/b\/[0-9a-f]{8}…/g, "/b/TOKEN…").replace(/\/b\/demo[0-9a-f]{4}…/g, "/b/demoTOKEN…")
     .replace(new RegExp(`\\b([a-z]{0,3})${T36}([0-9a-z]{4,5})\\b`, "g"), (m, p) => { if (!map.has(m)) map.set(m, p + "#" + map.size); return map.get(m)!; })
     .replace(/\\"size\\":\d+/g, "\\\"size\\\":0").replace(/"size":\d+/g, '"size":0').replace(/\b\d+([.,]\d+)?\s?(Ko|KB|kB|ko|Mo|MB)\b/g, "N KB");
   return JSON.parse(s);
