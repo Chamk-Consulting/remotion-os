@@ -22,7 +22,7 @@ import { openApp } from "@/os/windows/apps";
 import registry from "@/apps/registry.data.json";
 import { hrE, hri, hrRM, hrNf, hrCount, HRI } from "@/apps/hr/hr";
 import { biSt, biBal, biOverdue, biGo } from "@/apps/billing/billing";
-import { feLoad, feS, feName } from "@/apps/forms/store";
+import { feLoad, feS, feName, feOpenForm } from "@/apps/forms/forms";
 import { rmEmit, rmPrac, rmPracName, rmPracJob, rmPracEmployment, rmPracs, rmSpecName, rmEsts, rmEstName, rmNotify, RM_SPECS } from "@/apps/health/rm";
 
 /* ---------- typed model ---------- */
@@ -95,10 +95,8 @@ const toast = (m: string) => useShell.getState().showToast(m);
 const osMenu = (x: number, y: number, items: (MenuItem | string | null)[]) => osMenuCore(x, y, items as MenuItem[]);
 const DK_APPS = registry.DK_APPS as unknown as Record<string, [string, string]>;
 const OS_USER: { name?: string } | null = null;
-/** OS_OPEN (L11857) for the apps Patients opens: Forms (bridged) and Billing (native). */
+/** OS_OPEN (L11857) for the apps Patients opens: Forms and Billing (both native). */
 const OS_OPEN = { forms: () => openApp("forms"), billing: () => openApp("billing") };
-/** feOpenForm lives in the Forms app, still served by the bridge: reached in its document once it has booted. */
-const feOpenForm = (id: string, view: string) => { let n = 0; const go = () => { const f = document.querySelector<HTMLIFrameElement>('.os-win[data-osw="forms"] iframe'); const w = f?.contentWindow as (Window & { feOpenForm?: (id: string, view: string) => void }) | null | undefined; if (w?.feOpenForm) { w.feOpenForm(id, view); return; } if (++n < 40) setTimeout(go, 150); }; go(); };
 /** OSW.patients.el (the window) — found by its key. */
 const paWinEl = () => document.querySelector<HTMLElement>('.os-win[data-osw="patients"]');
 /** paOpen (L25411): the window is opened by the shell. */

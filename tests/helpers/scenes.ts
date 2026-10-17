@@ -27,6 +27,8 @@ const regStep1 = async (root: Root, page: Page) => {
 /** Opens the Calculator from the launcher (the desktop icon's title depends on the language). */
 const openCalc = async (root: Root, page: Page) => { await root.locator('#dock [data-t="launchpad"]').click(); await page.waitForTimeout(700); await root.locator('.al .al-card[data-app="calcsci"]').click({ timeout: 10000 }); await page.waitForTimeout(1500); };
 const caGo = async (root: Root, page: Page, v: string) => { await root.locator(`.os-win[data-osw="calcsci"] [data-cago="${v}"]`).first().evaluate((e) => (e as HTMLElement).click()); await page.waitForTimeout(900); };
+const openForms = async (root: Root, page: Page) => { await root.locator('#dock [data-t="launchpad"]').click(); await page.waitForTimeout(700); await root.locator('.al .al-card[data-app="forms"]').click({ timeout: 10000 }); await page.waitForTimeout(1500); };
+const feClick = async (root: Root, page: Page, sel: string) => { await root.locator(`.os-win[data-osw="forms"] ${sel}`).first().evaluate((e) => (e as HTMLElement).click()); await page.waitForTimeout(900); };
 export const SOLO = ["documents", "forms", "files", "terminal", "calcsci", "billing", "hrPeople", "patients", "calendar", "cabinet", "planning"];
 export const SCENES: Scene[] = [
   ...(["desktop", "tablet", "mobile"] as const).flatMap((vp) => (["light", "dark"] as const).map((scheme) => ({ name: `shell-${vp}-${scheme}`, vp, scheme }))),
@@ -134,6 +136,11 @@ export const SCENES: Scene[] = [
   { name: "ca-graph-light", vp: "desktop", scheme: "light", act: async (root, page) => { await openCalc(root, page); await caGo(root, page, "graph"); await page.waitForTimeout(800); } },
   { name: "ca-loan-fr", vp: "desktop", scheme: "light", lang: "fr", act: async (root, page) => { await openCalc(root, page); await caGo(root, page, "loan"); await page.waitForTimeout(800); } },
   { name: "ca-ar-tablet", vp: "tablet", scheme: "light", lang: "ar", act: async (root, page) => { await openCalc(root, page); await caGo(root, page, "cv_temp"); await page.waitForTimeout(800); } },
+  { name: "fe-editor-light", vp: "desktop", scheme: "light", act: async (root, page) => { await openForms(root, page); } },
+  { name: "fe-preview-dark", vp: "desktop", scheme: "dark", act: async (root, page) => { await openForms(root, page); await feClick(root, page, '[data-tab="preview"]'); } },
+  { name: "fe-overview-light", vp: "desktop", scheme: "light", act: async (root, page) => { await openForms(root, page); await feClick(root, page, '[data-go="overview"]'); } },
+  { name: "fe-library-fr", vp: "desktop", scheme: "light", lang: "fr", act: async (root, page) => { await openForms(root, page); await feClick(root, page, '[data-go="library"]'); } },
+  { name: "fe-ar-tablet", vp: "tablet", scheme: "light", lang: "ar", act: async (root, page) => { await openForms(root, page); await feClick(root, page, '[data-go="analytics"]'); } },
   ...SOLO.map((app) => ({ name: `app-${app}-desktop-light`, vp: "desktop" as const, scheme: "light" as const, app })),
 ];
 /** Seeds storage before boot so both sides start from the same state. */
