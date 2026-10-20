@@ -1,0 +1,11 @@
+const ctx=require('./harness.js');const vm=require('vm');vm.runInContext("caUnitsBuild()",ctx);
+const run=(id,vals)=>vm.runInContext(`(()=>{const d=CA_T[${JSON.stringify(id)}];delete CA.vals[d.id];const v=Object.assign(caVals(d),${JSON.stringify(vals)});try{const r=d.run(caCtx(d,v));return JSON.stringify(r&&{main:r.main&&r.main.map(L4),rows:(r.rows||[]).filter(x=>x!=="-").map(x=>[L4(x[0]),x[1]])})}catch(e){return "ERR "+(e.k||e.message)}})()`,ctx);
+console.log(run("health",{ack:true,m:"bmi",w:"70",w_u:"kg",h:"175",h_u:"cm"}));
+console.log(run("health",{ack:true,m:"bsa",w:"70",w_u:"kg",h:"175",h_u:"cm"}));
+console.log(run("health",{ack:true,m:"rate",vol:"1000",vol_u:"mL",dur:"8",dur_u:"h",df:"20"}));
+console.log(run("health",{ack:false}));
+console.log(run("limit",{f:"sin(x)/x",to:"a",a:"0",side:"both"}));
+vm.runInContext("caSet().ang='rad'",ctx);console.log(run("limit",{f:"sin(x)/x",to:"a",a:"0",side:"both"}));
+console.log(run("loan",{P:"200000",r:"3.5",y:"20",f:"12",kind:"ann",cur:"EUR"}));
+console.log(JSON.stringify(vm.runInContext("caRoundMoney(2.675,2)",ctx)),vm.runInContext("caRoundMoney(1.005,2)",ctx));
+vm.runInContext("lang='fr'",ctx); console.log(vm.runInContext("caFmt(1234567.891)+' | '+caNumIn('1,5')+' | '+caNumIn('1.234')+' | '+caNumIn('1,234')",ctx));

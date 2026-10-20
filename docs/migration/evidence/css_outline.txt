@@ -1,0 +1,245 @@
+6: /* Layout: full-screen OS shell — top bar, launcher rail, widget column, dock, slide-up desktop switcher */
+66: /* theme switch motion: circular reveal via view transitions, crossfade fallback */
+70: /* language switch motion: each panel blurs out, glides to its new place, then settles in with a stagger */
+120: /* top bar */
+135: /* popovers */
+145: /* main */
+152: /* workspace menu */
+163: /* widgets */
+233: /* dock: lifts when the desktop panel opens */
+241: /* slide-up desktop panel */
+262: /* quick note composer */
+272: /* on-screen keyboard */
+341: /* top bar: bell, keyboard button, profile */
+359: /* keyboard menu */
+407: /* shortcuts dialog */
+423: /* rail extras */
+438: /* search trigger + palette */
+459: /* system menu */
+471: /* keyboard settings controls */
+488: /* keyboard shortcuts panel */
+533: /* tray in the desktop panel */
+539: /* lock, restart, shut down */
+730: /* keyboard theme wave + layout swap */
+740: /* ---------- notification center ---------- */
+885: /* desktop banners */
+915: /* ---------- account menu ---------- */
+973: /* ---------- sign-in screen ---------- */
+1108: /* ---------- registration ---------- */
+1125: /* left */
+1150: /* middle */
+1268: /* profile */
+1304: /* verification */
+1324: /* review + create */
+1344: /* right */
+1376: /* motion in */
+1386: /* organization step */
+1462: /* verification step */
+1527: /* registration · review */
+1603: /* virtual desktops: overview + spaces */
+1691: /* account: locations & departments */
+1738: /* ===== Remotion AI ===== */
+1759: /* sidebar */
+1801: /* main */
+1853: /* cards */
+1913: /* attachment + extracted */
+1945: /* empty state */
+1958: /* composer */
+1989: /* ===== form panel ===== */
+2170: /* form inside the chat */
+2242: /* free desktop icons */
+2358: /* ===== OS: menus ===== */
+2388: /* ===== windows ===== */
+2415: /* ===== launcher ===== */
+2473: /* ===== files ===== */
+2561: /* ===== terminal ===== */
+2573: /* ===== sidebar peek, tray ===== */
+2586: /* icon sizes & visibility */
+2604: /* ===== Formulaires & Enquêtes ===== */
+2613: /* nav */
+2637: /* main + header */
+2681: /* tabs */
+2697: /* body */
+2731: /* stage */
+2793: /* field look */
+2859: /* drag */
+2868: /* AI bar */
+2888: /* properties */
+2938: /* toast */
+2946: /* preview */
+2978: /* patient-facing form (always light, branded) */
+3067: /* options of the preview */
+3084: /* panes: rules / versions / share / automations */
+3147: /* app views */
+3209: /* ---- responsive: the window can be any size ---- */
+3314: /* nested blocks */
+3343: /* responsive widths */
+3365: /* yes/no, rating, slider, table, chart, info, divider */
+3437: /* spreadsheet-like tables */
+3451: /* table editor: headers, rows, cell types */
+3491: /* ===== Forms: domain components, dialogs, review ===== */
+3659: /* dialogs */
+3714: /* AI preview */
+3720: /* review */
+3775: /* ===== Documents — clinical document editor ===== */
+3808: /* nav */
+3832: /* main */
+3856: /* workspace */
+3876: /* left pane */
+3938: /* canvas */
+3952: /* page */
+3969: /* selection decor */
+3988: /* blocks */
+4079: /* web + read modes */
+4085: /* right panel */
+4182: /* status bar */
+4193: /* drawer */
+4224: /* popovers */
+4232: /* modals */
+4270: /* views */
+4310: /* toast */
+4317: /* print */
+4320: /* responsive (window width) */
+4353: /* v43: form fields, questionnaires, VAS, table formulas */
+4414: /* ===== v44 pagination ===== */
+4428: /* ===== v44 export dialog ===== */
+4477: /* ===== v45 · Pages = real pages, Plan by page, sync ===== */
+4487: /* ===== v45 · same components as Forms ===== */
+4525: /* library items behave like Forms components */
+4536: /* properties take the whole panel when an element is selected (like the Forms properties panel) */
+4544: /* ===== v45 · document content uses the page accent ===== */
+4560: /* ===== v46 · template gallery ===== */
+4580: /* ===== v46 · find bar ===== */
+4593: /* ===== v46 · quality check ===== */
+4616: /* ===== v47 · import dialog ===== */
+4649: /* charts v2 */
+4689: /* ===== v49 signatures ===== */
+4750: /* ===== v50 ribbon + menus ===== */
+4762: /* ===== v51 charts layout + new blocks ===== */
+4776: /* coloured section */
+4784: /* checklist */
+4793: /* toggle */
+4799: /* initials */
+4801: /* props pickers */
+4806: /* ===== v52 themes ===== */
+4834: /* ===== v53 tables, columns, pagination, my themes ===== */
+4850: /* columns layout */
+4871: /* pagination marks */
+4876: /* my themes */
+4889: /* ===== v54 exact forms ===== */
+4938: /* ===== v54 print centre ===== */
+4968: /* v54 entities */
+5012: /* v54 generic blocks */
+5106: /* imported headings keep the source alignment: their text lines up with body paragraphs */
+5108: /* v55 window manager */
+5122: /* windows drawn on the desktop thumbnails */
+5132: /* v56 app mode and separate window */
+5154: /* ===== v58 · Calculator & scientific tools ===== */
+5172: /* ---------- navigation ---------- */
+5200: /* ---------- main column ---------- */
+5225: /* ---------- cards, forms ---------- */
+5270: /* ---------- results ---------- */
+5313: /* charts (validated categorical order: blue, orange, violet, green) */
+5326: /* ---------- home ---------- */
+5350: /* ---------- history ---------- */
+5375: /* ---------- standard calculator ---------- */
+5412: /* scientific */
+5426: /* graph */
+5448: /* expression editor */
+5481: /* converters */
+5509: /* programmer */
+5515: /* settings, library */
+5526: /* dialogs, toast, scrim */
+5541: /* ---------- responsive ---------- */
+5577: /* app mode / full window: give the calculator room */
+5582: /* calculator keypads, bit grids and code stay left-to-right in every language */
+5586: /* ===== v61 · Facturation & Revenus (orange accent, Remotion green brand mark) ===== */
+5603: /* ---------- navigation ---------- */
+5622: /* ---------- header ---------- */
+5640: /* ---------- buttons, inputs ---------- */
+5672: /* ---------- cards, states, notes ---------- */
+5689: /* ---------- filters and tables ---------- */
+5713: /* ---------- dashboard ---------- */
+5743: /* reports */
+5752: /* ---------- drawer ---------- */
+5770: /* ---------- dialogs, toast ---------- */
+5782: /* ---------- editor ---------- */
+5811: /* ---------- pages ---------- */
+5821: /* template designer */
+5826: /* ---------- A4 document ---------- */
+5829: /* ---------- responsive ---------- */
+5849: /* ===== v62 · RH & Paie (green brand, blue interaction) ===== */
+5862: /* nav */
+5875: /* bar */
+5882: /* buttons & inputs */
+5898: /* states */
+5915: /* page head + KPIs */
+5923: /* list card, tools, filters */
+5936: /* table */
+5953: /* cards */
+5958: /* pager, bulk */
+5963: /* drawer */
+5979: /* profile */
+5989: /* dashboard */
+5995: /* directory */
+5998: /* org chart */
+6002: /* gantt */
+6007: /* requests */
+6013: /* dialogs, wizard, import */
+6034: /* responsive */
+6058: /* ===== v64 · Patients & Dossiers médicaux — builds on the shared RH & Paie component classes (hr-*) ===== */
+6077: /* global search in the bar */
+6088: /* drawer bits */
+6099: /* record */
+6124: /* documents */
+6133: /* clinical */
+6181: /* registration */
+6186: /* dashboard & quality */
+6198: /* responsive */
+6216: /* ===== v65 · Gestion Calendrier — builds on the shared hr-* components ===== */
+6230: /* mini month */
+6237: /* time grid */
+6266: /* month */
+6273: /* agenda list */
+6279: /* status chips */
+6283: /* drawer */
+6289: /* wizard */
+6305: /* pages */
+6321: /* responsive */
+6343: /* ===== v66 · Gestion Cabinet — builds on the shared hr-* components ===== */
+6352: /* stage badges */
+6358: /* dashboard */
+6372: /* visit rows */
+6388: /* check-in & walk-in */
+6397: /* drawer */
+6403: /* waiting room */
+6413: /* public display */
+6426: /* operations timeline */
+6444: /* tables */
+6449: /* practitioners */
+6452: /* services */
+6455: /* rooms */
+6467: /* admin follow-up */
+6471: /* tasks */
+6483: /* reports */
+6489: /* configuration */
+6502: /* ===== v67 · Calendar & Planning ===== */
+6515: /* sidebar */
+6530: /* main */
+6542: /* grid */
+6576: /* month & agenda */
+6589: /* upcoming strip */
+6596: /* right panel */
+6608: /* drawer & booking panel */
+6633: /* pages */
+6672: /* ===== v68 · Word-exact documents ===== */
+6695: /* fill-in places: the original dots / underscores are a placeholder that keeps its exact width */
+6703: /* editor: scaled pages */
+6713: /* in Documents: the Word page is laid out at 1:1 (zoom undone) then scaled, so line breaks never depend on the zoom lev
+6757: /* PDF pages: drawing as background, text lines in place */
+6762: /* import dialog on small screens: the options scroll, the footer stays readable */
+6765: /* ===== v71 · open as is ===== */
+6785: /* spreadsheets opened as is */
+6792: /* slides opened as is */
+6808: /* top bar fits any language: labels drop out step by step */
+6825: /* narrower screens */

@@ -1,0 +1,3 @@
+const ctx=require('./harness.js');const vm=require('vm');vm.runInContext("caUnitsBuild()",ctx);
+const T=["1.5[mi] to [km]","72[km/h] to [m/s]","3[kWh] to [MJ]","98.6[°F] to [°C]","500[mg/dL] to [g/L]","1[GiB] to [MB]","2[h] + 45[min] to [min]","10[Δ°C] to [Δ°F]","20[°C] to [°F]","150[cm] to [m]","2[h] + 30[min]","1[min]","1[time:min]","1[angle:deg]","5[m] to [s]","-40[°C] to [°F]","-273.15[°C]","1[mmHg] to [kPa]"];
+for(const s of T){let out;try{const v=vm.runInContext(`caEval(${JSON.stringify(s)},{vars:{}})`,ctx);out=vm.runInContext(`caFmt(${JSON.stringify(v)})`,ctx)}catch(e){out="ERR "+(e.k||e.message)+" "+(e.x||"")}console.log(s.padEnd(28),out)}

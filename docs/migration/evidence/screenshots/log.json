@@ -1,0 +1,167 @@
+[
+ {
+  "name": "desktop-1440-light",
+  "ms": 3973,
+  "vis": "#lock:true/block/hidden/0 #si:true/block/hidden/0 #rg:true/block/hidden/0 #power:/grid/hidden/0 #shell:/grid/visible/1",
+  "errs": [
+   "console: Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED"
+  ],
+  "fails": [
+   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&display net::ERR_TUNNEL_CONNECTION_FAILED"
+  ]
+ },
+ {
+  "name": "desktop-1440-dark",
+  "ms": 3855,
+  "vis": "#lock:true/block/hidden/0 #si:true/block/hidden/0 #rg:true/block/hidden/0 #power:/grid/hidden/0 #shell:/grid/visible/1",
+  "errs": [
+   "console: Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED"
+  ],
+  "fails": [
+   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&display net::ERR_TUNNEL_CONNECTION_FAILED"
+  ]
+ },
+ {
+  "name": "tablet-1024-light",
+  "ms": 3807,
+  "vis": "#lock:true/block/hidden/0 #si:true/block/hidden/0 #rg:true/block/hidden/0 #power:/grid/hidden/0 #shell:/grid/visible/1",
+  "errs": [
+   "console: Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED"
+  ],
+  "fails": [
+   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&display net::ERR_TUNNEL_CONNECTION_FAILED"
+  ]
+ },
+ {
+  "name": "mobile-390-light",
+  "ms": 3639,
+  "vis": "#lock:true/block/hidden/0 #si:true/block/hidden/0 #rg:true/block/hidden/0 #power:/grid/hidden/0 #shell:/grid/visible/1",
+  "errs": [
+   "console: Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED"
+  ],
+  "fails": [
+   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&display net::ERR_TUNNEL_CONNECTION_FAILED"
+  ]
+ },
+ {
+  "name": "app-documents",
+  "ms": 3893,
+  "vis": "#lock:true/block/hidden/0 #si:true/block/hidden/0 #rg:true/block/hidden/0 #power:/grid/hidden/0 #shell:/grid/visible/1",
+  "errs": [
+   "console: Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED"
+  ],
+  "fails": [
+   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&display net::ERR_TUNNEL_CONNECTION_FAILED"
+  ]
+ },
+ {
+  "name": "app-forms",
+  "ms": 3756,
+  "vis": "#lock:true/block/hidden/0 #si:true/block/hidden/0 #rg:true/block/hidden/0 #power:/grid/hidden/0 #shell:/grid/visible/1",
+  "errs": [
+   "console: Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED"
+  ],
+  "fails": [
+   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&display net::ERR_TUNNEL_CONNECTION_FAILED"
+  ]
+ },
+ {
+  "name": "app-files",
+  "ms": 3494,
+  "vis": "#lock:true/block/hidden/0 #si:true/block/hidden/0 #rg:true/block/hidden/0 #power:/grid/hidden/0 #shell:/grid/visible/1",
+  "errs": [
+   "console: Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED"
+  ],
+  "fails": [
+   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&display net::ERR_TUNNEL_CONNECTION_FAILED"
+  ]
+ },
+ {
+  "name": "app-terminal",
+  "ms": 3593,
+  "vis": "#lock:true/block/hidden/0 #si:true/block/hidden/0 #rg:true/block/hidden/0 #power:/grid/hidden/0 #shell:/grid/visible/1",
+  "errs": [
+   "console: Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED"
+  ],
+  "fails": [
+   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&display net::ERR_TUNNEL_CONNECTION_FAILED"
+  ]
+ },
+ {
+  "name": "app-calcsci",
+  "ms": 3544,
+  "vis": "#lock:true/block/hidden/0 #si:true/block/hidden/0 #rg:true/block/hidden/0 #power:/grid/hidden/0 #shell:/grid/visible/1",
+  "errs": [
+   "console: Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED"
+  ],
+  "fails": [
+   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&display net::ERR_TUNNEL_CONNECTION_FAILED"
+  ]
+ },
+ {
+  "name": "app-billing",
+  "ms": 4233,
+  "vis": "#lock:true/block/hidden/0 #si:true/block/hidden/0 #rg:true/block/hidden/0 #power:/grid/hidden/0 #shell:/grid/visible/1",
+  "errs": [
+   "console: Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED"
+  ],
+  "fails": [
+   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&display net::ERR_TUNNEL_CONNECTION_FAILED"
+  ]
+ },
+ {
+  "name": "app-hrPeople",
+  "ms": 3893,
+  "vis": "#lock:true/block/hidden/0 #si:true/block/hidden/0 #rg:true/block/hidden/0 #power:/grid/hidden/0 #shell:/grid/visible/1",
+  "errs": [
+   "console: Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED"
+  ],
+  "fails": [
+   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&display net::ERR_TUNNEL_CONNECTION_FAILED"
+  ]
+ },
+ {
+  "name": "app-patients",
+  "ms": 3698,
+  "vis": "#lock:true/block/hidden/0 #si:true/block/hidden/0 #rg:true/block/hidden/0 #power:/grid/hidden/0 #shell:/grid/visible/1",
+  "errs": [
+   "console: Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED"
+  ],
+  "fails": [
+   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&display net::ERR_TUNNEL_CONNECTION_FAILED"
+  ]
+ },
+ {
+  "name": "app-calendar",
+  "ms": 4468,
+  "vis": "#lock:true/block/hidden/0 #si:true/block/hidden/0 #rg:true/block/hidden/0 #power:/grid/hidden/0 #shell:/grid/visible/1",
+  "errs": [
+   "console: Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED"
+  ],
+  "fails": [
+   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&display net::ERR_TUNNEL_CONNECTION_FAILED"
+  ]
+ },
+ {
+  "name": "app-cabinet",
+  "ms": 4380,
+  "vis": "#lock:true/block/hidden/0 #si:true/block/hidden/0 #rg:true/block/hidden/0 #power:/grid/hidden/0 #shell:/grid/visible/1",
+  "errs": [
+   "console: Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED"
+  ],
+  "fails": [
+   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&display net::ERR_TUNNEL_CONNECTION_FAILED"
+  ]
+ },
+ {
+  "name": "app-planning",
+  "ms": 4265,
+  "vis": "#lock:true/block/hidden/0 #si:true/block/hidden/0 #rg:true/block/hidden/0 #power:/grid/hidden/0 #shell:/grid/visible/1",
+  "errs": [
+   "console: Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED"
+  ],
+  "fails": [
+   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&display net::ERR_TUNNEL_CONNECTION_FAILED"
+  ]
+ }
+]

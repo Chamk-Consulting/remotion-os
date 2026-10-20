@@ -1,0 +1,238 @@
+<title>ReMotion Migration Status</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&display=swap">
+<style>
+/* Layout: a single control-room column — status line, gauges, slice ledger, open decisions, evidence. */
+:root{
+  --bg:#f3f5f3; --panel:#ffffff; --ink:#18201b; --muted:#5d6b62; --line:#dbe2dc;
+  --accent:#1a8c3b; --accent-soft:#e3f3e7; --warn:#a15c00; --warn-soft:#fbefdc; --bad:#b4232a; --plan:#9aa79f;
+  --f-display:"IBM Plex Sans Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111613; --panel:#19201b; --ink:#e4ebe6; --muted:#97a69c; --line:#2b352e;
+  --accent:#4fd27a; --accent-soft:#1d3324; --warn:#f0b35a; --warn-soft:#3a2c17; --bad:#ff7b7b; --plan:#5f6d64; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111613; --panel:#19201b; --ink:#e4ebe6; --muted:#97a69c; --line:#2b352e;
+  --accent:#4fd27a; --accent-soft:#1d3324; --warn:#f0b35a; --warn-soft:#3a2c17; --bad:#ff7b7b; --plan:#5f6d64; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--f-body);margin:0}
+.wrap{max-width:1040px;margin:0 auto;padding-block:32px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:28px}
+h1,h2{font-family:var(--f-display);text-wrap:balance;margin:0;letter-spacing:.005em}
+h1{font-size:clamp(28px,4.4vw,40px);line-height:1.1}
+h2{font-size:20px}
+.eyebrow{font:500 12px/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.mono{font-family:var(--f-mono);font-size:13px}
+.muted{color:var(--muted)}
+header{display:grid;gap:10px}
+header p{margin:0;max-width:68ch}
+.statusline{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font:500 12px/1.6 var(--f-mono);border:1px solid var(--line);background:var(--panel)}
+.pill.ok{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
+.pill.wait{background:var(--warn-soft);border-color:transparent;color:var(--warn)}
+.dot{width:7px;height:7px;border-radius:50%;background:currentColor}
+section{display:grid;gap:14px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 20px}
+.gauges{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.gauge{display:grid;gap:8px;align-content:start}
+.gauge b{font:600 26px/1 var(--f-display);font-variant-numeric:tabular-nums}
+.bar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--line)}
+.bar span{display:block}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--muted)}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.suite{display:flex;justify-content:space-between;gap:12px;font-variant-numeric:tabular-nums;border-top:1px solid var(--line);padding-top:6px}
+.suite:first-of-type{border-top:0;padding-top:0}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:500 11.5px/1.2 var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+td.n{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+tr.next td{color:var(--muted)}
+.state{font:500 12px var(--f-mono);white-space:nowrap}
+.state.done{color:var(--accent)} .state.next{color:var(--warn)} .state.plan{color:var(--muted)}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+ul.plain{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+ul.plain li{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start}
+.tag{font:500 12px/1.5 var(--f-mono);padding:1px 7px;border-radius:5px;background:var(--bg);border:1px solid var(--line);white-space:nowrap}
+.tag.w{background:var(--warn-soft);color:var(--warn);border-color:transparent}
+.tag.g{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+.shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+figure{margin:0;display:grid;gap:6px}
+figure img{width:100%;max-width:100%;border-radius:8px;border:1px solid var(--line);display:block;aspect-ratio:16/10;object-fit:cover}
+figcaption{font-size:13px;color:var(--muted)}
+.remaining{display:flex;flex-wrap:wrap;gap:8px}
+footer{font-size:13px;color:var(--muted)}
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Remotion_Desktop.html → Next.js 16</span>
+    <h1>ReMotion Migration Status</h1>
+    <p id="lede"></p>
+    <div class="statusline" id="statusline"></div>
+  </header>
+
+  <section>
+    <div class="gauges">
+      <div class="panel gauge">
+        <span class="eyebrow">Feature parity rows</span>
+        <b id="rowsTotal"></b>
+        <div class="bar" id="rowsBar" role="img"></div>
+        <div class="legend" id="rowsLegend"></div>
+      </div>
+      <div class="panel gauge">
+        <span class="eyebrow">Phase B shell surfaces</span>
+        <b id="shellCount"></b>
+        <div class="bar" id="shellBar" role="img"></div>
+        <div class="legend"><span><i style="background:var(--accent)"></i>ported to React</span><span><i style="background:var(--plan)"></i>still on the bridge</span></div>
+      </div>
+      <div class="panel gauge">
+        <span class="eyebrow">Test suites after the last slice</span>
+        <div id="suites" style="display:grid;gap:6px"></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Decisions waiting on you</h2>
+    <div class="panel"><ul class="plain" id="decisions"></ul></div>
+  </section>
+
+  <section>
+    <h2>Slices</h2>
+    <div class="panel scroll"><table>
+      <thead><tr><th>#</th><th>Scope</th><th>Commit</th><th>Tests added</th><th>Status</th></tr></thead>
+      <tbody id="slices"></tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>Latest screens</h2>
+    <p class="muted" style="margin:0;max-width:72ch" id="shotsNote"></p>
+    <div class="shots" id="shots"></div>
+  </section>
+
+  <section class="cols">
+    <div class="panel" style="display:grid;gap:12px">
+      <h2>Defects found while porting</h2>
+      <p class="muted" style="margin:0">Reproduced as in the original, per the brief. Fixing any of them needs your approval.</p>
+      <ul class="plain" id="defects"></ul>
+    </div>
+    <div class="panel" style="display:grid;gap:12px">
+      <h2>Build issues fixed</h2>
+      <ul class="plain" id="buildfix"></ul>
+      <h2 style="margin-top:6px">Still to port</h2>
+      <div class="remaining" id="remaining"></div>
+    </div>
+  </section>
+
+  <footer id="footer"></footer>
+</div>
+
+<script>
+const DATA = {
+  updated: "18 October 2026, WAT · slice 20",
+  commit: "481cc71",
+  phase: "Phase C complete · every app is native and every cross-app link is tested; staging on Vercel (private). Next: verification sign-off",
+  lede: "The original single-file OS is being rebuilt in Next.js one slice at a time. Each ported surface is compared against the original: the same steps run in both, the page state must be identical, and screenshots must differ by at most 0.1% of pixels. Since slice 11 the React shell serves / and /apps/…; since slice 19 every app inside the windows is native too, and slice 20 tested the links between them. The whole original stays reachable with ?shell=legacy for rollback.",
+  rows: { verified: 0, inProgress: 156, planned: 0 },
+  shell: { done: 21, total: 21 },
+  suites: [["Unit and golden", "49 / 49"], ["End-to-end, dual-run", "168 / 168"], ["Visual, React shell", "116 / 116"], ["Visual, bridge", "116 / 116 (1 on re-run)"]],
+  decisions: [
+    ["D-B23", "Fix the lost first click on a window that is behind another? (one switch in the window stack)"],
+    ["D-A29", "Fix the shortcuts panel so custom shortcuts can be recorded? (today the panel closes when recording starts)"],
+    ["D-B25", "Fix the Remotion AI popovers so they stay open? (today rename / delete chat, the filter and the Create / More menus can't be used)"],
+    ["D-G28 · D-F29", "Fix HR & Payroll and Billing opening in their narrow phone layout when animations are on? (they measure the window mid-animation)"],
+    ["Q-07", "Confirm Vercel (project remotion-os) as the production host, and which address: a new one, or replacing remotion-desktop. Staging runs there now."],
+  ],
+  slices: [
+    ["A", "Project setup, legacy CSS byte-identical, i18n extraction, real-font visual baseline", "28af6bd", "baseline 19 scenes", "done"],
+    ["1", "React shell frame: top bar, rail, widgets, dock, wallpaper, workspaces", "2fbc3dc", "E2E + visual", "done"],
+    ["2", "Desktop icons, folder / Quick Look / trash windows, virtual desktops, HUD, tray", "5ee5fb2 · 02dc9df", "E2E + visual", "done"],
+    ["3", "Desktop and item context menus", "19f2615", "7 E2E · 5 visual", "done"],
+    ["4", "Window manager, snapping, app mode, bridged app windows", "507d295", "9 E2E · 5 visual", "done"],
+    ["5", "Shortcuts, system menu, search palette", "0b6f43b", "5 E2E · 8 visual", "done"],
+    ["6", "Notification centre, banners, reminders, account menu", "9cdf419", "5 E2E · 7 visual", "done"],
+    ["7", "On-screen keyboard and keyboard menu", "180ca0e", "7 E2E · 6 visual", "done"],
+    ["8", "Lock screen, power screen, sign-in", "31aed77", "6 E2E · 9 visual", "done"],
+    ["9", "Registration wizard", "602bd3e", "3 E2E · 4 visual", "done"],
+    ["10", "Launcher, Files, Terminal, ghost drags", "ad62cef", "4 E2E · 7 visual", "done"],
+    ["11", "Remotion AI, file drop, sidebar; / switched to the React shell", "2ab09bd", "6 E2E · 5 visual · 12 route", "done"],
+    ["12", "HR & Payroll native; shared zip and download services", "41628d3", "5 E2E · 5 visual", "done"],
+    ["13", "Billing & Revenue native; Forms store for linked forms", "be42f5d", "7 E2E · 5 visual · 4 unit", "done"],
+    ["14", "Patients & Records native (behind ?health=native until Calendar / Cabinet follow); shared healthcare registry", "7b81f23", "7 E2E · 5 visual", "done"],
+    ["15", "Calendar native (behind ?health=native); golden test against the source's time-zone and recurrence code", "c861f5f", "8 E2E · 5 visual · 3 golden", "done"],
+    ["16", "Cabinet and Planning native; the healthcare suite is now native by default (?health=legacy rolls back)", "2c44835", "11 E2E · 6 visual", "done"],
+    ["17", "Calculator native; golden test runs every tool against the source's own code; approved fix D-E13 applied", "3647f67", "12 E2E · 5 visual · 6 golden", "done"],
+    ["18", "Forms & Surveys native; Billing and Patients share its store; Patients opens forms natively", "6f4c38f", "9 E2E · 5 visual · 8 golden", "done"],
+    ["19", "Documents native: editor, tables, signing, export, import, exact Word / PDF; approved fix D-D04 applied", "0ae7ee3", "8 E2E · 5 visual · 4 golden", "done"],
+    ["20", "Event bus and cross-app links verified (bus golden test against the source; journeys Calendar→Billing, Cabinet→Calendar, Calendar→Planning, HR→Calendar, Billing→Patients, notifications, pop-out windows); deployed to staging", "481cc71", "6 E2E · 8 golden", "done"],
+    ["21", "Verification sign-off: rows move from in progress to verified; production when approved", "—", "—", "next"],
+  ],
+  shotsNote: "Documents running natively in the React shell. Each scene is pixel-identical to the original (0.000% differing).",
+  shots: [["dc-editor-light.jpg", "Document editor"], ["dc-library-dark.jpg", "Library, dark"], ["dc-templates-fr.jpg", "Template gallery, French"], ["dc-ar-tablet.jpg", "Read view, Arabic tablet"]],
+  defects: [
+    ["D-A28", "System menu views show the state from when the menu opened."],
+    ["D-A29", "Custom shortcuts cannot be recorded (panel closes)."],
+    ["D-A30", "A fixed input language with an automatic layout comes back as QWERTY after a reload."],
+    ["D-A31", "The docked keyboard lifts the page by a timing-dependent amount."],
+    ["D-B21", "Mouse clicks on Duplicate / Copy / Cut / Delete in the icon menu do nothing."],
+    ["D-B22", "Window button labels shift by one after a language switch."],
+    ["D-B23", "The first click on a window behind another is lost."],
+    ["D-B24", "Remotion AI quick replies above the message box do nothing."],
+    ["D-B25", "Every Remotion AI popover closes in the click that opens it (filter, Create, More, rename / delete chat)."],
+    ["D-G28", "With animations on, HR & Payroll opens in its narrow phone layout even in a full-size window."],
+    ["D-F29", "Billing & Revenue has the same narrow-layout opening as HR when animations are on."],
+    ["D-F30", "Cabinet's live badge loses its “Up to date” label on the first 15-second tick."],
+    ["D-B26", "Opened straight in app mode, Calendar and Planning first render into a hidden window (no scroll to working hours; Planning starts in day view)."],
+    ["D-E23", "In a Calculator tool, ticking a checkbox that shows or hides fields throws an error and skips the recalculation."],
+    ["D-D16", "A Documents table formula that names a table not in the current document throws an error."],
+    ["D-D17", "Opening an OpenDocument spreadsheet “as is” ignores its row heights."],
+    ["D-D18", "For an exact Word document the quality-check badge always reads 0."],
+    ["D-H18", "With two windows open, both can process the same healthcare event (duplicate notifications) — reproduced and now tested."],
+  ],
+  buildfix: [
+    ["blur", "Glass surfaces lost their backdrop blur in the build; fixed in the CSS pipeline."],
+    ["font", "The lock clock lost its tabular digits (a reordered font rule); fixed in the CSS pipeline."],
+    ["calendar", "Opening Calendar crashed the React shell (its dock button had no icon); found by a new test and fixed in slice 11."],
+  ],
+  remaining: ["Verification sign-off", "Production go-ahead"],
+};
+
+const $ = (id) => document.getElementById(id);
+const el = (tag, props = {}, ...kids) => { const e = document.createElement(tag); Object.assign(e, props); kids.forEach((k) => e.append(k)); return e; };
+$("lede").textContent = DATA.lede;
+$("statusline").append(
+  el("span", { className: "pill ok" }, el("span", { className: "dot" }), DATA.phase),
+  el("span", { className: "mono muted", textContent: "Updated " + DATA.updated }),
+  el("span", { className: "mono muted", textContent: "Last commit " + DATA.commit }),
+);
+const r = DATA.rows, total = r.verified + r.inProgress + r.planned;
+$("rowsTotal").textContent = total + " rows";
+[["var(--accent)", r.verified, "verified"], ["var(--warn)", r.inProgress, "in progress"], ["var(--plan)", r.planned, "planned"]].forEach(([c, n, l]) => {
+  if (n) $("rowsBar").append(el("span", { style: `width:${(n / total) * 100}%;background:${c}` }));
+  $("rowsLegend").append(el("span", {}, el("i", { style: `background:${c}` }), `${n} ${l}`));
+});
+$("rowsBar").setAttribute("aria-label", `${r.verified} verified, ${r.inProgress} in progress, ${r.planned} planned`);
+$("rowsLegend").append(el("span", { textContent: "Verified means the React version serves the live route." }));
+const s = DATA.shell;
+$("shellCount").textContent = `${s.done} of ${s.total}`;
+$("shellBar").append(el("span", { style: `width:${(s.done / s.total) * 100}%;background:var(--accent)` }));
+$("shellBar").setAttribute("aria-label", `${s.done} of ${s.total} shell surfaces ported`);
+DATA.suites.forEach(([n, v]) => $("suites").append(el("div", { className: "suite" }, el("span", { textContent: n }), el("span", { className: "mono", textContent: v }))));
+DATA.decisions.forEach(([id, t]) => $("decisions").append(el("li", {}, el("span", { className: "tag w", textContent: id }), el("span", { textContent: t }))));
+const LABEL = { done: "Done", next: "Next", plan: "Planned" };
+DATA.slices.forEach(([n, scope, commit, tests, st]) => {
+  const tr = el("tr", { className: st === "done" ? "" : "next" });
+  tr.append(el("td", { className: "n", textContent: n }), el("td", { textContent: scope }), el("td", { className: "n", textContent: commit }), el("td", { textContent: tests }), el("td", {}, el("span", { className: "state " + st, textContent: LABEL[st] })));
+  $("slices").append(tr);
+});
+$("shotsNote").textContent = DATA.shotsNote;
+DATA.shots.forEach(([f, c]) => $("shots").append(el("figure", {}, el("img", { src: "shots/" + f, alt: c, loading: "lazy" }), el("figcaption", { textContent: c }))));
+DATA.defects.forEach(([id, t]) => $("defects").append(el("li", {}, el("span", { className: "tag", textContent: id }), el("span", { textContent: t }))));
+DATA.buildfix.forEach(([id, t]) => $("buildfix").append(el("li", {}, el("span", { className: "tag g", textContent: id }), el("span", { textContent: t }))));
+DATA.remaining.forEach((t) => $("remaining").append(el("span", { className: "pill", textContent: t })));
+$("footer").textContent = "Source of truth: plans/migration/html-to-nextjs, docs 12 (parity matrix) and 15 (implementation progress). This page is republished after every slice.";
+</script>
