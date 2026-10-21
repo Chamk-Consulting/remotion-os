@@ -162,8 +162,8 @@ test("free document: a blank Word-like page from New document, typed into freely
   await p.keyboard.press("Home"); await p.keyboard.press("Shift+End");
   await p.selectOption(`${W} [data-dxfblk]`, "h1"); await p.waitForTimeout(400);
   await p.locator(`${W} .dc-cv .wx-blk h1`).first().click(); await p.keyboard.press("End"); await p.keyboard.press("Enter");
-  await p.keyboard.type("Body text", { delay: 15 }); await p.keyboard.press("Shift+Home"); await dclick(p, `${W} [data-dxf="bold"]`, 400);
-  await p.keyboard.press("End"); await dclick(p, `${W} [data-dxf="table"]`, 1800);
+  await p.keyboard.type("Body text", { delay: 15 }); await p.keyboard.press("Shift+Home"); await dclick(p, `${W} [data-dxfr="bold"]`, 400);
+  await p.keyboard.press("End"); await dclick(p, `${W} [data-dxfr="table"]`, 1800);
   await p.screenshot({ path: "test-results/p5-free.png" });
   const st = (await readStore(p))!.json as { docs: Record<string, { kind: string; title: unknown; ex: { live?: unknown; blocks: { h: string }[] } }>; cur: string };
   const d = st.docs[st.cur];

@@ -39,11 +39,13 @@ import { LANGS as LANGS0, isLang, type Lang } from "@/lib/i18n/langs";
 import { lkRM } from "@/os/lock/lock";
 import { useShell } from "@/os/state/shell";
 import { osMenu as osMenuCore, type MenuItem } from "@/os/menu/OsMenu";
-import { osMax } from "@/os/windows/wm";
+import { osMax, osClose } from "@/os/windows/wm";
 import { useWm } from "@/os/windows/wm";
 import { isTop } from "@/os/windows/stack";
 import { FEI, feBmLabel, feBodySVG, feLoadScript } from "@/apps/forms/forms";
-import { readStore, writeStore, type SaveResult } from "./store";
+import { readStore, writeStore, type SaveResult, storeEncrypted, storeCanEncrypt, enableEncryption, disableEncryption, lockStore } from "./store";
+import { rmEmit } from "@/apps/health/rm";
+import { paSt } from "@/apps/patients/patients";
 import { PX_I18N } from "./px-i18n";
 import { createPdfFonts, loadFontkit, fetchFont, ttfSubset } from "./pdf-text";
 
@@ -157,7 +159,7 @@ export type DcApp = {
   ruler?: boolean;
   saved?: number;
   /** product phase 1: the last write failed ("quota" | "error"), or another tab saved a newer store */
-  saveErr?: "quota" | "error" | null;
+  saveErr?: "quota" | "error" | "locked" | null;
   conflict?: boolean;
   /** product phase 3: structure editing allowed in a patient copy; the tablet kiosk state and its idle timer */
   fillEdit?: boolean;
@@ -721,8 +723,8 @@ let dcSaveT=0 as unknown as DcTimer;
 /* Product phase 1: the store is written to IndexedDB (./store) and every write reports whether it was kept.
    A failed write shows "Not saved" (red) instead of "All changes saved" (D-D02 fixed); while another tab's newer
    version is waiting for a choice (DC.conflict), nothing is written (D-D08 fixed). */
-let dcSave=function(now?: boolean){clearTimeout(dcSaveT);const go=()=>{if(DC.conflict){dcStatusSync();return}const json=JSON.stringify(dcS);writeStore(json).then(dcSaveResult)};if(now)go();else{dcStatusSaving();dcSaveT=setTimeout(go,500)}}
-function dcSaveResult(r: SaveResult){if(r.ok){const was=DC.saveErr;DC.saveErr=null;DC.saved=Date.now();if(was)dcToast(t("dcx_savedAgain"))}else{const first=!DC.saveErr;DC.saveErr=r.reason;if(first)dcToast(t(r.reason==="quota"?"dcx_notSavedQuota":"dcx_notSavedErr"))}dcStatusSync()}
+let dcSave=function(now?: boolean){clearTimeout(dcSaveT);const go=()=>{if(!dcS)return;/* never write an empty store over the real one */if(DC.conflict){dcStatusSync();return}const json=JSON.stringify(dcS);writeStore(json).then(dcSaveResult)};if(now)go();else{dcStatusSaving();dcSaveT=setTimeout(go,500)}}
+function dcSaveResult(r: SaveResult){if(!r.ok&&r.reason==="locked")return;if(r.ok){const was=DC.saveErr;DC.saveErr=null;DC.saved=Date.now();if(was)dcToast(t("dcx_savedAgain"))}else{const first=!DC.saveErr;DC.saveErr=r.reason;if(first)dcToast(t(r.reason==="quota"?"dcx_notSavedQuota":"dcx_notSavedErr"))}dcStatusSync()}
 /* ---------- walking ---------- */
 function dcEach(fn: (b: DcBlock, p: DcPage, pi: number, bi: number) => unknown,d?: DcDoc | null){d=d||dcDoc();d.pages.forEach((p,pi)=>p.blocks.forEach((b,bi)=>fn(b,p,pi,bi)))}
 function dcFind(id: string | null | undefined,d?: DcDoc | null): DcFindR | null{let r=null as DcFindR | null;dcEach((b,p,pi,bi)=>{if(b.id===id)r={b,p,pi,bi}},d);return r}
@@ -1429,7 +1431,7 @@ function dcCreateFromTpl(id: string,title?: string){dcModalClose();const d=dcFro
 function dcDupDoc(stay: boolean){const s=dcDoc();const d=JSON.parse(JSON.stringify(s));d.title=dcTx(s.title)+" "+t("dc_copySuffix");d.status="draft";d.star=false;d.cmts=[];d.vers=[];dcReId(d);dcAddDoc(d,!stay);if(stay)dcRender(false);dcToast(t("dc_duplicated"))}
 
 /* ---------- modals ---------- */
-function dcModal(html: string,o: { wide?: boolean; cls?: string; [k: string]: unknown }={}){dcModalClose(true);const R=dcRoot();const m=document.createElement("div");m.className="dc-mdl";m.innerHTML=`<div class="dc-mbg" data-mclose></div><div class="dc-mbox${o.wide?" wide":""}${o.cls?" "+o.cls:""}" role="dialog" aria-modal="true" aria-label="${dcE(o.title||"")}">${html}</div>`;R!.appendChild(m);
+function dcModal(html: string,o: { wide?: boolean; cls?: string; [k: string]: unknown }={}){const opener=document.activeElement as HTMLElement|null;dcModalClose(true);const R=dcRoot();const m=document.createElement("div");(m as unknown as {_opener?: HTMLElement|null})._opener=opener&&!opener.closest(".dc-mdl")?opener:null;m.className="dc-mdl";m.innerHTML=`<div class="dc-mbg" data-mclose></div><div class="dc-mbox${o.wide?" wide":""}${o.cls?" "+o.cls:""}" role="dialog" aria-modal="true" aria-label="${dcE(o.title||"")}">${html}</div>`;R!.appendChild(m);
   m.addEventListener("click",e=>{if(tgt(e).closest<HTMLInputElement>("[data-mclose]")){dcModalClose();return}dcModalClick(e,m)});
   if(!dcRM()){m.querySelector<HTMLInputElement>(".dc-mbg")!.animate([{opacity:0},{opacity:1}],{duration:200});m.querySelector<HTMLInputElement>(".dc-mbox")!.animate([{opacity:0,transform:"translateY(14px) scale(.97)"},{opacity:1,transform:"none"}],{duration:340,easing:"cubic-bezier(.2,1.2,.3,1)"})}
   setTimeout(()=>m.querySelector<HTMLInputElement>("[autofocus]")?.focus(),40);return m}
@@ -7248,7 +7250,7 @@ function dcxSendModal(){const d=dcDoc();if(!d||dcxIsCopy(d))return;const s=dcSig
   const sgRow=(role: string,i: number)=>`<div class="dcx-sgr" data-dxsg="${i}"><select class="dc-inp sm" data-dxsgrole aria-label="${t("dc_role")}">${DC_SGR.map(([k,l])=>`<option value="${k}"${role===k?" selected":""}>${t(l)}</option>`).join("")}</select><input class="dc-inp sm" data-dxsgname placeholder="${dcE(t("dc_sg_namePh"))}" value="${role==="prat"?dcE(dcTx(d.prat,L)):""}" aria-label="${t("dc_sg_fullName")}"><button type="button" class="dc-ib sm" data-dxsgdel aria-label="${t("dc_del")}">${DCI.del}</button></div>`;
   const html=`<div class="dc-mh"><span class="ic">${DCI.users}</span><div><h3>${t("dcx_send_title")}</h3><p>${t("dcx_send_sub")}</p></div><button type="button" class="dc-ib sm" data-mclose aria-label="${t("fmClose")}">${DCI.x}</button></div>
   <div class="dc-mb dcx-send"><p class="dc-mut">${t("dcx_send_intro")}</p>
-    <h6>${t("dcx_send_patient")}</h6>${dcRow2(dcRow("dcx_firstName",`<input class="dc-inp" data-dxp="prenom" autocomplete="off">`,true),dcRow("dcx_lastName",`<input class="dc-inp" data-dxp="nom" autocomplete="off">`,true))}
+    <h6>${t("dcx_send_patient")}</h6>${dcxPickHTML()}${dcRow2(dcRow("dcx_firstName",`<input class="dc-inp" data-dxp="prenom" autocomplete="off">`,true),dcRow("dcx_lastName",`<input class="dc-inp" data-dxp="nom" autocomplete="off">`,true))}
     ${dcRow2(dcRow("dcx_dob",`<input class="dc-inp" type="date" data-dxp="dob">`),dcRow("dcx_email",`<input class="dc-inp" type="email" data-dxp="email" autocomplete="off">`))}
     <h6>${t("dcx_send_flags")}</h6><label class="dc-tg"><span>${t("dcx_flag_video")}</span><input type="checkbox" data-dxf="video"><i></i></label><label class="dc-tg"><span>${t("dcx_flag_rec")}</span><input type="checkbox" data-dxf="recording"><i></i></label>
     <h6>${t("dcx_send_signers")}</h6><div class="dcx-sgl">${roles.map(sgRow).join("")}</div><button type="button" class="dc-btn sm" data-dxsgadd>${DCI.userplus}${t("dc_sg_add")}</button>
@@ -7263,11 +7265,11 @@ function dcxSendModal(){const d=dcDoc();if(!d||dcxIsCopy(d))return;const s=dcSig
       if(!v("prenom")||!v("nom")){err.hidden=false;err.textContent=t("dcx_send_need");m.querySelector<HTMLInputElement>(v("prenom")?'[data-dxp="nom"]':'[data-dxp="prenom"]')?.focus();return}
       const flags: Record<string, boolean>={};m.querySelectorAll<HTMLInputElement>("[data-dxf]").forEach(c=>{flags[c.dataset.dxf!]=c.checked});
       const signers=[...m.querySelectorAll<HTMLElement>(".dcx-sgr")].map(r=>({role:r.querySelector<HTMLSelectElement>("[data-dxsgrole]")!.value,name:r.querySelector<HTMLInputElement>("[data-dxsgname]")!.value.trim()}));
-      const id=dcxCreateCopy(d,{prenom:v("prenom"),nom:v("nom"),dob:v("dob"),email:v("email"),flags,signers});const open=m.querySelector<HTMLInputElement>("[data-dxopen]")!.checked;
-      dcModalClose();if(open)dcOpenDoc(id);else dcRender(false);dcToast(t("dcx_send_done",{n:`${v("prenom")} ${v("nom")}`}))}})
+      const id=dcxCreateCopy(d,{prenom:v("prenom"),nom:v("nom"),dob:v("dob"),email:v("email"),flags,signers,pid:m.dataset.pid||""});const open=m.querySelector<HTMLInputElement>("[data-dxopen]")!.checked;
+      dcModalClose();if(open)dcOpenDoc(id);else dcRender(false);dcToast(t("dcx_send_done",{n:`${v("prenom")} ${v("nom")}`}));dcxPxSent(id)}})
   setTimeout(()=>m.querySelector<HTMLInputElement>('[data-dxp="prenom"]')?.focus(),40)}
 const dcxAgeOf=(dob: string)=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(dob||"");if(!m)return null;const n=new Date(),b=new Date(+m[1],+m[2]-1,+m[3]);let a=n.getFullYear()-b.getFullYear();if(n.getMonth()<b.getMonth()||(n.getMonth()===b.getMonth()&&n.getDate()<b.getDate()))a--;return a};
-function dcxCreateCopy(tpl: DcDoc,o: {prenom: string; nom: string; dob: string; email: string; flags: Record<string, boolean>; signers: {role: string; name: string}[]}){
+function dcxCreateCopy(tpl: DcDoc,o: {prenom: string; nom: string; dob: string; email: string; flags: Record<string, boolean>; signers: {role: string; name: string}[]; pid?: string}){
   const id="c"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);const L=tpl.lang||lang();
   const c=JSON.parse(JSON.stringify(tpl)) as DcxDoc;const ts=dcSig(tpl);
   const pname=`${o.prenom} ${o.nom}`.trim();
@@ -7276,7 +7278,7 @@ function dcxCreateCopy(tpl: DcDoc,o: {prenom: string; nom: string; dob: string; 
     return {id:m?.id||("sg"+Math.random().toString(36).slice(2,9)),role:sg.role,name:sg.name||(sg.role==="patient"?pname:""),st:"wait"} as unknown as DcSigner});
   const age=dcxAgeOf(o.dob);if(age!=null&&age<18&&!list.some(x=>(x as unknown as {role: string}).role==="guardian"))list.push({id:"sg"+Math.random().toString(36).slice(2,9),role:"guardian",name:"",st:"wait"} as unknown as DcSigner);
   Object.assign(c,{id,copyOf:tpl.id,fill:true,flags:o.flags,sentAt:Date.now(),owner:"me",star:false,status:"review",upd:Date.now(),cmts:[],vers:[],sample:false,tpl:undefined,
-    title:`${dcPlain(dcTx(tpl.title,L))} — ${pname}`,pt:{...(c.pt||{}),prenom:o.prenom,nom:o.nom,dob:o.dob,email:o.email},
+    title:`${dcPlain(dcTx(tpl.title,L))} — ${pname}`,pt:{...(c.pt||{}),prenom:o.prenom,nom:o.nom,dob:o.dob,email:o.email,...(o.pid?{pid:o.pid}:{})},pid:o.pid||undefined,
     sig:{mode:ts?.mode||"seq",list,audit:[],lock:false,hash:"",cert:ts?.cert!==false}});
   c.pages.forEach(pg=>pg.blocks.forEach(b=>{if(b.type==="sign"&&b.signer&&!list.some(x=>x.id===b.signer))delete b.signer}));
   dcSigPlace(c);dcSigLog(c,"setup");
@@ -7520,7 +7522,7 @@ function dcxPalItems(): DcxCmd[]{const out: DcxCmd[]=[];const ed=DC.view==="edit
   if(ed&&d){out.push({g:A,ic:DCI.search,l:t("dcx_pal_find"),run:()=>dcFindOpen(true)},{g:A,ic:DCI.print,l:t("dcx_pal_pdf"),run:()=>dcExport("pdf")},{g:A,ic:DCI.download,l:t("dcx_pal_export"),run:()=>{dcExportOpen()}},
       {g:A,ic:DCI.hist,l:t("dcx_pal_ver"),run:()=>dcSaveVersion()},{g:A,ic:DCI.check,l:t("dcx_pal_check"),run:()=>dcDrawer("check")},{g:A,ic:DCI.hist,l:t("dcx_pal_hist"),run:()=>dcDrawer("hist")},{g:A,ic:DCI.trash,l:t("dcx_pal_trash"),run:dcxTrashModal});
     if(!dcxIsCopy(d)&&!dcIsWx(d)&&!dcIsLive(d))out.push({g:A,ic:DCI.users,l:t("dcx_pal_send"),run:dcxSendModal})}
-  out.push({g:A,ic:DCI.plus,l:t("dcx_pal_new"),run:()=>dcNewModal()});out.push({g:A,ic:DCI.pen,l:t("dcx_pal_free"),run:()=>{dcxNewFree()}});
+  out.push({g:A,ic:DCI.plus,l:t("dcx_pal_new"),run:()=>dcNewModal()});out.push({g:A,ic:DCI.pen,l:t("dcx_pal_free"),run:()=>{dcxNewFree()}});out.push({g:A,ic:DCI.lock,l:t("dcx_pal_enc"),run:dcxEncModal});if(storeEncrypted())out.push({g:A,ic:DCI.lock,l:t("dcx_pal_lock"),run:()=>{dcxLockNow()}});
   if(dcxBlockEd()){const I=t("dcx_pal_ins");DC_LIB.forEach(([,,types])=>types.forEach(k=>out.push({g:I,ic:dcxIcon(k),l:t("dcx_pal_insert",{x:t(DC_T[k][1])}),txt:t(DC_T[k][2]),run:()=>dcInsert(k)})));
     dcxReus().forEach(r=>{out.push({g:I,ic:DCI.refresh,l:t("dcx_pal_insert",{x:t("dcx_sl_syn",{x:r.name})}),run:()=>dcInsert("syn:"+r.id)},{g:I,ic:DCI.copy,l:t("dcx_pal_insert",{x:t("dcx_sl_copy",{x:r.name})}),run:()=>dcInsert("reu:"+r.id)})})}
   const V=t("dcx_pal_view");DC_NAV.forEach(([k,ic,lb])=>out.push({g:V,ic:(DCI as unknown as Record<string,string>)[ic]||DCI.docs,l:t("dcx_pal_goto",{x:t(lb)}),run:()=>dcGo(k)}));
@@ -7691,22 +7693,22 @@ function dcxFInsert(html: string,asBlock: boolean){const el=dcxFRestore();const 
   if(last){const r2=document.createRange();r2.setStartAfter(last);r2.collapse(true);s.removeAllRanges();s.addRange(r2)}dcxFDone(el)}
 function dcxFExec(cmd: string,val?: string){const el=dcxFRestore();if(!el)return;document.execCommand("styleWithCSS",false,"true");document.execCommand(cmd,false,val);dcxFDone(el)}
 {const _rb=dcRibbonHTML;dcRibbonHTML=function(){const d=dcS?dcDoc():null;if(!dcxIsFree(d)||!["home","file","insert"].includes(DC.rib!))return _rb();const sep='<span class="dc-vs"></span>';let h="";
-  if(DC.rib==="insert")h=`${dcBig('data-dxf="table"',"table","dc_cTable")}${dcBig('data-dxf="img"',"image","dc_cImage")}${dcBig('data-dxf="link"',"link","dc_cLink")}${dcBig('data-dxf="hr"',"sep","dc_cSep")}${dcBig('data-dxf="date"',"clock","dcx_sl_today")}${sep}${dcBig('data-dcmd="printc"',"print","dc_pr_title")}${dcBig("data-wxpdf","download","dc_wx_pdf")}`;
+  if(DC.rib==="insert")h=`${dcBig('data-dxfr="table"',"table","dc_cTable")}${dcBig('data-dxfr="img"',"image","dc_cImage")}${dcBig('data-dxfr="link"',"link","dc_cLink")}${dcBig('data-dxfr="hr"',"sep","dc_cSep")}${dcBig('data-dxfr="date"',"clock","dcx_sl_today")}${sep}${dcBig('data-dcmd="printc"',"print","dc_pr_title")}${dcBig("data-wxpdf","download","dc_wx_pdf")}`;
   else h=`${dcTb('data-dcmd="undo"',"undo","fe_undo")}${dcTb('data-dcmd="redo"',"redo","fe_redo")}${sep}<select class="dc-inp sm dcx-fsel" data-dxfblk aria-label="${t("dcx_f_style")}"><option value="p">${t("dc_stNormal")}</option><option value="h1">${t("dc_stH1")}</option><option value="h2">${t("dc_stH2")}</option><option value="h3">${t("dc_stH3")}</option><option value="blockquote">${t("dc_stQuote")}</option></select>
     <select class="dc-inp sm dcx-fsel" data-dxfsz aria-label="${t("dc_fsize")}">${[8,9,10,11,12,14,16,18,20,24,28,32,36].map(n=>`<option value="${n}"${n===11?" selected":""}>${n}</option>`).join("")}</select>${sep}
-    ${dcTb('data-dxf="bold"',"bold","dc_bold")}${dcTb('data-dxf="italic"',"italic","dc_italic")}${dcTb('data-dxf="underline"',"under","dc_under")}${dcTb('data-dxf="strikeThrough"',"strike","dcx_f_strike")}
+    ${dcTb('data-dxfr="bold"',"bold","dc_bold")}${dcTb('data-dxfr="italic"',"italic","dc_italic")}${dcTb('data-dxfr="underline"',"under","dc_under")}${dcTb('data-dxfr="strikeThrough"',"strike","dcx_f_strike")}
     <label class="dc-tb col dcx-fcol" title="${t("dc_color")}">${DCI.color}<input type="color" data-dxfcol="foreColor" value="#1a2335" aria-label="${t("dc_color")}"></label><label class="dc-tb col dcx-fcol" title="${t("dc_hl")}">${DCI.hl}<input type="color" data-dxfcol="hiliteColor" value="#ffe066" aria-label="${t("dc_hl")}"></label>${sep}
-    ${dcTb('data-dxf="justifyLeft"',"al","dc_alL")}${dcTb('data-dxf="justifyCenter"',"ac","dc_alC")}${dcTb('data-dxf="justifyRight"',"ar","dc_alR")}${dcTb('data-dxf="justifyFull"',"aj","dcx_f_just")}${sep}
-    ${dcTb('data-dxf="insertUnorderedList"',"ul","dc_listUl")}${dcTb('data-dxf="insertOrderedList"',"ol","dc_listOl")}${dcTb('data-dxf="outdent"',"outdent","dc_outdent")}${dcTb('data-dxf="indent"',"indent","dc_indent")}${sep}
-    ${dcBig('data-dxf="table"',"table","dc_cTable")}${dcBig('data-dxf="img"',"image","dc_cImage")}`;
+    ${dcTb('data-dxfr="justifyLeft"',"al","dc_alL")}${dcTb('data-dxfr="justifyCenter"',"ac","dc_alC")}${dcTb('data-dxfr="justifyRight"',"ar","dc_alR")}${dcTb('data-dxfr="justifyFull"',"aj","dcx_f_just")}${sep}
+    ${dcTb('data-dxfr="insertUnorderedList"',"ul","dc_listUl")}${dcTb('data-dxfr="insertOrderedList"',"ol","dc_listOl")}${dcTb('data-dxfr="outdent"',"outdent","dc_outdent")}${dcTb('data-dxfr="indent"',"indent","dc_indent")}${sep}
+    ${dcBig('data-dxfr="table"',"table","dc_cTable")}${dcBig('data-dxfr="img"',"image","dc_cImage")}`;
   return `<div class="dc-tbar" data-rk="${DC.rib}">${h}</div>`}}
-onDoc("mousedown",e=>{if(tgt(e).closest?.(".dc-tbar [data-dxf]"))e.preventDefault()},true);
+onDoc("mousedown",e=>{if(tgt(e).closest?.(".dc-tbar [data-dxfr]"))e.preventDefault()},true);
 onDoc("change",e=>{const x=tgt(e) as HTMLInputElement;if(!dcxIsFree(dcS?dcDoc():null))return;
   if(x.matches?.("[data-dxfblk]")){dcxFExec("formatBlock",x.value==="p"?"P":x.value.toUpperCase());return}
   if(x.matches?.("[data-dxfsz]")){const el=dcxFRestore();if(!el)return;document.execCommand("styleWithCSS",false,"false");document.execCommand("fontSize",false,"7");
     el.closest(".wx-blk, .dc-cv")?.querySelectorAll<HTMLElement>('font[size="7"]').forEach(f=>{const sp=document.createElement("span");sp.style.fontSize=x.value+"pt";sp.append(...f.childNodes);f.replaceWith(sp)});dcxFDone(el);return}
   if(x.matches?.("[data-dxfcol]")){dcxFExec(x.dataset.dxfcol!,x.value)}});
-{const _ck=dcClick;dcClick=function(e,R){const b=tgt(e).closest<HTMLElement>("[data-dxf]");if(!b||!dcxIsFree(dcDoc()))return _ck(e,R);const k=b.dataset.dxf!;
+{const _ck=dcClick;dcClick=function(e,R){const b=tgt(e).closest<HTMLElement>("[data-dxfr]");if(!b||!dcxIsFree(dcDoc()))return _ck(e,R);const k=b.dataset.dxfr!;
   if(k==="table"){const cell='<td style="border:1px solid #c9d1dc;padding:4px 6px;vertical-align:top;min-width:40px"><br></td>';dcxFInsert(`<table style="border-collapse:collapse;width:100%;margin:6px 0"><tbody>${`<tr>${cell.repeat(3)}</tr>`.repeat(3)}</tbody></table><p><br></p>`,true);return}
   if(k==="hr"){dcxFExec("insertHorizontalRule");return}
   if(k==="date"){const L=dcDoc().lang||lang();dcxFExec("insertText",new Date().toLocaleDateString(L==="ar"?"ar":L,{day:"numeric",month:"long",year:"numeric"}));return}
@@ -7744,6 +7746,64 @@ onDoc("input",e=>{const x=tgt(e) as HTMLInputElement;if(!x.matches?.("[data-dxcm
 {const _pn=dcWxPanel;dcWxPanel=function(){const h=_pn();const d=dcDoc();if(!dcIsLive(d)||dcxIsFree(d)||!d.ex.store||!["pdf","img"].includes(d.ex.live.src))return h;
   return h.replace('<button type="button" class="dc-btn sm" data-wxpdf>',`<button type="button" class="dc-btn sm" data-dxcmp>${DCI.layers}${t("dcx_cmp")}</button><button type="button" class="dc-btn sm" data-wxpdf>`)}}
 {const _ck=dcClick;dcClick=function(e,R){if(tgt(e).closest("[data-dxcmp]")){dcxCmpOpen();return}return _ck(e,R)}}
+
+/* ===================== Product phase 6 — Documents ↔ Patients through the OS event bus ===================== */
+/* The send dialog finds the patient in Patients (read-only view of its store); a linked copy announces itself and its changes on the bus
+ * with ids only (no clinical content on the bus — rm.ts rule); Patients reads the details from the Documents store. */
+type DcxPat = { id: string; mrn: string; first: string; last: string; birth: string; status: string; contact?: { email?: string } };
+function dcxPatients(): DcxPat[]{try{return (paSt().pats as unknown as DcxPat[]).filter(p=>p.status==="active"||p.status==="inactive")}catch(e){return []}}
+const dcxPatLabel=(p: DcxPat)=>`${p.first} ${p.last} · ${p.mrn}${p.birth?" · "+p.birth:""}`;
+function dcxPickHTML(){const P=dcxPatients();if(!P.length)return "";
+  return `<div class="dcx-ppick">${dcRow("dcx_pick",`<input class="dc-inp" list="dcx-pl" data-dxpick autocomplete="off" placeholder="${dcE(t("dcx_pickPh"))}"><datalist id="dcx-pl">${P.map(p=>`<option value="${dcE(dcxPatLabel(p))}"></option>`).join("")}</datalist>`)}<p class="dc-mut sm" data-dxpickst>${t("dcx_pickNone")}</p></div>`}
+onDoc("input",e=>{const x=tgt(e) as HTMLInputElement;const m=x.closest?.<HTMLElement>(".dc-mdl");if(!m||!m.querySelector(".dcx-send"))return;const st=m.querySelector<HTMLElement>("[data-dxpickst]");
+  if(x.matches("[data-dxpick]")){const p=dcxPatients().find(q=>dcxPatLabel(q)===x.value.trim());if(!p)return;const set=(k: string,v: string)=>{const i=m.querySelector<HTMLInputElement>(`[data-dxp="${k}"]`);if(i)i.value=v};
+    set("prenom",p.first);set("nom",p.last);set("dob",p.birth||"");set("email",p.contact?.email||"");m.dataset.pid=p.id;if(st){st.textContent=t("dcx_pickLinked",{x:p.mrn});st.classList.add("ok")}return}
+  if(x.matches('[data-dxp="prenom"],[data-dxp="nom"],[data-dxp="dob"]')&&m.dataset.pid){delete m.dataset.pid;const pk=m.querySelector<HTMLInputElement>("[data-dxpick]");if(pk)pk.value="";if(st){st.textContent=t("dcx_pickNone");st.classList.remove("ok")}}});
+/** What Patients needs to know changed: answers to questionnaires, values of form fields, signatures. */
+function dcxPxDigest(d: DcDoc){const parts: unknown[]=[];d.pages.forEach(p=>p.blocks.forEach(b=>{if(b.type==="quest")parts.push(b.id,b.ans||[]);else if(b.type==="field")parts.push(b.id,b.value??null)}));const S=dcSig(d);if(S)parts.push(S.list.map(x=>(x as unknown as {st: string}).st));return dcSha256(JSON.stringify(parts)).slice(0,16)}
+const DCX_PX: Record<string, string>={};let dcxPxT=0 as unknown as ReturnType<typeof setTimeout>;
+function dcxPxAnnounce(d: DcDoc){const pid=(d as unknown as {pid?: string}).pid;if(!pid)return;const dig=dcxPxDigest(d);if(DCX_PX[d.id]===dig)return;DCX_PX[d.id]=dig;
+  rmEmit("document.updated",{pid,doc:d.id},{src:"documents",ref:d.id,key:"docupd-"+d.id+"-"+dig});
+  const S=dcSig(d);if(S&&S.list.length&&S.list.every(x=>(x as unknown as {st: string}).st==="done"))rmEmit("document.signed",{pid,doc:d.id},{src:"documents",ref:d.id,key:"docsig-"+d.id})}
+{const _sv=dcSave;dcSave=function(now){const r=_sv(now);try{if(dcS&&dcS.docs[dcS.cur]&&(dcS.docs[dcS.cur] as unknown as {pid?: string}).pid){const d=dcDoc();clearTimeout(dcxPxT);
+    /* after the store is written, so Patients reads what the bus announces */
+    dcxPxT=setTimeout(()=>{try{dcxPxAnnounce(d)}catch(e){console.warn("dcx bus",e)}},now?50:1200)}}catch(e){}return r}}
+/** A copy linked to a patient record is announced as soon as it exists. */
+function dcxPxSent(id: string){const d=dcS?.docs[id];const pid=d&&(d as unknown as {pid?: string}).pid;if(!pid)return;dcSave(true);setTimeout(()=>{rmEmit("document.sent",{pid,doc:id},{src:"documents",ref:id,key:"docsent-"+id});DCX_PX[id]=dcxPxDigest(d!)},400)}
+/* Patients (or any app) asks Documents to open a document: now if Documents is open, else when it opens */
+const DCX_OPEN_KEY="remotion-docs-open";
+export function dcxPendingOpen(){let id: string|null=null;try{id=sessionStorage.getItem(DCX_OPEN_KEY)}catch(e){}if(!id||!dcS)return;try{sessionStorage.removeItem(DCX_OPEN_KEY)}catch(e){}if(dcS.docs[id])dcOpenDoc(id);else dcToast(t("dc_ex_fail"))}
+if(typeof window!=="undefined")window.addEventListener("remotion:documents-open",()=>{if(dcRoot()&&dcS)setTimeout(dcxPendingOpen,60)});
+
+/* ---- dialogs keep the keyboard inside (Tab / Shift+Tab cycle through the dialog) and give the focus back when they close ---- */
+const DCX_FOCUSABLE='a[href],button:not([disabled]),input:not([disabled]):not([type=hidden]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"]),[contenteditable="true"]';
+onDoc("keydown",e=>{if(e.key!=="Tab")return;const m=dcRoot()?.querySelector<HTMLElement>(".dc-mdl .dc-mbox");if(!m)return;
+  const f=[...m.querySelectorAll<HTMLElement>(DCX_FOCUSABLE)].filter(x=>x.offsetParent!==null||x===document.activeElement);if(!f.length){e.preventDefault();return}
+  const a=document.activeElement as HTMLElement|null,i=a?f.indexOf(a):-1;
+  if(!m.contains(a)){e.preventDefault();f[e.shiftKey?f.length-1:0].focus();return}
+  if(e.shiftKey&&i===0){e.preventDefault();f[f.length-1].focus()}else if(!e.shiftKey&&i===f.length-1){e.preventDefault();f[0].focus()}},true);
+{const _mc=dcModalClose;dcModalClose=function(instant){const m=dcRoot()?.querySelector(".dc-mdl") as (HTMLElement&{_opener?: HTMLElement|null})|null;const op=m?._opener;const r=_mc(instant);
+  if(op&&op.isConnected&&!dcRoot()?.querySelector(".dc-mdl:not([style*=\"pointer-events\"])"))setTimeout(()=>{const ae=document.activeElement;/* only when nothing else took the focus meanwhile (an action run from the dialog) */
+    if(op.isConnected&&(!ae||ae===document.body||!ae.isConnected||ae.closest(".dc-mdl")))op.focus({preventScroll:true})},0);return r}}
+
+/* ---- passcode protection (encryption at rest, ./store): turn on / off, lock now ---- */
+function dcxEncModal(){const on=storeEncrypted();const can=storeCanEncrypt();
+  const body=on?`<p class="dcx-encst on">${DCI.lock}${t("dcx_enc_on")}</p>${dcRow("dcx_enc_cur",`<input class="dc-inp" type="password" data-dxencc autocomplete="current-password">`)}`
+    :can?`<p class="dcx-encst">${DCI.unlock}${t("dcx_enc_off")}</p><p class="dc-note dcx-encw">${DCI.warn}${t("dcx_enc_warn")}</p><button type="button" class="dc-btn sm" data-dxencbk>${DCI.download}${t("dcx_enc_backup")}</button>
+      ${dcRow("dcx_enc_new",`<input class="dc-inp" type="password" data-dxenc1 autocomplete="new-password" minlength="8">`)}${dcRow("dcx_enc_again",`<input class="dc-inp" type="password" data-dxenc2 autocomplete="new-password">`)}`
+    :`<p class="dc-note">${DCI.warn}${t("dcx_enc_na")}</p>`;
+  dcModal(`<div class="dc-mh"><span class="ic">${DCI.lock}</span><div><h3>${t("dcx_enc_title")}</h3><p>${t("dcx_enc_sub")}</p></div><button type="button" class="dc-ib sm" data-mclose aria-label="${t("fmClose")}">${DCI.x}</button></div>
+    <div class="dc-mb dcx-enc">${body}<p class="dcx-err" role="alert" hidden></p></div>
+    <div class="dc-mf">${on?`<button type="button" class="dc-btn" data-dxenclock>${DCI.lock}${t("dcx_enc_lockNow")}</button><button type="button" class="dc-btn" data-dxencoff>${t("dcx_enc_turnOff")}</button>`:can?`<button type="button" class="dc-btn" data-mclose>${t("fe_cancel")}</button><button type="button" class="dc-btn pri" data-dxencon>${DCI.lock}${t("dcx_enc_turnOn")}</button>`:""}</div>`,{title:t("dcx_enc_title")})}
+/* save, lock (writes refused from here on), forget the plain copy, close the window: the next opening asks for the passcode */
+async function dcxLockNow(){dcModalClose(true);clearTimeout(dcSaveT);if(dcS){await writeStore(JSON.stringify(dcS))}await lockStore();/* writes are refused from here: the window's own close-time save cannot reach the disk */try{osClose("documents")}catch(e){console.warn("lock close",e)}dcS=null}
+{const _mc=dcModalClick;dcModalClick=function(e,m){const x=tgt(e);const err=m.querySelector<HTMLElement>(".dcx-err");const say=(k: string)=>{if(err){err.hidden=false;err.textContent=t(k)}};
+  if(x.closest("[data-dxencbk]")){const name="remotion-documents-backup-"+new Date().toISOString().slice(0,10)+".json";dcSaveFile(name,new Blob([JSON.stringify(dcS)],{type:"application/json"}));return}
+  if(x.closest("[data-dxencon]")){const a=m.querySelector<HTMLInputElement>("[data-dxenc1]")?.value||"",b=m.querySelector<HTMLInputElement>("[data-dxenc2]")?.value||"";if(a.length<8){say("dcx_enc_short");return}if(a!==b){say("dcx_enc_diff");return}
+    clearTimeout(dcSaveT);writeStore(JSON.stringify(dcS)).then(()=>enableEncryption(a)).then(r=>{if(r.ok){dcModalClose();dcToast(t("dcx_enc_done"))}else say("dcx_enc_fail")});return}
+  if(x.closest("[data-dxencoff]")){const c=m.querySelector<HTMLInputElement>("[data-dxencc]")?.value||"";disableEncryption(c).then(r=>{if(r.ok){dcModalClose();dcToast(t("dcx_enc_undone"))}else say(r.reason==="passcode"?"dcx_lk_bad":"dcx_enc_fail")});return}
+  if(x.closest("[data-dxenclock]")){dcxLockNow();return}
+  _mc(e,m)}}
 
 /* ---------- used by the React window wiring (DocumentsApp.tsx) and the tests ---------- */
 /** dcS (the store) as it is now, and the cross-tab reload's reset (L21041). */

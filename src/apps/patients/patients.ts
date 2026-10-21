@@ -23,7 +23,8 @@ import registry from "@/apps/registry.data.json";
 import { hrE, hri, hrRM, hrNf, hrCount, HRI } from "@/apps/hr/hr";
 import { biSt, biBal, biOverdue, biGo } from "@/apps/billing/billing";
 import { feLoad, feS, feName, feOpenForm } from "@/apps/forms/forms";
-import { rmEmit, rmPrac, rmPracName, rmPracJob, rmPracEmployment, rmPracs, rmSpecName, rmEsts, rmEstName, rmNotify, RM_SPECS } from "@/apps/health/rm";
+import { readStore as dcReadStore, storeReady as dcStoreReady, preloadStore as dcPreloadStore, storeLocked as dcStoreLocked } from "@/apps/documents/store";
+import { type RmEv, rmOn, rmBusSt, rmDispatch, rmEmit, rmPrac, rmPracName, rmPracJob, rmPracEmployment, rmPracs, rmSpecName, rmEsts, rmEstName, rmNotify, RM_SPECS } from "@/apps/health/rm";
 
 /* ---------- typed model ---------- */
 type Bag = Record<string, unknown>;
@@ -676,7 +677,7 @@ paSec("docs",{g:"fiche",n:"Documents|Documents|Dokumente|المستندات",ic:
 function paDocsHTML(p: PaPat,clinOnly?: boolean){const vis=p.docs.filter(d=>(clinOnly?paDocIsClin(d)||d.conf==="restricted":true)&&paDocCanSee(p,d));const hidden=p.docs.filter(d=>!paDocCanSee(p,d)).length;const f=PA.ui.dflt||"";const list=vis.filter(d=>!f||d.cat===f).sort((a,b)=>a.d<b.d?1:-1);
   const origs=list.filter(d=>!d.derivOf);const derivs=(id: string)=>list.filter(d=>d.derivOf===id);
   const row=(d: PaDocT,sub?: boolean)=>`<li class="pa-doc${d.status!=="active"?" arch":""}${sub?" sub":""}" data-docid="${d.id}"><span class="ic">${hri(d.mime?.startsWith("image")?"scan":d.deriv?"copy":"file",16)}</span><div class="m"><b>${hrE(d.title||d.name)}</b><small>${hrE(L4(PA_DOCCAT[d.cat]||""))} · ${hrE(paDate(d.d))} · ${hrE(d.by)}${d.vers.length?" · v"+(d.vers.length+1):""}${d.size?" · "+Math.max(1,Math.round(d.size/1024))+" Ko":""}</small><span class="tags">${d.deriv?`<span class="pa-tag info">${hrE(L4(PA_DERIV[d.deriv]))} — ${hrE(L4("dérivé, l’original fait foi|derivative, the original prevails|Ableitung, Original maßgeblich|مشتق، الأصل هو المرجع"))}</span>`:""}${d.conf==="restricted"?`<span class="pa-tag warn">${hri("lock",10)} ${hrE(L4("Confidentiel|Restricted|Vertraulich|سري"))}</span>`:""}${d.status!=="active"?`<span class="pa-tag">${hrE(L4("Archivé|Archived|Archiviert|مؤرشف"))}</span>`:""}${!d.file?`<span class="pa-tag">${hrE(L4("Métadonnées seules (démo)|Metadata only (demo)|Nur Metadaten|بيانات وصفية فقط"))}</span>`:""}${d.mergedFrom?`<span class="pa-tag">${hrE(d.mergedFrom)}</span>`:""}${paRetention(d.cat)?`<span class="pa-tag">${hrE(L4("Conservation|Retention|Aufbewahrung|الاحتفاظ"))} : ${hrE(paRetention(d.cat))}</span>`:""}</span></div>
-   <div class="hr-racts">${d.file?`<button type="button" class="hr-ib sm" data-padocview="${p.id}|${d.id}" aria-label="${hrE(L4("Aperçu|Preview|Vorschau|معاينة"))} ${hrE(d.title||d.name)}">${hri("eye",14)}</button>`:""}${d.file&&paDocDownloadOk(p,d)?`<button type="button" class="hr-ib sm" data-padocdl="${p.id}|${d.id}" aria-label="${hrE(L4("Télécharger|Download|Herunterladen|تنزيل"))} ${hrE(d.title||d.name)}">${hri("dl",14)}</button>`:""}${paCan("doc.upload")&&d.status==="active"?`<button type="button" class="hr-ib sm" data-padocm="${p.id}|${d.id}" aria-haspopup="menu" aria-label="${hrE(L4("Plus d’actions|More actions|Weitere Aktionen|مزيد"))}">${hri("more",14)}</button>`:""}</div></li>`;
+   <div class="hr-racts">${d.src==="documents"&&(d as PaDocT&{dref?: string}).dref?`<button type="button" class="hr-btn sm" data-padocopen="${(d as PaDocT&{dref?: string}).dref}">${hri("file",14)}${hrE(L4("Ouvrir dans Documents|Open in Documents|In Dokumente öffnen|فتح في المستندات"))}</button>`:""}${d.file?`<button type="button" class="hr-ib sm" data-padocview="${p.id}|${d.id}" aria-label="${hrE(L4("Aperçu|Preview|Vorschau|معاينة"))} ${hrE(d.title||d.name)}">${hri("eye",14)}</button>`:""}${d.file&&paDocDownloadOk(p,d)?`<button type="button" class="hr-ib sm" data-padocdl="${p.id}|${d.id}" aria-label="${hrE(L4("Télécharger|Download|Herunterladen|تنزيل"))} ${hrE(d.title||d.name)}">${hri("dl",14)}</button>`:""}${paCan("doc.upload")&&d.status==="active"?`<button type="button" class="hr-ib sm" data-padocm="${p.id}|${d.id}" aria-haspopup="menu" aria-label="${hrE(L4("Plus d’actions|More actions|Weitere Aktionen|مزيد"))}">${hri("more",14)}</button>`:""}</div></li>`;
   return `<div class="pa-dtools"><select class="hr-in sm" data-padflt aria-label="${hrE(L4("Catégorie|Category|Kategorie|الفئة"))}">${paOpts(Object.entries(PA_DOCCAT).map(([k,l])=>[k,L4(l)]),f,L4("Toutes les catégories|All categories|Alle Kategorien|كل الفئات"))}</select>${hidden?`<span class="hr-mut sm">${hri("lock",12)} ${hidden} ${hrE(L4("document(s) clinique(s) non visible(s) pour votre rôle|clinical document(s) hidden for your role|klinische Dokumente verborgen|مستندات سريرية مخفية"))}</span>`:""}</div>
    ${origs.length?`<ul class="pa-docs">${origs.map(d=>row(d,false)+derivs(d.id).map(x=>row(x,true)).join("")).join("")}${list.filter(d=>d.derivOf&&!origs.some(o=>o.id===d.derivOf)).map(d=>row(d,true)).join("")}</ul>`:paEmpty("folder",L4("Aucun document dans cette catégorie.|No document in this category.|Keine Dokumente.|لا مستندات."))}
    <p class="hr-mut sm">${hrE(L4("Les originaux et leurs dérivés (OCR, traduction, résumé IA, transcription) sont des documents distincts ; aucun dérivé n’est produit automatiquement ici.|Originals and derivatives (OCR, translation, AI summary, transcription) are separate documents; none is produced automatically here.|Originale und Ableitungen sind getrennt.|الأصول والمشتقات منفصلة."))}</p>`}
@@ -951,6 +952,7 @@ onDoc("click",e=>{const R=paRoot();if(!R||!R.contains(tgt(e)))return;const c=(s:
   if((x=c("[data-parm]"))){paRecMenu(x,x.dataset.parm!);return}
   if((x=c("[data-pabg]"))){paBgDlg(x.dataset.pabg!);return}if((x=c("[data-pabgend]"))){delete PA.ui.bg[x.dataset.pabgend!];paLog("access.emergency",x.dataset.pabgend,"fin");paSave();paRefresh();return}
   if((x=c("[data-padocview]"))){const [pid,did]=x.dataset.padocview!.split("|");paDocView(pid,did);return}if((x=c("[data-padocdl]"))){const [pid,did]=x.dataset.padocdl!.split("|");paDocDl(pid,did);return}if((x=c("[data-padocm]"))){const [pid,did]=x.dataset.padocm!.split("|");paDocMenu(x,pid,did);return}
+  if((x=c("[data-padocopen]"))){paOpenDocument(x.dataset.padocopen!);return}
   if((x=c("[data-padocjump]"))){const p=paFind(PA.ui.arg);const d=p&&p.docs.find(y=>y.id===x!.dataset.padocjump);if(d)paJump(p.id,paDocIsClin(d)?"cdocs":"docs",null,`[data-docid="${d.id}"]`);return}
   if((x=c("[data-pabill]"))){paOpenBilling(x.dataset.pabill!);return}
   if((x=c("[data-paform]"))){paOpenForm(x.dataset.paform!);return}if(c("[data-paformsapp]")){try{OS_OPEN.forms()}catch(err){}return}if((x=c("[data-paformlink]"))){paFormLinkDlg(x.dataset.paformlink!);return}
@@ -990,6 +992,41 @@ onDoc("keydown",e=>{const R=paRoot();if(!R||!R.contains(tgt(e)))return;const x=t
 function paOpenBilling(pid: string){const p=paGet(pid);const ref=p.admin.payer;if(!ref){paToast(L4("Aucun tiers de facturation lié|No billing party linked|Keine Abrechnungspartei|لا طرف فوترة"),null,"err");return}try{OS_OPEN.billing();setTimeout(()=>{try{const x=biSt().parties.find(y=>y.id===ref);biGo("invoices",{q:x?(x.org||(x.first+" "+x.last)):ref,per:""})}catch(e){}},420)}catch(e){paToast(L4("Facturation & Revenus indisponible|Billing unavailable|Abrechnung nicht verfügbar|الفوترة غير متاحة"),null,"err")}}
 function paOpenPatient(pid: string,sec?: string,o: { focus?: string }={}){paOpen();setTimeout(()=>{if(!paFind(pid)){paToast(paErr(new PaErr("pa_eNotFound")),null,"err");return}paOpenRecord(pid,sec||"over",o.focus)},hrRM()?0:420)}
 (()=>{const order=["dash","list","record","archives","dups","corr","complete","documents","forms","settings","audit"];const copy=Object.assign({},PA_P);Object.keys(PA_P).forEach(k=>delete PA_P[k]);order.forEach(k=>{if(copy[k])PA_P[k]=copy[k]});Object.keys(copy).forEach(k=>{if(!PA_P[k])PA_P[k]=copy[k]})})();
+
+/* ===== product (Documents phase 6) · documents made in Documents for a patient =====
+   Documents announces a copy linked to this record on the bus with ids only (document.sent / .updated / .signed). The details are read
+   here from the Documents store: the document goes to the record's documents register (one entry per document, kept up to date), and each
+   completed questionnaire becomes a clinical assessment entry with its score — provenance "documents", linked to the document. */
+type PaDcBlock = { id: string; type: string; title?: unknown; inst?: string; ans?: (number|null)[] };
+type PaDcDoc = { id: string; title: unknown; lang?: string; dom?: string; status?: string; pages: { blocks: PaDcBlock[] }[]; sig?: { list: { st: string; at?: number; name?: string }[] }; pid?: string };
+const PA_Q: Record<string, { name: string; n: number; bands: [number, number, string][] }>={
+  phq9:{name:"PHQ-9",n:9,bands:[[0,4,"minimal"],[5,9,"mild"],[10,14,"moderate"],[15,19,"moderately severe"],[20,27,"severe"]]},
+  gad7:{name:"GAD-7",n:7,bands:[[0,4,"minimal"],[5,9,"mild"],[10,14,"moderate"],[15,21,"severe"]]}};
+const paDcText=(v: unknown)=>{if(v==null)return "";if(typeof v==="string")return v.replace(/<[^>]*>/g,"");if(typeof v==="object"){const o=v as Record<string,string>;return String(o[document.documentElement.lang]||o.fr||o.en||Object.values(o)[0]||"").replace(/<[^>]*>/g,"")}return String(v)};
+function paFromDocuments(ev: RmEv){const P=ev.p as { pid?: string; doc?: string };const p=P.pid?paFind(P.pid):null;if(!p||!P.doc)return;
+  if(!dcStoreReady()){dcPreloadStore();throw new Error("documents store not ready")}/* the bus retries */
+  if(dcStoreLocked())throw new Error("documents store locked");/* encrypted and locked: retried once Documents is unlocked */
+  let st: { docs?: Record<string, PaDcDoc> }|null=null;try{st=JSON.parse(dcReadStore()||"null")}catch(e){}const d=st?.docs?.[P.doc];if(!d)return;
+  const blocks=d.pages.flatMap(pg=>pg.blocks);const signed=!!(d.sig&&d.sig.list.length&&d.sig.list.every(x=>x.st==="done"));
+  const cat=d.sig&&d.sig.list.length?"consent":blocks.some(b=>b.type==="quest")?"assessment":"report";const title=paDcText(d.title)||"Document";
+  const now=new Date().toISOString();let doc=p.docs.find(x=>(x as PaDocT&{dref?: string}).dref===d.id);
+  const note=signed?L4("Signé dans Documents|Signed in Documents|In Dokumente unterschrieben|موقّع في المستندات"):L4("Envoyé depuis Documents — en cours|Sent from Documents — in progress|Aus Dokumente gesendet — in Bearbeitung|مرسل من المستندات — قيد التنفيذ");
+  if(!doc){doc={id:paId("doc"),cat,title,name:title,mime:"application/x-remotion-document",size:0,file:null,d:paToday(),by:"Documents",at:now,conf:"normal",status:"active",derivOf:null,deriv:null,vers:[],src:"documents",note} as PaDocT;
+    (doc as PaDocT&{dref?: string}).dref=d.id;p.docs.push(doc);paLog("doc.add",p.id,cat+" · "+title+" (Documents)")}
+  else if(doc.note!==note||doc.title!==title){doc.note=note;doc.title=title;doc.name=title;doc.at=now;paLog("doc.update",p.id,title+" (Documents)")}
+  /* completed questionnaires → assessments (one per questionnaire block; a changed score amends the entry) */
+  blocks.filter(b=>b.type==="quest").forEach(b=>{const Q=PA_Q[b.inst||"phq9"];if(!Q)return;const a=(b.ans||[]).slice(0,Q.n);if(a.length<Q.n||a.some(x=>x==null))return;
+    const sum=(a as number[]).reduce((x,y)=>x+y,0);const band=(Q.bands.find(r=>sum>=r[0]&&sum<=r[1])||[0,0,""])[2];const summary=`${Q.name} : ${sum}/${Q.n*3}${band?" — "+band:""}`;
+    const key=d.id+":"+b.id;const cur=p.clin.assess.find(e=>(e as PaEntry&{dkey?: string}).dkey===key&&e.status!=="error");
+    if(cur){if(cur.summary!==summary){cur.amend.push({at:now,by:"Documents",reason:L4("Réponses modifiées dans Documents|Answers changed in Documents|Antworten in Dokumente geändert|تغيّرت الإجابات في المستندات"),prev:{summary:cur.summary}});cur.summary=summary;cur.score=String(sum)}return}
+    const e=Object.assign(paMeta({src:"documents",srcDoc:doc!.id,verif:"confirmed"}),{by:"Documents",title:`${Q.name} — ${title}`,tool:Q.name,score:String(sum),summary,date:paToday(),spec:d.dom==="psy"?"psych":d.dom==="physio"?"physio":"other",status:"final",formRef:null,dkey:key}) as PaEntry;
+    p.clin.assess.push(e);paLog("clinical.add",p.id,"assess · "+Q.name+" (Documents)")});
+  paTouch(p);paSave();if(paRoot())paRefresh()}
+const PA_DC_EV=["document.sent","document.updated","document.signed"];PA_DC_EV.forEach(tp=>rmOn(tp,"patients-docs",paFromDocuments));
+/* events from another tab or from before this module loaded (only these types: nobody else listens to them) */
+if(typeof window!=="undefined")setTimeout(()=>{try{rmBusSt().ev.filter(e=>PA_DC_EV.includes(e.type)).forEach(rmDispatch)}catch(e){}},0);
+/* "Open in Documents": Documents opens the document now, or as soon as it has loaded */
+function paOpenDocument(id: string){try{sessionStorage.setItem("remotion-docs-open",id)}catch(e){}openApp("documents");setTimeout(()=>window.dispatchEvent(new CustomEvent("remotion:documents-open",{detail:{id}})),300)}
 
 /* ---------- used by the React window wiring (PatientsApp.tsx) and the tests ---------- */
 export { PA, PA_KEY, PA_P, paSt, paSave, paRoot, paRender, paRefresh, paSize, paInk, paListPaint, paW, paOpenPatient, paFind, PA_HOOKS, PA_CHAN, PA_CSTATE, paName, paConsent, paAvatar, paDate, paDigits, paNorm, paFld, paOpts, paRegister, paOpenBilling, paClinOk, paCompleteness, paErr, PaErr };

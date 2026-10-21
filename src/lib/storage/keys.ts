@@ -27,12 +27,17 @@ export const STORAGE_KEYS = {
 export const INDEXED_DB = { name: "remotion-docs-live", version: 1, store: "b" } as const;
 /**
  * Keys and databases added by the Documents product work (after parity, so outside the 40 source keys above).
- * - docsStore: the documents store moved out of localStorage "remotion-docs" (migrated once, then removed) — see apps/documents/store.ts
+ * - docsStore: the documents store moved out of localStorage "remotion-docs" (migrated once, then removed) — see apps/documents/store.ts;
+ *   with passcode protection on, its "store" value is an AES-GCM envelope {enc:1,…} instead of the JSON
  * - docsPrintHf: the print centre's custom header/footer preference
  */
 export const PRODUCT_STORAGE_KEYS = { docsPrintHf: "remotion-docs-xp-hf" } as const;
 export const PRODUCT_INDEXED_DB = { docsStore: { name: "remotion-docs-store", version: 1, store: "kv", keys: ["store", "rev"] } } as const;
 export const PRODUCT_CHANNELS = { docsStore: "remotion-docs-store" } as const;
+/** sessionStorage: a document another app asked Documents to open (Patients → "Open in Documents"), read once when Documents opens. */
+export const PRODUCT_SESSION_KEYS = { docsOpenRequest: "remotion-docs-open" } as const;
+/** Bus events (remotion-bus) added by Documents phase 6 — payload { pid, doc } only, never clinical content. Consumer: "patients-docs". */
+export const PRODUCT_BUS_EVENTS = ["document.sent", "document.updated", "document.signed"] as const;
 export const ALL_STORAGE_KEYS: readonly string[] = Object.values(STORAGE_KEYS);
 
 /** Safe JSON read with the source's tolerant behaviour (try/catch, fallback). */

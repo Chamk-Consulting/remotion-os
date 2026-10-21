@@ -10,7 +10,7 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import {
   DC, dcApplyZoom, dcBody, dcCurSync, dcFind, dcInk, dcInstallGlobal, dcLoad, dcLvGC, dcPopClose, dcRender, dcRoot,
-  dcSave, dcStatusSync, dcStore, dcTplCacheClear, dcViewAfter, dcxRemote,
+  dcSave, dcStatusSync, dcStore, dcTplCacheClear, dcViewAfter, dcxRemote, dcxPendingOpen,
 } from "./documents";
 import { onRemoteChange } from "./store";
 
@@ -33,6 +33,8 @@ function DocumentsBody() {
     const S = dcStore();
     if (!DC.first) { DC.first = 1; if (S && S.cur === "d1" && dcFind("bEVA")) DC.sel = "bEVA"; }
     dcRender(false);
+    // product phase 6: a document another app asked to open (Patients → "Open in Documents")
+    setTimeout(() => { try { dcxPendingOpen(); } catch {} }, 80);
     let ro: ResizeObserver | null = null;
     try { ro = new ResizeObserver(() => { const R = dcRoot(); if (!R) return; R.classList.toggle("narrow", R.clientWidth < 1100); dcApplyZoom(); dcInk(".dc-ribt", true); dcInk(".dc-rpt", true); dcViewAfter(); }); const R = dcRoot(); if (R) ro.observe(R); } catch {}
     const tm = setTimeout(() => { dcCurSync(); dcApplyZoom(); dcInk(".dc-ribt", true); dcInk(".dc-rpt", true); }, 520);

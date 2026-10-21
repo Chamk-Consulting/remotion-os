@@ -33,7 +33,8 @@ describe("Documents store fallback (no IndexedDB)", () => {
 });
 
 describe("Formula engine: unknown table name (D-D16 fixed)", () => {
-  it("returns #REF! instead of throwing", async () => {
+  /* the first import of the editor module (and, since phase 6, the Patients module it reads) takes a few seconds */
+  it("returns #REF! instead of throwing", { timeout: 30_000 }, async () => {
     const P = (await import("@/apps/documents/documents")) as unknown as { RD: { tableCompute: (tb: unknown) => { value: (r: number, c: number) => unknown; display?: (r: number, c: number) => unknown } } };
     const tb = { id: "t1", type: "table", name: "Main", rows: [["A", "B"], ["1", "=Nowhere!A1"]] };
     let shown: unknown;
