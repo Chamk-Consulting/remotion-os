@@ -64,7 +64,7 @@ const toast = (m: string) => useShell.getState().showToast(m);
 /** osMenu (L11650). The source builds the menu synchronously and the table-cell override (L18524) reads it straight back, so
  * the React menu is opened inside flushSync. */
 const osMenu = (x: number, y: number, items: (MenuItem | string | null)[]) => flushSync(() => osMenuCore(x, y, items as MenuItem[]));
-/** pdf.js and mammoth are loaded on demand from cdnjs (feLoadScript) and read as page globals, as in the source. */
+/** pdf.js and mammoth are self-hosted under /public/vendor, loaded on demand (feLoadScript) and read as page globals, as in the source. */
 declare const pdfjsLib: DcPdfJs;
 declare const mammoth: { convertToHtml: (o: { arrayBuffer: ArrayBuffer }, opt?: Bag) => Promise<{ value: string; messages: unknown[] }>; extractRawText: (o: { arrayBuffer: ArrayBuffer }) => Promise<{ value: string }> };
 /** OSW.documents (the open window, L11806): its element and whether it is minimised. */
@@ -380,7 +380,7 @@ type DcEExDrag =
   | { m: "rz"; f: DcEExField; p0: number[]; w0: number; h0: number; pt: (ev: PointerEvent) => number[]; pushed?: boolean }
   | { m: "mv"; f: DcEExField; p0: number[]; x0: number; y0: number; pt: (ev: PointerEvent) => number[]; el: HTMLElement; moved: boolean }
   | { m: "new"; pi: number; p0: number[]; pt: (ev: PointerEvent) => number[]; pg: HTMLElement; k: number; sc: number; r?: number[] };
-/** pdf-lib (loaded on demand from cdnjs, read as window.PDFLib): the part used to write the answers on the original PDF. */
+/** pdf-lib (self-hosted under /public/vendor, read as window.PDFLib): the part used to write the answers on the original PDF. */
 type DcEPdfLibPage = { getHeight: () => number; drawLine: (o: Bag) => void; drawImage: (im: unknown, o: Bag) => void; drawText: (s: string, o: Bag) => void };
 type DcEPdfLibDoc = { getForm: () => { flatten: () => void }; embedFont: (f: string) => Promise<{ widthOfTextAtSize: (s: string, size: number) => number }>; embedPng: (b: Uint8Array) => Promise<{ width: number; height: number }>; getPages: () => DcEPdfLibPage[]; save: () => Promise<Uint8Array<ArrayBuffer>> };
 type DcEPdfLib = { PDFDocument: { load: (b: Uint8Array | null, o?: Bag) => Promise<DcEPdfLibDoc>; create: () => Promise<DcEPdfLibDoc & { copyPages: (src: DcEPdfLibDoc, idx: number[]) => Promise<unknown[]>; addPage: (p: unknown) => void }> }; StandardFonts: Record<string, string>; rgb: (r: number, g: number, b: number) => unknown };
@@ -1563,8 +1563,8 @@ let dcPrint=function(){const R=dcRoot();const old=document.getElementById("dc-pr
 let dcImportFile=async function(f: File){const ext=(f.name.split(".").pop()||"").toLowerCase();const title=f.name.replace(/\.[^.]+$/,"");let blocks=null as DcBlock[] | null,pages=null as DcPage[] | null;
   const busy=dcRoot()!.querySelector<HTMLInputElement>(".dc-mdl .dc-drop");if(busy){busy.classList.add("busy");busy.querySelector<HTMLInputElement>("b")!.textContent=t("dc_impBusy")}
   try{
-    if(ext==="docx"){await feLoadScript("https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js");const r=await mammoth.convertToHtml({arrayBuffer:await f.arrayBuffer()});blocks=dcBlocksFromHTML(r.value)}
-    else if(ext==="pdf"){await feLoadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js");pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";const pdf=await pdfjsLib.getDocument({data:await f.arrayBuffer()}).promise;pages=[];
+    if(ext==="docx"){await feLoadScript("/vendor/mammoth-1.6.0/mammoth.browser.min.js");const r=await mammoth.convertToHtml({arrayBuffer:await f.arrayBuffer()});blocks=dcBlocksFromHTML(r.value)}
+    else if(ext==="pdf"){await feLoadScript("/vendor/pdfjs-3.11.174/pdf.min.js");pdfjsLib.GlobalWorkerOptions.workerSrc="/vendor/pdfjs-3.11.174/pdf.worker.min.js";const pdf=await pdfjsLib.getDocument({data:await f.arrayBuffer()}).promise;pages=[];
       for(let i=1;i<=Math.min(pdf.numPages,60);i++){const pg=await pdf.getPage(i),tc=await pg.getTextContent();const lines: [string, number][]=[];let cur="",lastY=null as number | null,maxH=0;const hs: number[]=[];tc.items.forEach(it=>{const y=Math.round(it.transform[5]),h=Math.abs(it.transform[3]);if(lastY!=null&&Math.abs(y-lastY)>2){lines.push([cur.trim(),maxH]);cur="";maxH=0}cur+=it.str+(it.hasEOL?" ":"");maxH=Math.max(maxH,h);lastY=y;hs.push(h)});if(cur.trim())lines.push([cur.trim(),maxH]);
         const med=hs.sort((a,b)=>a-b)[Math.floor(hs.length/2)]||10;const bl: DcBlock[]=[];let para: string[]=[];const flush=()=>{if(para.length){bl.push(dcB("p",{html:dcE(para.join(" "))}));para=[]}};
         lines.forEach(([tx,h])=>{if(!tx){flush();return}if(h>med*1.25&&tx.length<90){flush();bl.push(dcB("h",{lv:h>med*1.6?1:2,text:tx}))}else{para.push(tx);if(/[.:!?]$/.test(tx)&&para.join(" ").length>240)flush()}});flush();pages.push({id:dcId(),blocks:bl.length?bl:[dcB("p",{html:""})]})}}
@@ -2523,7 +2523,7 @@ dcImportFile=async function(f){const ext=(f.name.split(".").pop()||"").toLowerCa
     if(M[ext])od=(await M[ext](f)).doc;else if(ext==="html"||ext==="htm")od=RD.importHtmlText(await f.text(),name).doc;else if(ext==="md"||ext==="markdown")od=RD.markdownToDoc(await f.text(),name);else if(ext==="txt")od=RD.plainToDoc(await f.text(),name);else{fail({message:t("dc_impUnsup")});return}
     const d=dcFromOld(od as DcOldDoc,name);if(ext==="txt"||!String(d.title||"").trim()||String(d.title).length>90)d.title=name;dcModalClose();dcAddDoc(d);dcToast(t("dc_impDone",{n:nf(d.pages.length)}))}catch(e){console.error(e);fail(e as Error)}};
 /* the PDF path stays the Documents one (text with detected headings) */
-async function dcImportPdf(f: File){await feLoadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js");pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";const pdf=await pdfjsLib.getDocument({data:await f.arrayBuffer()}).promise;const pages: DcPage[]=[];
+async function dcImportPdf(f: File){await feLoadScript("/vendor/pdfjs-3.11.174/pdf.min.js");pdfjsLib.GlobalWorkerOptions.workerSrc="/vendor/pdfjs-3.11.174/pdf.worker.min.js";const pdf=await pdfjsLib.getDocument({data:await f.arrayBuffer()}).promise;const pages: DcPage[]=[];
   for(let i=1;i<=Math.min(pdf.numPages,60);i++){const pg=await pdf.getPage(i),tc=await pg.getTextContent();const lines: [string, number][]=[];let cur="",lastY=null as number|null,maxH=0;const hs: number[]=[];tc.items.forEach(it=>{const y=Math.round(it.transform[5]),h=Math.abs(it.transform[3]);if(lastY!=null&&Math.abs(y-lastY)>2){lines.push([cur.trim(),maxH]);cur="";maxH=0}cur+=it.str+(it.hasEOL?" ":"");maxH=Math.max(maxH,h);lastY=y;hs.push(h)});if(cur.trim())lines.push([cur.trim(),maxH]);
     const med=hs.sort((a,b)=>a-b)[Math.floor(hs.length/2)]||10;const bl: DcBlock[]=[];let para: string[]=[];const flush=()=>{if(para.length){bl.push(dcB("p",{html:dcE(para.join(" "))}));para=[]}};lines.forEach(([tx,h])=>{if(!tx){flush();return}if(h>med*1.25&&tx.length<90){flush();bl.push(dcB("h",{lv:h>med*1.6?1:2,text:tx}))}else{para.push(tx);if(/[.:!?]$/.test(tx)&&para.join(" ").length>240)flush()}});flush();pages.push({id:dcId(),blocks:bl.length?bl:[dcB("p",{html:""})]})}
   const d=dcFromTpl("gen_blank") as DcDoc;d.title=f.name.replace(/\.[^.]+$/,"");d.pages=pages;dcModalClose();dcAddDoc(d);dcToast(t("dc_impDone",{n:nf(pages.length)}))}
@@ -4104,7 +4104,7 @@ function dcReadCsv(text: string,name: string){const sep=(text.split("\n")[0].mat
   return {items:[{k:"table",rows:R,cs:{},head:R.length>1}],title:name,set:{or:Wn>6?"l":"p"},lang:null,notes:[]}}
 
 /* ---------------- PDF: editable text, or pages kept exactly as images ---------------- */
-async function dcPdfLib(){await feLoadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js");pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"}
+async function dcPdfLib(){await feLoadScript("/vendor/pdfjs-3.11.174/pdf.min.js");pdfjsLib.GlobalWorkerOptions.workerSrc="/vendor/pdfjs-3.11.174/pdf.worker.min.js"}
 async function dcReadPdf(file: File,o: Bag){await dcPdfLib();const pdf=await pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise;const N=Math.min(pdf.numPages,80);const items: DcImpItem[]=[];let land=false;
   if(o.pdf==="exact"){for(let i=1;i<=N;i++){const pg=await pdf.getPage(i);const vp=pg.getViewport({scale:2});land=land||vp.width>vp.height;const cv=document.createElement("canvas");cv.width=vp.width;cv.height=vp.height;await pg.render({canvasContext:cv.getContext("2d"),viewport:vp}).promise;
       if(i>1)items.push({k:"pb"});items.push({k:"img",src:cv.toDataURL("image/jpeg",.9),pct:100,exact:true});dcImpProg(i/N)}
@@ -5145,7 +5145,7 @@ function dcB64ToU8(b64: string){const s=atob(b64);const u=new Uint8Array(s.lengt
 function dcU8ToB64(u: Uint8Array){let s="";for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000) as unknown as number[]);return btoa(s)}
 function dcExBytes(d: DcDoc){const X=d.ex as DcEEx;if(X.off&&DC_OFF_PDF[X.off])return dcB64ToU8(DC_OFF_PDF[X.off]);const b=(d.exb64 as string|undefined)||X.b64;if(b)return dcB64ToU8(b);return null}
 const dcExKey=(d: DcDoc)=>(d.ex as DcEEx).off?"off:"+(d.ex as DcEEx).off:"pdf:"+(d.ex as DcEEx).sha;
-async function dcPdfLibW(){if((window as unknown as {PDFLib: DcEPdfLib}).PDFLib)return (window as unknown as {PDFLib: DcEPdfLib}).PDFLib;await feLoadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js");return (window as unknown as {PDFLib: DcEPdfLib}).PDFLib}
+async function dcPdfLibW(){if((window as unknown as {PDFLib: DcEPdfLib}).PDFLib)return (window as unknown as {PDFLib: DcEPdfLib}).PDFLib;await feLoadScript("/vendor/pdf-lib-1.17.1/pdf-lib.min.js");return (window as unknown as {PDFLib: DcEPdfLib}).PDFLib}
 /* page images rendered once per PDF and kept in memory */
 async function dcExRender(d: DcDoc,scale=2): Promise<DcEExBg>{const key=dcExKey(d);if((DC.exBg as Record<string,DcEExBg>)[key]&&(DC.exBg as Record<string,DcEExBg>)[key].ok)return (DC.exBg as Record<string,DcEExBg>)[key];if((DC.exBg as Record<string,DcEExBg>)[key]&&(DC.exBg as Record<string,DcEExBg>)[key].p)return (DC.exBg as Record<string,DcEExBg>)[key].p!;
   const job=(async()=>{await dcPdfLib();const pdf=await pdfjsLib.getDocument({data:dcExBytes(d),isEvalSupported:false}).promise;const out: string[]=[];
@@ -6424,8 +6424,9 @@ dcWxFonts=function(d: DcDoc){const F=d&&d.ex&&((d.ex as DcLvEx).fonts||((d.ex as
 function dcLvCss(d: { ex?: unknown; [k: string]: unknown } | null){const x=d&&d.ex as DcLvEx | undefined;if(!x||!x.css||!x.cls)return;if(document.getElementById("wxcss-"+x.cls))return;const st=document.createElement("style");st.id="wxcss-"+x.cls;st.textContent=x.css;document.head.appendChild(st)}
 {const _w=dcWxW;dcWxW=function(d,...more: unknown[]){dcLvCss(d);dcLvGFonts();return _w.apply(this,[d,...more] as unknown as Parameters<typeof _w>)} as DcLvThis<typeof _w>}
 /* metric-compatible free fonts for documents written in Calibri, Cambria, Arial, Times or Courier (used only when those are not on the computer) */
-function dcLvGFonts(){if(document.getElementById("wx-gf-arimo"))return;[["arimo","Arimo:ital,wght@0,400;0,700;1,400;1,700"],["tinos","Tinos:ital,wght@0,400;0,700;1,400;1,700"],["cousine","Cousine:ital,wght@0,400;0,700"],["carlito","Carlito:ital,wght@0,400;0,700;1,400;1,700"],["caladea","Caladea:ital,wght@0,400;0,700;1,400;1,700"]]
-  .forEach(([id,f])=>{const l=document.createElement("link");l.id="wx-gf-"+id;l.rel="stylesheet";l.href="https://fonts.googleapis.com/css2?family="+f+"&display=swap";l.onerror=()=>{};document.head.appendChild(l)})}
+function dcLvGFonts(){if(document.getElementById("wx-gf-arimo"))return;
+  /* product phase 0: self-hosted (public/vendor/fonts) instead of fonts.googleapis.com — no third-party request from a page holding patient data */
+  const l=document.createElement("link");l.id="wx-gf-arimo";l.rel="stylesheet";l.href="/vendor/fonts/metric-fonts.css";l.onerror=()=>{};document.head.appendChild(l)}
 /* is a font really on this computer? (a missing font measures exactly like the fallback) */
 function dcFontHere(name: string): boolean{const c=(dcFontHere as DcLvFontHereFn).c||((dcFontHere as DcLvFontHereFn).c=document.createElement("canvas").getContext("2d"));const s="mmmmmmmmmmlliWW@#ÀéŒ";const m=(f: string)=>{c!.font=f;return c!.measureText(s).width};
   return ["monospace","serif"].some(g=>Math.abs(m(`40px "${name}",${g}`)-m(`40px ${g}`))>.5)}

@@ -8,7 +8,6 @@
  */
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { useI18n } from "@/lib/i18n/I18nProvider";
-import { registerNativeApp } from "@/os/windows/apps";
 import { useWm } from "@/os/windows/wm";
 import {
   DC, DC_KEY, dcApplyZoom, dcBody, dcCurSync, dcFind, dcInk, dcInstallGlobal, dcLoad, dcLvGC, dcPopClose, dcRender, dcReset, dcRoot,
@@ -48,12 +47,16 @@ function DocumentsBody() {
   return <span ref={anchor} hidden />;
 }
 
-registerNativeApp("documents", {
+/**
+ * The native app definition. Product phase 0: it is no longer registered here — DocumentsLazy.tsx registers a light stub
+ * at boot and loads this module (and its 2.35 MB of code and embedded official forms) only when Documents is first opened.
+ */
+export const documentsApp = {
   beforeOpen: () => { dcLoad(); },
   body: () => <DocumentsBody />,
   onClose: () => { dcSave(true); dcPopClose(); },
   onResize: () => { dcApplyZoom(); dcInk(".dc-ribt", true); dcInk(".dc-rpt", true); dcViewAfter(); },
-});
+};
 
 // L21041: another tab changed the documents store while the editor is not in use → reload it and repaint.
 if (typeof window !== "undefined") {

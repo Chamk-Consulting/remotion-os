@@ -29,7 +29,7 @@ import "@/apps/hr/HrApp";
 import "@/apps/billing/BillingApp";
 import "@/apps/calculator/CalculatorApp";
 import "@/apps/forms/FormsApp";
-import "@/apps/documents/DocumentsApp";
+import "@/apps/documents/DocumentsLazy";
 import "@/apps/patients/PatientsApp";
 import "@/apps/calendar/CalendarApp";
 import "@/apps/cabinet/CabinetApp";

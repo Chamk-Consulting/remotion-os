@@ -108,7 +108,7 @@ export type FeAnsR = string & FeAnsO & FeAnsO[];
 export type FeAfRow = { fid: string; label?: string; val?: unknown; shown?: string; conf: number; st: string; src?: string; on: boolean; [k: string]: unknown };
 /** A question read from an imported file (feImportParse, feDocToRows). */
 export type FeImpRow = { type: string; label: string; req?: boolean; opts?: string[]; sec?: string; on?: boolean; conf?: number; page?: number; section?: string; [k: string]: unknown };
-/** pdf.js and mammoth, loaded on demand from cdnjs (feLoadScript). */
+/** pdf.js and mammoth, self-hosted under /public/vendor, loaded on demand (feLoadScript). */
 type FeWinLibs = { pdfjsLib: { GlobalWorkerOptions: { workerSrc: string }; getDocument: (o: Bag) => { promise: Promise<{ numPages: number; getPage: (n: number) => Promise<{ getTextContent: () => Promise<{ items: { str: string; hasEOL?: boolean; transform: number[] }[] }> }> }> } }; mammoth: { extractRawText: (o: { arrayBuffer: ArrayBuffer }) => Promise<{ value: string }> } };
 /** The live-preview context passed to the field renderers (fePvForm): answers, read-only flag, id prefix. */
 export type FeP = { vals: Bag; ro?: unknown; uid?: string };
@@ -1905,8 +1905,8 @@ function feImportParse(){const I=FE.imp,src=I!.src.trim();I!.warn=[];I!.rows=nul
 }
 function feLoadScript(src: string){return new Promise<void>((res,rej)=>{if(document.querySelector<HTMLInputElement>(`script[src="${src}"]`)){res();return}const s=document.createElement("script");s.src=src;s.onload=res as () => void;s.onerror=()=>rej(new Error("load"));document.head.appendChild(s)})}
 async function feDocText(file: File){
-  if(/\.pdf$/i.test(file.name)||file.type==="application/pdf"){await feLoadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js");const lib=(window as unknown as FeWinLibs).pdfjsLib;lib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";const pdf=await lib.getDocument({data:await file.arrayBuffer()}).promise;const out=[];for(let p=1;p<=Math.min(pdf.numPages,30);p++){const pg=await pdf.getPage(p),tc=await pg.getTextContent();let line="",lastY: number|null=null;tc.items.forEach(it=>{const y=Math.round(it.transform[5]);if(lastY!==null&&Math.abs(y-lastY)>3){out.push(line);line=""}line+=(line&&!line.endsWith(" ")?" ":"")+it.str;lastY=y});if(line)out.push(line);out.push("")}return {text:out.join("\n"),pages:pdf.numPages}}
-  if(/\.docx$/i.test(file.name)){await feLoadScript("https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js");const r=await (window as unknown as FeWinLibs).mammoth.extractRawText({arrayBuffer:await file.arrayBuffer()});return {text:r.value,pages:null}}
+  if(/\.pdf$/i.test(file.name)||file.type==="application/pdf"){await feLoadScript("/vendor/pdfjs-3.11.174/pdf.min.js");const lib=(window as unknown as FeWinLibs).pdfjsLib;lib.GlobalWorkerOptions.workerSrc="/vendor/pdfjs-3.11.174/pdf.worker.min.js";const pdf=await lib.getDocument({data:await file.arrayBuffer()}).promise;const out=[];for(let p=1;p<=Math.min(pdf.numPages,30);p++){const pg=await pdf.getPage(p),tc=await pg.getTextContent();let line="",lastY: number|null=null;tc.items.forEach(it=>{const y=Math.round(it.transform[5]);if(lastY!==null&&Math.abs(y-lastY)>3){out.push(line);line=""}line+=(line&&!line.endsWith(" ")?" ":"")+it.str;lastY=y});if(line)out.push(line);out.push("")}return {text:out.join("\n"),pages:pdf.numPages}}
+  if(/\.docx$/i.test(file.name)){await feLoadScript("/vendor/mammoth-1.6.0/mammoth.browser.min.js");const r=await (window as unknown as FeWinLibs).mammoth.extractRawText({arrayBuffer:await file.arrayBuffer()});return {text:r.value,pages:null}}
   throw new Error("format");
 }
 function feDocToRows(text: string){const lines=text.split("\n").map(l=>l.replace(/\s+/g," ").trim());const rows: FeImpRow[]=[],warn: string[]=[];let sec="";

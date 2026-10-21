@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Migration evidence scripts (Node CommonJS harnesses kept as recorded evidence) and vendored libraries.
+    "docs/**",
+    "public/vendor/**",
   ]),
 ]);
 
