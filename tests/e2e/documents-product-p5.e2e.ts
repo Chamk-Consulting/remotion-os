@@ -1,6 +1,6 @@
 /** Documents product phase 5 — slash menu, command palette (Ctrl+K), deleted blocks, synced blocks, charts linked to a table. */
 import { test, expect, type Page } from "@playwright/test";
-import { W, newShell, openShell, openDc, dclick, readStore, seededStore, shellWithStore } from "../helpers/documents";
+import { W, newShell, openShell, openDc, dclick, readStore, seededStore, shellWithStore, exportAs } from "../helpers/documents";
 
 test.describe.configure({ timeout: 240_000 });
 type Blk = { id: string; type: string; html?: string; syn?: { r: string; i: number }; labels?: string[]; series?: { vals: (number | null)[] }[] };
@@ -109,5 +109,94 @@ test("typing shortcuts: '## ' makes a heading, '- ' a list, '> ' a quote, '---' 
   const n = b.all.filter((x) => x.type === "sep").length;
   await fresh(); await p.keyboard.type("---", { delay: 25 }); await p.waitForTimeout(1200);
   b = await blocks(p); expect(b.all.filter((x) => x.type === "sep").length).toBe(n + 1);
+  await ctx.close();
+});
+
+test("table formulas: references follow an inserted row, and the Word export carries live formula fields", async ({ browser, baseURL }) => {
+  const json = await seededStore(browser, baseURL, [
+    { id: "tf1", type: "table", title: "Scores", cols: [{ l: "Item" }, { l: "Score" }], rows: [["A", "7"], ["B", "5"], ["Total", "=SUM(B2:B3)"]] },
+  ]);
+  const ctx = await shellWithStore(browser, baseURL, json); const p = await openShell(ctx); await openDc(p);
+  await expect(p.locator(`${W} .dc-b[data-b="tf1"] td[data-tc="1"]`).nth(2)).toHaveText("12");
+  // insert a row above "B" from the cell menu: the total's range grows to B2:B4
+  const cellB = p.locator(`${W} .dc-b[data-b="tf1"] tr[data-tr="1"] td[data-tc="0"]`); await cellB.click({ button: "right" }); await p.waitForTimeout(400);
+  await p.locator(".os-menu button", { hasText: "Insert row above" }).first().click(); await p.waitForTimeout(900);
+  const st = (await readStore(p))!.json as { docs: Record<string, { pages: { blocks: { id: string; rows?: string[][] }[] }[] }>; cur: string };
+  const tb = st.docs[st.cur].pages.flatMap((x) => x.blocks).find((x) => x.id === "tf1")!;
+  expect(tb.rows![3][1]).toBe("=SUM(B2:B4)");
+  // Word export: the formula is a field Word recalculates, showing the current value
+  const { path } = await exportAs(p, "docx");
+  await ctx.close();
+  const { execFileSync } = await import("node:child_process");
+  let xml = ""; try { xml = execFileSync("unzip", ["-p", path, "word/document.xml"], { encoding: "utf8" }); } catch { test.skip(true, "unzip not installed"); }
+  expect(xml).toMatch(/<w:instrText xml:space="preserve"> =SUM\(B2:B4\) <\/w:instrText>/);
+});
+
+test("PDF: a long paragraph is cut between lines at the sheet bottom — nothing is lost and the first lines stay on the first sheet", async ({ browser, baseURL }) => {
+  const sent = Array.from({ length: 140 }, (_, i) => `Q${String(i + 1).padStart(3, "0")} the patient reports steady progress with the home exercise programme.`).join(" ");
+  const json = await seededStore(browser, baseURL, [{ id: "zzlong", type: "p", html: sent }]);
+  const ctx = await shellWithStore(browser, baseURL, json); const p = await openShell(ctx); await openDc(p);
+  const { path } = await exportAs(p, "pdf");
+  await ctx.close();
+  const { execFileSync } = await import("node:child_process");
+  const page = (n: number) => { try { return execFileSync("pdftotext", ["-f", String(n), "-l", String(n), path, "-"], { encoding: "utf8" }); } catch { return null; } };
+  const all = (() => { try { return execFileSync("pdftotext", [path, "-"], { encoding: "utf8" }); } catch { return null; } })();
+  test.skip(all === null, "poppler-utils not installed");
+  for (let i = 1; i <= 140; i++) expect(all, `sentence ${i}`).toContain(`Q${String(i).padStart(3, "0")}`);
+  expect(page(1), "the paragraph starts on the first sheet").toContain("Q001");
+  const p1 = page(1)!, p2 = page(2)!;
+  // cut between two lines: the first sheet ends inside the paragraph and the second goes on with it
+  const last1 = Math.max(...[...p1.matchAll(/Q(\d{3})/g)].map((m) => +m[1])), first2 = Math.min(...[...p2.matchAll(/Q(\d{3})/g)].map((m) => +m[1]));
+  expect(first2 - last1).toBeLessThanOrEqual(1);
+});
+
+test("free document: a blank Word-like page from New document, typed into freely and saved", async ({ browser, baseURL }) => {
+  const ctx = await newShell(browser, baseURL); const p = await openShell(ctx); await openDc(p);
+  await palette(p, "New document"); await p.keyboard.press("Enter"); await p.waitForTimeout(800);
+  await expect(p.locator(`${W} .dc-mdl [data-dxfree]`)).toContainText("Free document");
+  await p.screenshot({ path: "test-results/p5-newdoc.png" });
+  await dclick(p, `${W} .dc-mdl [data-dxfree]`, 3000);
+  const blk = p.locator(`${W} .dc-cv .wx-blk`).first(); await blk.waitFor({ timeout: 15000 });
+  await blk.click(); await p.keyboard.type("Free text typed here", { delay: 15 }); await p.waitForTimeout(600);
+  // word-processor tools: heading style, bold, a table
+  await p.keyboard.press("Home"); await p.keyboard.press("Shift+End");
+  await p.selectOption(`${W} [data-dxfblk]`, "h1"); await p.waitForTimeout(400);
+  await p.locator(`${W} .dc-cv .wx-blk h1`).first().click(); await p.keyboard.press("End"); await p.keyboard.press("Enter");
+  await p.keyboard.type("Body text", { delay: 15 }); await p.keyboard.press("Shift+Home"); await dclick(p, `${W} [data-dxf="bold"]`, 400);
+  await p.keyboard.press("End"); await dclick(p, `${W} [data-dxf="table"]`, 1800);
+  await p.screenshot({ path: "test-results/p5-free.png" });
+  const st = (await readStore(p))!.json as { docs: Record<string, { kind: string; title: unknown; ex: { live?: unknown; blocks: { h: string }[] } }>; cur: string };
+  const d = st.docs[st.cur];
+  await ctx.close();
+  expect(d.kind).toBe("word"); expect(d.ex.live).toBeTruthy();
+  expect(JSON.stringify(d.title)).toContain("Untitled document");
+  const html = d.ex.blocks.map((b) => b.h).join("");
+  expect(html).toContain("Free text typed here");
+  expect(html).toMatch(/<h1[^>]*>/);
+  expect(html).toMatch(/<b>|font-weight:\s*(bold|700)/);
+  expect(html).toMatch(/<table style="[^"]*border-collapse/);
+  expect(html).toMatch(/border: 1px solid|border-style: solid|1px solid/);
+});
+
+test("a PDF opened as editable pages can be compared with the original, side by side and overlaid", async ({ browser, baseURL }) => {
+  const ctx = await newShell(browser, baseURL); const p = await openShell(ctx); await openDc(p);
+  const fs = await import("node:fs");
+  const b64 = fs.readFileSync("tests/fixtures/acroform.pdf").toString("base64");
+  await p.evaluate(([b64, W]) => {
+    const bin = atob(b64); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+    const dt = new DataTransfer(); dt.items.add(new File([u], "form.pdf", { type: "application/pdf" }));
+    const tgt = document.querySelector(W + " .dc")!; for (const ev of ["dragenter", "dragover", "drop"]) tgt.dispatchEvent(new DragEvent(ev, { bubbles: true, cancelable: true, dataTransfer: dt }));
+  }, [b64, W] as const);
+  await p.locator(`${W} .dc-impm`).waitFor({ timeout: 15000 }); await p.waitForTimeout(1200);
+  await dclick(p, `${W} .dc-impm [data-lvmode="live"]`, 4000);
+  await dclick(p, `${W} .dc-impm [data-impgo]`, 4000);
+  await p.locator(`${W} .dc-cv .wx-page`).first().waitFor({ timeout: 30000 });
+  await dclick(p, `${W} [data-dxcmp]`, 3000);
+  await p.locator(`${W} .dcx-cmp [data-dxcmpo] canvas`).waitFor({ timeout: 15000 });
+  await expect(p.locator(`${W} .dcx-cmp [data-dxcmpn] .wx-page`)).toHaveCount(1);
+  await expect(p.locator(`${W} .dcx-cmp [data-dxcmppos]`)).toContainText("Page 1 of");
+  await p.locator(`${W} [data-dxcmpop]`).fill("60"); await p.waitForTimeout(300);
+  expect(await p.locator(`${W} .dcx-cmpov2`).evaluate((c) => (c as HTMLElement).style.opacity)).toBe("0.6");
+  await p.screenshot({ path: "test-results/p5-compare.png" });
   await ctx.close();
 });

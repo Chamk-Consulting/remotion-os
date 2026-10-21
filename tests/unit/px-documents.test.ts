@@ -60,3 +60,37 @@ describe("PDF font subsetting (product phase 2)", () => {
     }
   });
 });
+
+describe("Formula references follow inserted and deleted rows and columns", () => {
+  it("shifts single cells and ranges, marks deleted cells #REF!, leaves strings and other tables alone", async () => {
+    const { dcxShiftFormula: f } = await import("@/apps/documents/documents");
+    const same = (q: string) => !q;
+    // a row inserted above spreadsheet row 3
+    expect(f("=SUM(B2:B4)+B5", "r", 3, 1, same)).toBe("=SUM(B2:B5)+B6");
+    expect(f("=B2*2", "r", 3, 1, same)).toBe("=B2*2");
+    // spreadsheet row 3 deleted
+    expect(f("=B3+B4", "r", 3, -1, same)).toBe("=#REF!+B3");
+    expect(f("=SUM(B2:B4)", "r", 3, -1, same)).toBe("=SUM(B2:B3)");
+    expect(f("=SUM(B3:B3)", "r", 3, -1, same)).toBe("=SUM(#REF!)");
+    // a column inserted before B (index 1); column C deleted
+    expect(f("=A2+B2+$C$2", "c", 1, 1, same)).toBe("=A2+C2+$D$2");
+    expect(f("=SUM(A2:D2)", "c", 2, -1, same)).toBe("=SUM(A2:C2)");
+    // quoted text, function names and other tables are untouched
+    expect(f('=CONCAT("B3",B3)', "r", 3, 1, same)).toBe('=CONCAT("B3",B4)');
+    expect(f("=Other!B3+B3", "r", 3, 1, same)).toBe("=Other!B3+B4");
+    expect(f("=ROUND(B3,1)", "r", 2, 1, (q) => q === "Vitals!" || !q)).toBe("=ROUND(B4,1)");
+  });
+});
+
+describe("Table formulas exported as Word formula fields", () => {
+  it("keeps what Word can compute, refuses the rest", async () => {
+    const { dcxWordFormula: w } = await import("@/apps/documents/documents");
+    expect(w("=SUM(B2:B3)")).toBe("=SUM(B2:B3)");
+    expect(w("=AVG(B2:B4)*2")).toBe("=AVERAGE(B2:B4)*2");
+    expect(w("=ROUND($B$2/3;1)")).toBe("=ROUND(B2/3,1)");
+    expect(w("=Vitals!B2+1")).toBeNull();
+    expect(w('=CONCAT("a",B2)')).toBeNull();
+    expect(w("=MEDIAN(B2:B5)")).toBeNull();
+    expect(w("12")).toBeNull();
+  });
+});

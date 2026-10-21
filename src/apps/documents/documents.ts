@@ -2579,7 +2579,7 @@ function dcPgSplit(host: HTMLElement,g: ReturnType<typeof dcGeo>){
       const L=dcPgLimit(cur,g);if(!L.ok)return false;let k=kids.findIndex(x=>x.getBoundingClientRect().bottom>L.lim+L.s);const pb=kids.findIndex((x,i)=>i>0&&x.classList.contains("pgb"));
       if(pb>0&&(k<0||pb<=k)){cur=dcPgNewPart(cur,++part);const np=cur.querySelector<HTMLInputElement>(".dc-pin");kids.slice(pb).forEach(x=>np!.appendChild(x));continue}
       if(k<0)break;
-      const kb=kids[k];if(kb.classList.contains("t-table")&&!kb.classList.contains("keep")&&dcPgSplitTable(kb,L.lim))continue;
+      const kb=kids[k];if(kb.classList.contains("t-table")&&!kb.classList.contains("keep")&&dcPgSplitTable(kb,L.lim))continue;if(kb.classList.contains("t-p")&&!kb.classList.contains("keep")&&kb.closest(".dc-xph")&&dcxPgSplitPara(kb,L.lim))continue;
       if(kb.classList.contains("t-chart")&&!kb.classList.contains("keep")&&!kb.classList.contains("nofit")&&!kb.classList.contains("dc-fit")){const sv=kb.querySelector<HTMLInputElement>("svg.dc-chart");if(sv){const r=kb.getBoundingClientRect(),sr=sv.getBoundingClientRect();const room=L.lim-sr.top-(r.bottom-sr.bottom)-2;if(room>=sr.height*.7&&room>=150*L.s&&room<sr.height){kb.classList.add("dc-fit");sv.style.height=(room/L.s)+"px";sv.style.width="auto";sv.style.marginInline="auto";continue}}}
       if(k===0){if(kids.length===1)break;k=1}
       while(k>1&&(kids[k-1].classList.contains("t-h")||kids[k-1].classList.contains("kn")))k--;
@@ -2887,7 +2887,7 @@ function dcFlow(d: DcDoc,imgs?: Record<string, DcFlowImg>): DcFlowItem[]{imgs=im
     case "info":items.push({k:"table",key:true,head:null,rows:b.pairs!.map(([k,v])=>[T(k),dcVal(v,d,L)])});break;
     case "scale":items.push({k:"h",lv:3,text:N(b)+T(b.title)});items.push({k:"p",runs:[{t:T(b.lblL)+"  "+nf(b.min!)+" — "},{t:b.val==null?"—":nf(b.val),b:1},{t:" — "+nf(b.max!)+"  "+T(b.lblR)}]});break;
     case "table":{if(T(b.title))items.push({k:"h",lv:3,text:N(b)+T(b.title)});let comp=null as RdComp | null;try{comp=dcTblComp(b,L)}catch(e){}
-      items.push({k:"table",head:b.head!==false?b.cols!.map(c=>T(c.l)):null,rows:b.rows!.map((r,i)=>r.map((c,j)=>{const raw=String(T(c)??"");return raw.startsWith("=")&&comp?String(comp.display(i+1,j)??""):raw})),meas:b.preset==="meas",title:T(b.title),mg:typeof dcMgValid==="function"?dcMgValid(b) as DcMg[]:[],cw:b.cols!.map(c=>(c as {l: string; w?: number}).w||0)});break}
+      items.push({k:"table",head:b.head!==false?b.cols!.map(c=>T(c.l)):null,rows:b.rows!.map((r,i)=>r.map((c,j)=>{const raw=String(T(c)??"");return raw.startsWith("=")&&comp?String(comp.display(i+1,j)??""):raw})),fx:b.head!==false?b.rows!.map(r=>r.map(c=>dcxWordFormula(String(T(c)??"")))):null,meas:b.preset==="meas",title:T(b.title),mg:typeof dcMgValid==="function"?dcMgValid(b) as DcMg[]:[],cw:b.cols!.map(c=>(c as {l: string; w?: number}).w||0)});break}
     case "img":IMG(b,T(b.cap),Math.round(560*(b.w||100)/100));if(T(b.cap)&&imgs[b.id])items.push({k:"p",st:"cap",runs:dcR(T(b.cap))});break;
     case "link":items.push({k:"p",runs:[{t:T(b.text)||b.url!,a:b.url,u:1,c:"2F6BF0"}]});break;
     case "sign":if(b.ini&&!b.signer&&typeof dcFlowX==="function"){dcFlowX(b,d,L,items,P,T,N);break}if(b.signer&&typeof dcSigFlowItems==="function"){dcSigFlowItems(b,d,L,items as unknown as Parameters<typeof dcSigFlowItems>[3],IMG);break}items.push({k:"p",runs:dcR(dcTv("dc_s_faitA",{p:b.place||"",d:dcFmtDate(d.date,L)},L))});IMG(b,"",180);items.push({k:"p",runs:dcR(d.prat,{b:1})});if(T(b.role))items.push({k:"p",st:"small",runs:dcR(T(b.role))});break;
@@ -2923,6 +2923,8 @@ async function dcMakeDOCX(d: DcDoc,flow: DcFlowItem[],o: {skipChartTables?: bool
     if(r.a&&/^(https?:|mailto:)/i.test(r.a)){const id="rId"+(++rid);rels.push(`<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${E(r.a)}" TargetMode="External"/>`);return `<w:hyperlink r:id="${id}">${x}</w:hyperlink>`}return x};
   const para=(st: string,runs: DcRun[],extra="")=>`<w:p><w:pPr>${st?`<w:pStyle w:val="${st}"/>`:""}${extra}${bidi}</w:pPr>${runs.map(run).join("")}</w:p>`;
   const cellP=(txt: string,b?: boolean)=>`<w:p><w:pPr><w:spacing w:before="0" w:after="0"/>${bidi}</w:pPr>${run({t:txt,b})}</w:p>`;
+  /* product phase 5: a table formula Word can compute is written as a live formula field (F9 in Word recalculates it), its current value shown */
+  const cellF=(instr: string,txt: string,b?: boolean)=>`<w:p><w:pPr><w:spacing w:before="0" w:after="0"/>${bidi}</w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> ${instr.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")} </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r>${run({t:txt,b})}<w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>`;
   const body: string[]=[];let olId=null as number|null,prevLi=false;
   for(const x of flow){if(x.k!=="li"){prevLi=false}
     switch(x.k){
@@ -2934,7 +2936,7 @@ async function dcMakeDOCX(d: DcDoc,flow: DcFlowItem[],o: {skipChartTables?: bool
       case "pb":body.push(`<w:p><w:r><w:br w:type="page"/></w:r></w:p>`);break;
       case "table":{if(x.chart&&o.skipChartTables!==false)break;const n=Math.max(1,...x.rows!.map(r=>r.length),x.head?x.head.length:0),cw=Math.floor(pg.cw/n);
         const tw=x.cw&&x.cw.length===n&&x.cw.some(Boolean)?(()=>{const tot=x.cw.reduce((a,v)=>a+(v||100/n),0);return x.cw.map(v=>Math.round((v||100/n)/tot*cw*n))})():Array.from({length:n},()=>cw);const {sk,an}=dcMgSkip(x);const vcont=new Map<string, DcMg>();(x.mg||[]).forEach(m=>{for(let i=1;i<m.rs;i++)vcont.set((m.r+i)+":"+m.c,m)});
-        const cell=(txt: string,head: boolean,key: boolean|undefined,r: number,j: number)=>{const m=an[r+":"+j],vc=vcont.get(r+":"+j),span=m?m.cs:vc?vc.cs:1;const w=tw.slice(j,j+span).reduce((a,v)=>a+v,0);return `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${span>1?`<w:gridSpan w:val="${span}"/>`:""}${m&&m.rs>1?'<w:vMerge w:val="restart"/>':vc?"<w:vMerge/>":""}${head||key?`<w:shd w:val="clear" w:color="auto" w:fill="${head?"EEF2F6":"F7F9FB"}"/>`:""}</w:tcPr>${cellP(vc?"":txt,head||key)}</w:tc>`};
+        const cell=(txt: string,head: boolean,key: boolean|undefined,r: number,j: number)=>{const m=an[r+":"+j],vc=vcont.get(r+":"+j),span=m?m.cs:vc?vc.cs:1;const w=tw.slice(j,j+span).reduce((a,v)=>a+v,0);return `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${span>1?`<w:gridSpan w:val="${span}"/>`:""}${m&&m.rs>1?'<w:vMerge w:val="restart"/>':vc?"<w:vMerge/>":""}${head||key?`<w:shd w:val="clear" w:color="auto" w:fill="${head?"EEF2F6":"F7F9FB"}"/>`:""}</w:tcPr>${(()=>{const fx=(x as unknown as {fx?: (string|null)[][]|null}).fx;const f=!vc&&!head&&r>=0&&fx?fx[r]?.[j]:null;return f?cellF(f,txt,head||key):cellP(vc?"":txt,head||key)})()}</w:tc>`};
         const rowX=(cells: string[],r: number,head: boolean,key: boolean|undefined)=>Array.from({length:n},(_,j)=>{const k=r+":"+j;if(vcont.has(k))return cell("",head,false,r,j);if(sk.has(k))return "";return cell(cells[j]??"",head,key&&j===0,r,j)}).join("");
         body.push(`<w:tbl><w:tblPr><w:tblStyle w:val="TableGrid"/><w:tblW w:w="${cw*n}" w:type="dxa"/>${rtl?'<w:bidiVisual/>':""}<w:tblLook w:val="04A0" w:firstRow="1" w:lastRow="0" w:firstColumn="0" w:lastColumn="0" w:noHBand="0" w:noVBand="1"/></w:tblPr><w:tblGrid>${tw.map(w=>`<w:gridCol w:w="${w}"/>`).join("")}</w:tblGrid>${x.head?`<w:tr><w:trPr><w:tblHeader/><w:cantSplit/></w:trPr>${rowX(x.head,-1,true,false)}</w:tr>`:""}${x.rows!.map((r,i)=>`<w:tr><w:trPr><w:cantSplit/></w:trPr>${rowX(r,i,false,x.key)}</w:tr>`).join("")}</w:tbl>`);body.push(para("",[] ,'<w:spacing w:after="60"/>'));break}
       case "img":{nimg++;const name=`image${nimg}.png`,id="rId"+(++rid);media.push({name:"word/media/"+name,data:x.png!});rels.push(`<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/${name}"/>`);
@@ -5083,7 +5085,7 @@ onDoc("pointerdown",e=>{const h=tgt(e).closest?.<HTMLElement>("[data-colrs]");if
 onDoc("pointermove",e=>{const S=DC_CRS;if(!S)return;const dx=(e.clientX-S.x0)/S.W*100*(S.rtl?-1:1);const a=S.ws[S.j],c=S.ws[S.j+1];const na=Math.max(6,Math.min(a+c-6,a+dx));S.cur=[na,a+c-na];S.cols[S.j].style.width=na+"%";S.cols[S.j+1].style.width=(a+c-na)+"%"});
 onDoc("pointerup",()=>{const S=DC_CRS;if(!S)return;DC_CRS=null;document.querySelectorAll<HTMLInputElement>(".dc-colrsing").forEach(x=>x.classList.remove("dc-colrsing"));if(!S.cur)return;dcPush();S.b.cols!.forEach((c: {l: string;w?: number},i)=>c.w=Math.round((i===S.j?S.cur![0]:i===S.j+1?S.cur![1]:S.ws[i])*10)/10);dcSave();dcRefreshBlock(S.b.id);dcPagSoon?.()});
 /* ---- merge-aware row and column operations (right-click menu) ---- */
-function dcMgShift(b: DcBlock,axis: string,at: number,d: number){b.mg=dcMgValid(b).map(m=>Object.assign({},m)).filter(m=>{const p=axis==="r"?"r":"c",s=axis==="r"?"rs":"cs";if(axis==="r"&&m.r===-1)return true;
+function dcMgShift(b: DcBlock,axis: string,at: number,d: number){try{dcxRefShift(b,axis,at,d)}catch(e){console.warn("dcx refs",e)}b.mg=dcMgValid(b).map(m=>Object.assign({},m)).filter(m=>{const p=axis==="r"?"r":"c",s=axis==="r"?"rs":"cs";if(axis==="r"&&m.r===-1)return true;
   if(d>0){if(m[p]>=at)m[p]+=d;else if(m[p]+m[s]>at)m[s]+=d;return true}
   if(m[p]>at)m[p]--;else if(m[p]+m[s]>at){m[s]--;if(m[s]<1)return false}return m.rs>1||m.cs>1})}
 dcCellMenu=function(e,cell){const be=cell.closest<HTMLInputElement>(".dc-b"),r=dcFind(be!.dataset.b);if(!r)return;const b=r.b;dcSelect(b.id);const j=+cell.dataset.tc!,tr=cell.closest<HTMLInputElement>("tr"),i=tr!.dataset.tr!=null?+tr!.dataset.tr:-1;
@@ -7518,7 +7520,7 @@ function dcxPalItems(): DcxCmd[]{const out: DcxCmd[]=[];const ed=DC.view==="edit
   if(ed&&d){out.push({g:A,ic:DCI.search,l:t("dcx_pal_find"),run:()=>dcFindOpen(true)},{g:A,ic:DCI.print,l:t("dcx_pal_pdf"),run:()=>dcExport("pdf")},{g:A,ic:DCI.download,l:t("dcx_pal_export"),run:()=>{dcExportOpen()}},
       {g:A,ic:DCI.hist,l:t("dcx_pal_ver"),run:()=>dcSaveVersion()},{g:A,ic:DCI.check,l:t("dcx_pal_check"),run:()=>dcDrawer("check")},{g:A,ic:DCI.hist,l:t("dcx_pal_hist"),run:()=>dcDrawer("hist")},{g:A,ic:DCI.trash,l:t("dcx_pal_trash"),run:dcxTrashModal});
     if(!dcxIsCopy(d)&&!dcIsWx(d)&&!dcIsLive(d))out.push({g:A,ic:DCI.users,l:t("dcx_pal_send"),run:dcxSendModal})}
-  out.push({g:A,ic:DCI.plus,l:t("dcx_pal_new"),run:()=>dcNewModal()});
+  out.push({g:A,ic:DCI.plus,l:t("dcx_pal_new"),run:()=>dcNewModal()});out.push({g:A,ic:DCI.pen,l:t("dcx_pal_free"),run:()=>{dcxNewFree()}});
   if(dcxBlockEd()){const I=t("dcx_pal_ins");DC_LIB.forEach(([,,types])=>types.forEach(k=>out.push({g:I,ic:dcxIcon(k),l:t("dcx_pal_insert",{x:t(DC_T[k][1])}),txt:t(DC_T[k][2]),run:()=>dcInsert(k)})));
     dcxReus().forEach(r=>{out.push({g:I,ic:DCI.refresh,l:t("dcx_pal_insert",{x:t("dcx_sl_syn",{x:r.name})}),run:()=>dcInsert("syn:"+r.id)},{g:I,ic:DCI.copy,l:t("dcx_pal_insert",{x:t("dcx_sl_copy",{x:r.name})}),run:()=>dcInsert("reu:"+r.id)})})}
   const V=t("dcx_pal_view");DC_NAV.forEach(([k,ic,lb])=>out.push({g:V,ic:(DCI as unknown as Record<string,string>)[ic]||DCI.docs,l:t("dcx_pal_goto",{x:t(lb)}),run:()=>dcGo(k)}));
@@ -7613,8 +7615,140 @@ function dcxMdCheck(el: HTMLElement){if(!el.hasAttribute("data-rich")||!dcxBlock
   if(tx==="---"){const np=dcNewBlock("p");dcMut(d=>{const sep=dcNewBlock("sep");sep.id=id;d.pages[r.pi].blocks.splice(r.bi,1,sep,np)},"canvas");DC.sel=np.id;focus(np.id)}}
 {const _oe=dcOnEdit;dcOnEdit=function(el){_oe(el);try{if(!DCX_SL.open)dcxMdCheck(el)}catch(e){console.warn("dcx md",e)}}}
 
+/* ---- formulas follow the rows and columns they point to: inserting or deleting a row/column rewrites the references in every
+ *      formula of the table (and in formulas of other tables that name it), as a spreadsheet does; a deleted cell becomes #REF! ---- */
+const dcxColL=(i: number)=>{let s="";i++;while(i>0){const m=(i-1)%26;s=String.fromCharCode(65+m)+s;i=Math.floor((i-1)/26)}return s};
+const dcxColI=(s: string)=>{let n=0;for(const ch of s.toUpperCase())n=n*26+(ch.charCodeAt(0)-64);return n-1};
+/** Rewrites one formula. axis "r": spreadsheet row numbers (1 = header row); axis "c": 0-based column indexes. `at` is the first
+ *  shifted line, d = +n inserted / -1 deleted. `mine(q)` tells whether a reference (with its table qualifier) points to the changed table. */
+function dcxShiftFormula(f: string,axis: "r"|"c",at: number,d: number,mine: (q: string)=>boolean){
+  const re=/("[^"]*")|(?<![A-Za-z0-9_.])((?:[A-Za-z_]\w*|'[^']+')!)?(\$?)([A-Za-z]{1,2})(\$?)(\d+)(?::(\$?)([A-Za-z]{1,2})(\$?)(\d+))?(?![A-Za-z0-9(])/g;
+  const one=(n: number,end?: boolean): number|null=>{if(d>0)return n>=at?n+d:n;if(n===at)return end===undefined?null:(end?n-1:n);return n>at?n-1:n};
+  return f.replace(re,(all,str,q,d1,c1,d2,r1,d3,c2,d4,r2)=>{if(str||!mine(q||""))return all;
+    const get=(c: string,r: string,end?: boolean)=>{let ci=dcxColI(c),ri=+r;if(axis==="r"){const v=one(ri,end);if(v==null)return null;ri=v}else{const v=one(ci,end);if(v==null)return null;ci=v}return [ci,ri] as [number,number]};
+    if(!c2){const a=get(c1,r1);if(!a)return "#REF!";return `${q||""}${d1}${dcxColL(a[0])}${d2}${a[1]}`}
+    const a=get(c1,r1,false),b=get(c2,r2,true);if(!a||!b||b[0]<a[0]||b[1]<a[1])return "#REF!";
+    return `${q||""}${d1}${dcxColL(a[0])}${d2}${a[1]}:${d3}${dcxColL(b[0])}${d4}${b[1]}`})}
+function dcxRefShift(b: DcBlock,axis: string,at: number,d: number){if(b.type!=="table"||!dcS?.docs[dcS.cur])return;const ax=axis==="r"?"r":"c";const pos=ax==="r"?at+2:at;
+  const nm=String((b as unknown as {name?: string}).name||"").toLowerCase();const unq=(q: string)=>q.replace(/!$/,"").replace(/^'|'$/g,"").toLowerCase();
+  const fix=(tb: DcBlock,same: boolean)=>{const mine=(q: string)=>q?(!!nm&&unq(q)===nm):same;
+    tb.rows?.forEach((row,i)=>row.forEach((c,j)=>{if(typeof c==="string"&&c.trim().startsWith("=")){const n=dcxShiftFormula(c,ax,pos,d,mine);if(n!==c)tb.rows![i][j]=n}}))};
+  dcEach(x=>{if(x.type==="table")fix(x,x===b||x.id===b.id)},dcDoc())}
+
+/** A table formula in the form Word's formula fields understand (same A1 references: row 1 is the header row), or null when Word cannot
+ *  compute it (references to another table, text, functions Word lacks) — the cell then keeps its computed value only. */
+function dcxWordFormula(raw: string): string|null{const s=raw.trim();if(!s.startsWith("=")||s.length<2)return null;const f=s.slice(1);
+  if(/[!"&%']|\b(MEDIAN|SQRT|CONCAT|COUNTA)\s*\(/i.test(f))return null;
+  const fns=[...f.matchAll(/([A-Za-z]+)\s*\(/g)].map(m=>m[1].toUpperCase());const ok=new Set(["SUM","AVERAGE","AVG","MIN","MAX","COUNT","PRODUCT","ROUND","ABS","INT","MOD","IF","AND","OR","NOT","SIGN"]);
+  if(fns.some(x=>!ok.has(x)))return null;return "="+f.replace(/\bAVG\s*\(/gi,"AVERAGE(").replace(/;/g,",").replace(/\$/g,"")}
+
+/* ---- line-level page breaks (PDF, print): a paragraph that does not fit is cut between two lines instead of moving whole to the next
+ *      sheet — at least two lines stay on each side (no widows or orphans). Only in the export/print sheets, never in the editor. ---- */
+function dcxPgSplitPara(be: HTMLElement,lim: number){const tw=document.createTreeWalker(be,NodeFilter.SHOW_TEXT);const rg=document.createRange();
+  type Ch={n: Text;o: number;top: number;bottom: number};let first: Ch|null=null,prev: Ch|null=null,cut: Ch|null=null;const tops: number[]=[];
+  for(let n=tw.nextNode() as Text|null;n;n=tw.nextNode() as Text|null){const len=n.data.length;for(let o=0;o<len;o++){if(/\s/.test(n.data[o]))continue;rg.setStart(n,o);rg.setEnd(n,o+1);const r=rg.getBoundingClientRect();if(!r.height)continue;
+      const c={n,o,top:r.top,bottom:r.bottom};if(!first)first=c;if(!tops.length||r.top>tops[tops.length-1]+r.height*.5)tops.push(r.top);
+      if(r.bottom>lim&&!cut){cut=c;break}prev=c}if(cut)break}
+  if(!cut||!first||!prev)return false;
+  const lineTop=cut.top;const linesBefore=tops.filter(x=>x<lineTop-1).length;if(linesBefore<2)return false;
+  // move back to the first character of the cut line
+  let start: Ch=cut;{const tw2=document.createTreeWalker(be,NodeFilter.SHOW_TEXT);const all: Ch[]=[];for(let n=tw2.nextNode() as Text|null;n;n=tw2.nextNode() as Text|null){for(let o=0;o<n.data.length;o++){if(n===cut.n&&o===cut.o){all.push(cut);break}rg.setStart(n,o);rg.setEnd(n,o+1);const r=rg.getBoundingClientRect();if(r.height)all.push({n,o,top:r.top,bottom:r.bottom})}if(n===cut.n)break}
+    for(let i=all.length-1;i>=0&&Math.abs(all[i].top-lineTop)<2;i--)if(!/\s/.test(all[i].n.data[all[i].o]))start=all[i]}
+  // the rest must hold at least two lines too
+  const endR=be.getBoundingClientRect();const lh=Math.max(1,cut.bottom-cut.top);if(endR.bottom-lineTop<lh*1.8)return false;
+  const cutR=document.createRange();cutR.setStart(start.n,start.o);cutR.setEnd(be,be.childNodes.length);
+  const liCut=start.n.parentElement?.closest("li");const olBefore=liCut?.parentElement?.tagName==="OL"?liCut.parentElement as HTMLOListElement:null;let liN=0;if(olBefore&&liCut){liN=[...olBefore.children].indexOf(liCut)+(+(olBefore.getAttribute("start")||1))}
+  let midLi=false;if(liCut){const r0=document.createRange();r0.setStart(liCut,0);r0.setEnd(start.n,start.o);midLi=r0.toString().trim().length>0}
+  const frag=cutR.extractContents();const c=be.cloneNode(false) as DcPgEl;c.appendChild(frag);
+  c.querySelectorAll<HTMLElement>("[id]").forEach(x=>x.removeAttribute("id"));
+  // a numbered list goes on with the right number; an item cut in the middle does not show its bullet or number twice
+  if(liN){const ol=c.querySelector("ol");if(ol)ol.setAttribute("start",String(liN))}
+  if(midLi){const li=c.querySelector("li");if(li)li.style.listStyle="none"}
+  c.classList.add("dc-bc","dcx-pcont");c.classList.remove("dc-sel");c.style.marginTop="0";be.after(c);return true}
+
+/* ---- free document: one blank, freely editable page (no blocks), on the Word-page engine — as a word processor ---- */
+async function dcxNewFree(){dcModalClose(true);try{const title=t("dcx_freeTitle");const css="body{font-family:Inter,Arial,sans-serif;font-size:11pt;line-height:1.5;color:#1a2335}p,div,li,td{font-size:11pt}h1{font-size:20pt;margin:0 0 8pt}h2{font-size:15pt;margin:12pt 0 6pt}h3{font-size:12.5pt;margin:10pt 0 4pt}blockquote{margin:6pt 0;padding-left:10pt;border-left:3px solid #c9d1dc;color:#475467}";
+  const r=await dcLvFlowFromHtml(`<html><head><style>${css}</style></head><body><p><br></p></body></html>`,{theme:true,title});
+  const d=await dcLiveDoc(r.W,{title,name:"",eng:"flow",src:"new",fid:"high",notes:[]});(d as unknown as Bag).free=true;dcAddDoc(d as unknown as DcDoc,true)}catch(e){console.error(e);dcToast(t("dc_ex_fail"))}}
+{const _nm=dcNewModal;dcNewModal=function(tab,...more: unknown[]){const r=(_nm as (...a: unknown[])=>unknown)(tab,...more);if(!tab){const m=dcRoot()?.querySelector<HTMLElement>(".dc-mdl .dc-modes");
+  if(m&&!m.querySelector("[data-dxfree]")){const ref=m.querySelector('[data-nm="tpl"]');const h=`<button type="button" class="dc-mode dcx-free" data-dxfree><span class="ic">${DCI.pen}</span><b>${t("dcx_free")}</b><small>${t("dcx_freeD")}</small></button>`;if(ref)ref.insertAdjacentHTML("beforebegin",h);else m.insertAdjacentHTML("beforeend",h)}}return r} as typeof dcNewModal}
+{const _mc=dcModalClick;dcModalClick=function(e,m){if(tgt(e).closest("[data-dxfree]")){dcxNewFree();return}_mc(e,m)}}
+
+/* the free document's own word-processor ribbon and panel (the Word-page engine's ribbon is made for filling imported forms) */
+const dcxIsFree=(d: DcDoc|null|undefined)=>!!(d&&dcIsWx(d)&&(d as unknown as {free?: boolean}).free);
+let dcxFSel: Range|null=null;
+onDoc("selectionchange",()=>{const s=getSelection();if(!s||!s.rangeCount)return;const n=s.anchorNode;const el=n&&(n.nodeType===1?n as Element:n.parentElement);if(el?.closest?.(".dc-cv .wx-blk"))dcxFSel=s.getRangeAt(0).cloneRange()});
+function dcxFRestore(){const s=getSelection();
+  /* the selection is still in the page (ribbon buttons do not take the focus): use it as it is */
+  if(s&&s.rangeCount){const n=s.anchorNode;const cur=n&&(n.nodeType===1?n as Element:n.parentElement)?.closest<HTMLElement>(".dc-cv .wx-blk");if(cur&&document.activeElement&&cur.closest("[contenteditable=true]")===document.activeElement.closest("[contenteditable=true]"))return cur}
+  if(!dcxFSel||!s||!dcxFSel.startContainer.isConnected)return null;const el=(dcxFSel.startContainer.nodeType===1?dcxFSel.startContainer as Element:dcxFSel.startContainer.parentElement)?.closest<HTMLElement>(".wx-blk");if(!el)return null;
+  const ed=el.closest<HTMLElement>("[contenteditable=true]")||el;ed.focus({preventScroll:true});s.removeAllRanges();s.addRange(dcxFSel);return el}
+function dcxFDone(el: HTMLElement|null){const blk=(getSelection()?.anchorNode as Node|null);const b=(blk&&(blk.nodeType===1?blk as Element:blk.parentElement)?.closest<HTMLElement>(".wx-blk"))||el;b?.dispatchEvent(new InputEvent("input",{bubbles:true}));const s=getSelection();if(s&&s.rangeCount)dcxFSel=s.getRangeAt(0).cloneRange()}
+/** Inserts markup at the caret with the DOM (the browser's insertHTML drops table and image styles); a table goes after the paragraph. */
+function dcxFInsert(html: string,asBlock: boolean){const el=dcxFRestore();const s=getSelection();if(!el||!s||!s.rangeCount)return;const r=s.getRangeAt(0);r.deleteContents();const frag=r.createContextualFragment(html);const last=frag.lastChild;
+  const n=r.startContainer;const host=asBlock?(n.nodeType===1?n as Element:n.parentElement)?.closest("p,h1,h2,h3,h4,blockquote,li,div"):null;
+  if(host&&host!==el&&el.contains(host))host.after(frag);else r.insertNode(frag);
+  if(last){const r2=document.createRange();r2.setStartAfter(last);r2.collapse(true);s.removeAllRanges();s.addRange(r2)}dcxFDone(el)}
+function dcxFExec(cmd: string,val?: string){const el=dcxFRestore();if(!el)return;document.execCommand("styleWithCSS",false,"true");document.execCommand(cmd,false,val);dcxFDone(el)}
+{const _rb=dcRibbonHTML;dcRibbonHTML=function(){const d=dcS?dcDoc():null;if(!dcxIsFree(d)||!["home","file","insert"].includes(DC.rib!))return _rb();const sep='<span class="dc-vs"></span>';let h="";
+  if(DC.rib==="insert")h=`${dcBig('data-dxf="table"',"table","dc_cTable")}${dcBig('data-dxf="img"',"image","dc_cImage")}${dcBig('data-dxf="link"',"link","dc_cLink")}${dcBig('data-dxf="hr"',"sep","dc_cSep")}${dcBig('data-dxf="date"',"clock","dcx_sl_today")}${sep}${dcBig('data-dcmd="printc"',"print","dc_pr_title")}${dcBig("data-wxpdf","download","dc_wx_pdf")}`;
+  else h=`${dcTb('data-dcmd="undo"',"undo","fe_undo")}${dcTb('data-dcmd="redo"',"redo","fe_redo")}${sep}<select class="dc-inp sm dcx-fsel" data-dxfblk aria-label="${t("dcx_f_style")}"><option value="p">${t("dc_stNormal")}</option><option value="h1">${t("dc_stH1")}</option><option value="h2">${t("dc_stH2")}</option><option value="h3">${t("dc_stH3")}</option><option value="blockquote">${t("dc_stQuote")}</option></select>
+    <select class="dc-inp sm dcx-fsel" data-dxfsz aria-label="${t("dc_fsize")}">${[8,9,10,11,12,14,16,18,20,24,28,32,36].map(n=>`<option value="${n}"${n===11?" selected":""}>${n}</option>`).join("")}</select>${sep}
+    ${dcTb('data-dxf="bold"',"bold","dc_bold")}${dcTb('data-dxf="italic"',"italic","dc_italic")}${dcTb('data-dxf="underline"',"under","dc_under")}${dcTb('data-dxf="strikeThrough"',"strike","dcx_f_strike")}
+    <label class="dc-tb col dcx-fcol" title="${t("dc_color")}">${DCI.color}<input type="color" data-dxfcol="foreColor" value="#1a2335" aria-label="${t("dc_color")}"></label><label class="dc-tb col dcx-fcol" title="${t("dc_hl")}">${DCI.hl}<input type="color" data-dxfcol="hiliteColor" value="#ffe066" aria-label="${t("dc_hl")}"></label>${sep}
+    ${dcTb('data-dxf="justifyLeft"',"al","dc_alL")}${dcTb('data-dxf="justifyCenter"',"ac","dc_alC")}${dcTb('data-dxf="justifyRight"',"ar","dc_alR")}${dcTb('data-dxf="justifyFull"',"aj","dcx_f_just")}${sep}
+    ${dcTb('data-dxf="insertUnorderedList"',"ul","dc_listUl")}${dcTb('data-dxf="insertOrderedList"',"ol","dc_listOl")}${dcTb('data-dxf="outdent"',"outdent","dc_outdent")}${dcTb('data-dxf="indent"',"indent","dc_indent")}${sep}
+    ${dcBig('data-dxf="table"',"table","dc_cTable")}${dcBig('data-dxf="img"',"image","dc_cImage")}`;
+  return `<div class="dc-tbar" data-rk="${DC.rib}">${h}</div>`}}
+onDoc("mousedown",e=>{if(tgt(e).closest?.(".dc-tbar [data-dxf]"))e.preventDefault()},true);
+onDoc("change",e=>{const x=tgt(e) as HTMLInputElement;if(!dcxIsFree(dcS?dcDoc():null))return;
+  if(x.matches?.("[data-dxfblk]")){dcxFExec("formatBlock",x.value==="p"?"P":x.value.toUpperCase());return}
+  if(x.matches?.("[data-dxfsz]")){const el=dcxFRestore();if(!el)return;document.execCommand("styleWithCSS",false,"false");document.execCommand("fontSize",false,"7");
+    el.closest(".wx-blk, .dc-cv")?.querySelectorAll<HTMLElement>('font[size="7"]').forEach(f=>{const sp=document.createElement("span");sp.style.fontSize=x.value+"pt";sp.append(...f.childNodes);f.replaceWith(sp)});dcxFDone(el);return}
+  if(x.matches?.("[data-dxfcol]")){dcxFExec(x.dataset.dxfcol!,x.value)}});
+{const _ck=dcClick;dcClick=function(e,R){const b=tgt(e).closest<HTMLElement>("[data-dxf]");if(!b||!dcxIsFree(dcDoc()))return _ck(e,R);const k=b.dataset.dxf!;
+  if(k==="table"){const cell='<td style="border:1px solid #c9d1dc;padding:4px 6px;vertical-align:top;min-width:40px"><br></td>';dcxFInsert(`<table style="border-collapse:collapse;width:100%;margin:6px 0"><tbody>${`<tr>${cell.repeat(3)}</tr>`.repeat(3)}</tbody></table><p><br></p>`,true);return}
+  if(k==="hr"){dcxFExec("insertHorizontalRule");return}
+  if(k==="date"){const L=dcDoc().lang||lang();dcxFExec("insertText",new Date().toLocaleDateString(L==="ar"?"ar":L,{day:"numeric",month:"long",year:"numeric"}));return}
+  if(k==="img"){const i=document.createElement("input");i.type="file";i.accept="image/*";i.onchange=()=>{const f=i.files?.[0];if(!f)return;const fr=new FileReader();fr.onload=()=>dcxFInsert(`<img src="${fr.result}" alt="" style="max-width:100%;height:auto">`,false);fr.readAsDataURL(f)};i.click();return}
+  if(k==="link"){dcModal(`<div class="dc-mh"><span class="ic">${DCI.link}</span><div><h3>${t("dcx_f_linkT")}</h3></div><button type="button" class="dc-ib sm" data-mclose aria-label="${t("fmClose")}">${DCI.x}</button></div><div class="dc-mb"><input class="dc-inp" data-dxflink autofocus placeholder="${dcE(t("dcx_f_linkPh"))}" value="https://"></div><footer class="dc-mf"><button type="button" class="dc-btn" data-mclose>${t("fmClose")}</button><button type="button" class="dc-btn pri" data-dxflinkok>${t("dcx_f_ok")}</button></footer>`,{title:t("dcx_f_linkT")});return}
+  dcxFExec(k);return}}
+{const _mc=dcModalClick;dcModalClick=function(e,m){if(tgt(e).closest("[data-dxflinkok]")){const u=(m.querySelector<HTMLInputElement>("[data-dxflink]")?.value||"").trim();dcModalClose(true);if(/^(https?:|mailto:|tel:)/i.test(u))dcxFExec("createLink",u);return}_mc(e,m)}}
+{const _pn=dcWxPanel;dcWxPanel=function(){const d=dcDoc();if(!dcxIsFree(d))return _pn();let words=0;(d as DcWxDoc).ex.blocks.forEach(b=>{const tx=String(b.h||"").replace(/<[^>]*>/g," ");words+=(tx.match(/[\p{L}\p{N}]+/gu)||[]).length});
+  return `<div class="dc-scroll dc-expn dc-wxpn dcx-freepn"><div class="dc-exoff">${DCI.pen}<div><b>${t("dcx_free")}</b><span>${t("dcx_f_words",{n:nf(words)})}</span><small>${t("dcx_f_info")}</small></div></div>
+    <div class="dc-sect"><h6>${t("dc_wx_files")}</h6><div class="dc-wxfiles"><button type="button" class="dc-btn sm" data-wxpdf>${DCI.download}${t("dc_wx_pdf")}</button><button type="button" class="dc-btn sm" data-dcmd="printc">${DCI.print}${t("dc_pr_title")}</button></div></div></div>`}}
+
+/* ---- a PDF rebuilt as editable pages can be compared with the original, side by side or laid over each other ---- */
+const DCX_CMP={i:0,n:0,pdf:null as null|{numPages: number; getPage: (n: number)=>Promise<{getViewport: (o: {scale: number})=>{width: number; height: number}; render: (o: Record<string, unknown>)=>{promise: Promise<void>}}>; destroy?: ()=>Promise<void>},op:0};
+async function dcxCmpOpen(){const d=dcDoc();if(!dcIsLive(d))return;let o;try{o=await dcLvOrig(d as DcLvDoc)}catch(e){dcToast((e as Error).message);return}
+  await dcPdfLib();DCX_CMP.pdf=await pdfjsLib.getDocument({data:new Uint8Array(o.bytes as ArrayBuffer).slice(),isEvalSupported:false}).promise as unknown as typeof DCX_CMP.pdf;
+  const pages=dcRoot()?.querySelectorAll(".dc-cv .wx-page").length||0;DCX_CMP.n=Math.max(pages,DCX_CMP.pdf!.numPages);DCX_CMP.i=Math.min(DCX_CMP.i,DCX_CMP.n-1);DCX_CMP.op=0;
+  dcModal(`<div class="dc-mh"><span class="ic">${DCI.layers}</span><div><h3>${t("dcx_cmpT")}</h3><p>${t("dcx_cmpSub")}</p></div><button type="button" class="dc-ib sm" data-mclose aria-label="${t("fmClose")}">${DCI.x}</button></div>
+    <div class="dc-mb dcx-cmp"><div class="dcx-cmpbar"><button type="button" class="dc-ib sm" data-dxcmpnav="-1" aria-label="${t("dcx_cmpPrev")}">${DCI.back}</button><b data-dxcmppos></b><button type="button" class="dc-ib sm" data-dxcmpnav="1" aria-label="${t("dcx_cmpNext")}"><span class="dcx-flip">${DCI.back}</span></button>
+      <label class="dcx-cmpov">${t("dcx_cmpOver")}<input type="range" min="0" max="100" value="0" data-dxcmpop></label></div>
+    <div class="dcx-cmpg"><figure><figcaption>${t("dcx_cmpOrig")}</figcaption><div class="dcx-cmpb" data-dxcmpo></div></figure><figure><figcaption>${t("dcx_cmpNew")}</figcaption><div class="dcx-cmpb" data-dxcmpn></div></figure></div></div>`,{wide:true,title:t("dcx_cmpT"),cls:"dcx-cmpbox"});
+  await dcxCmpPaint()}
+async function dcxCmpPaint(){const m=dcRoot()?.querySelector<HTMLElement>(".dcx-cmp");if(!m||!DCX_CMP.pdf)return;const i=DCX_CMP.i;m.querySelector("[data-dxcmppos]")!.textContent=t("dcx_cmpPage",{n:nf(i+1),m:nf(DCX_CMP.n)});
+  const bo=m.querySelector<HTMLElement>("[data-dxcmpo]")!,bn=m.querySelector<HTMLElement>("[data-dxcmpn]")!;bo.innerHTML="";bn.innerHTML="";const W=bn.clientWidth||360;
+  let cv: HTMLCanvasElement|null=null;
+  if(i<DCX_CMP.pdf.numPages){const pg=await DCX_CMP.pdf.getPage(i+1);const v0=pg.getViewport({scale:1});const sc=W/v0.width*(window.devicePixelRatio||1);const vp=pg.getViewport({scale:sc});cv=document.createElement("canvas");cv.width=Math.ceil(vp.width);cv.height=Math.ceil(vp.height);cv.style.width="100%";
+    const cx=cv.getContext("2d")!;cx.fillStyle="#fff";cx.fillRect(0,0,cv.width,cv.height);await pg.render({canvasContext:cx,viewport:vp}).promise;bo.appendChild(cv)}
+  const src=dcRoot()?.querySelectorAll<HTMLElement>(".dc-cv .wx-page")[i];
+  if(src){const c=src.cloneNode(true) as HTMLElement;c.querySelectorAll("[contenteditable]").forEach(x=>x.removeAttribute("contenteditable"));c.querySelectorAll("[id]").forEach(x=>x.removeAttribute("id"));
+    const w=src.offsetWidth||1,h=src.offsetHeight||1,k=W/w;const box=document.createElement("div");box.className="dcx-cmpclip";box.style.height=(h*k)+"px";c.style.transform=`scale(${k})`;c.style.transformOrigin="0 0";c.style.margin="0";box.appendChild(c);
+    if(cv){const ov=cv.cloneNode(false) as HTMLCanvasElement;ov.getContext("2d")!.drawImage(cv,0,0);ov.className="dcx-cmpov2";ov.style.opacity=String(DCX_CMP.op/100);box.appendChild(ov)}bn.appendChild(box)}
+  m.querySelectorAll<HTMLButtonElement>("[data-dxcmpnav]").forEach(b=>{b.disabled=+b.dataset.dxcmpnav!<0?i<=0:i>=DCX_CMP.n-1})}
+onDoc("input",e=>{const x=tgt(e) as HTMLInputElement;if(!x.matches?.("[data-dxcmpop]"))return;DCX_CMP.op=+x.value;dcRoot()?.querySelectorAll<HTMLElement>(".dcx-cmpov2").forEach(c=>c.style.opacity=String(DCX_CMP.op/100))});
+{const _mc=dcModalClick;dcModalClick=function(e,m){const b=tgt(e).closest<HTMLElement>("[data-dxcmpnav]");if(b){DCX_CMP.i=Math.max(0,Math.min(DCX_CMP.n-1,DCX_CMP.i+ +b.dataset.dxcmpnav!));dcxCmpPaint();return}_mc(e,m)}}
+{const _mcl=dcModalClose;dcModalClose=function(instant){if(DCX_CMP.pdf&&dcRoot()?.querySelector(".dcx-cmp")){try{DCX_CMP.pdf.destroy?.()}catch(x){}DCX_CMP.pdf=null}return _mcl(instant)}}
+{const _pn=dcWxPanel;dcWxPanel=function(){const h=_pn();const d=dcDoc();if(!dcIsLive(d)||dcxIsFree(d)||!d.ex.store||!["pdf","img"].includes(d.ex.live.src))return h;
+  return h.replace('<button type="button" class="dc-btn sm" data-wxpdf>',`<button type="button" class="dc-btn sm" data-dxcmp>${DCI.layers}${t("dcx_cmp")}</button><button type="button" class="dc-btn sm" data-wxpdf>`)}}
+{const _ck=dcClick;dcClick=function(e,R){if(tgt(e).closest("[data-dxcmp]")){dcxCmpOpen();return}return _ck(e,R)}}
+
 /* ---------- used by the React window wiring (DocumentsApp.tsx) and the tests ---------- */
 /** dcS (the store) as it is now, and the cross-tab reload's reset (L21041). */
+/** Formula reference rewriting (product phase 5), for the unit tests. */
+export { dcxShiftFormula, dcxWordFormula };
 export function dcStore() { return dcS; }
 export function dcReset() { dcS = null; }
 /** osRelabel (L15420) empties the template-caption cache. */
