@@ -9,33 +9,35 @@
  */
 import { useEffect, useState } from "react";
 import { registerNativeApp } from "@/os/windows/apps";
+import { preloadStore, storeReady } from "./store";
 
 type Def = typeof import("./DocumentsApp").documentsApp;
 let def: Def | null = null;
 let loading: Promise<Def> | null = null;
 /** Loads the editor module once; later calls share the same promise. */
 export function loadDocuments(): Promise<Def> {
-  if (def) return Promise.resolve(def);
-  if (!loading) loading = import("./DocumentsApp").then((m) => (def = m.documentsApp));
+  if (def && storeReady()) return Promise.resolve(def);
+  // Product phase 1: the store is read from IndexedDB (./store) before the editor's synchronous dcLoad runs.
+  if (!loading) loading = Promise.all([import("./DocumentsApp"), preloadStore()]).then(([m]) => (def = m.documentsApp));
   return loading;
 }
 
 /** The window body: waits for the module, runs its beforeOpen (store load) once, then renders the real body. */
 function LazyBody() {
-  const [ready, setReady] = useState(!!def);
+  const [ready, setReady] = useState(!!def && storeReady());
   useEffect(() => {
     if (ready) return;
     let alive = true;
     loadDocuments().then((d) => { d.beforeOpen(); if (alive) setReady(true); });
     return () => { alive = false; };
   }, [ready]);
-  if (!ready || !def) return <div className="dc-loading" role="status" aria-live="polite" />;
+  if (!ready || !def) return <div className="dc-loading" role="status" aria-live="polite" aria-busy="true" />;
   return <>{def.body()}</>;
 }
 
 registerNativeApp("documents", {
   // When the module is already loaded, keep the original synchronous order (store load before the body is built).
-  beforeOpen: () => { def?.beforeOpen(); },
+  beforeOpen: () => { if (storeReady()) def?.beforeOpen(); },
   body: () => <LazyBody />,
   onClose: () => { def?.onClose(); },
   onResize: () => { def?.onResize(); },

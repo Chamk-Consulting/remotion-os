@@ -36,6 +36,8 @@ function norm(v: unknown) {
 const tree = (p: Page, sel: string) => p.evaluate((sel) => {
   const keep = (n: string) => ["id", "role", "hidden", "disabled", "type", "dir", "placeholder", "tabindex", "title", "lang", "value", "checked", "selected", "href", "src"].includes(n) || n.startsWith("aria-") || n.startsWith("data-");
   const walk = (e: Element): string[] => {
+    // Product-phase additions (docs/product): dcx-* elements, data-dx* controls and the "Patient copies" view are not in the source.
+    if (e.matches?.('[class^="dcx-"], [class*=" dcx-"], [data-dxsend], [data-dgo="copies"]')) return [];
     if (e.tagName === "svg" && !e.closest(".dc-chart")) return ["svg" + (e.getAttribute("class") ? "." + e.getAttribute("class") : "")];
     const attrs = [...e.attributes].filter((a) => keep(a.name)).map((a) => a.name + "=" + a.value).sort().join(",");
     const st = (e as HTMLElement).style?.cssText ? "{" + (e as HTMLElement).style.cssText.replace(/\s+/g, "").replace(/(^|;)z-index:\d+/, "").replace(/^;/, "").replace(/;$/, "") + "}" : "";
@@ -48,7 +50,14 @@ const tree = (p: Page, sel: string) => p.evaluate((sel) => {
 const W = '.os-win[data-osw="documents"]';
 const dc = (p: Page) => tree(p, `${W} .dc`);
 const main = (p: Page) => tree(p, `${W} .dc-main`);
-const store = (p: Page) => p.evaluate(() => JSON.parse(localStorage.getItem("remotion-docs") || "null"));
+/** The documents store: localStorage in the source; IndexedDB "remotion-docs-store" in the product build (phase 1). Same JSON. */
+const store = (p: Page) => p.evaluate(async () => {
+  const ls = localStorage.getItem("remotion-docs"); if (ls) return JSON.parse(ls);
+  const db = await new Promise<IDBDatabase | null>((res) => { const r = indexedDB.open("remotion-docs-store"); r.onupgradeneeded = () => r.transaction?.abort(); r.onsuccess = () => res(r.result); r.onerror = () => res(null); });
+  if (!db || !db.objectStoreNames.contains("kv")) return null;
+  const v = await new Promise<unknown>((res) => { const g = db.transaction("kv").objectStore("kv").get("store"); g.onsuccess = () => res(g.result); g.onerror = () => res(null); });
+  db.close(); return typeof v === "string" ? JSON.parse(v) : null;
+});
 /** Opened from its dock button, as a user would. */
 const openDc = async (p: Page) => {
   await p.waitForFunction(() => document.getElementById("wsMenu")?.classList.contains("closed"), null, { timeout: 10000 }).catch(() => {});

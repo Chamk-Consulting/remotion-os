@@ -24,6 +24,9 @@ const at = (re: RegExp, from = 0) => { const i = html.findIndex((l, k) => k >= f
 const a = at(/^\/\* =+ Documents — clinical document editor =+ \*\/$/, 12000), os = at(/^\/\* -+ window \+ OS integration -+ \*\/$/, a), osEnd = at(/^\{const _osRelabel2=osRelabel;/, os), z = at(/^\/\* ===== v55 · window manager/, a);
 const SRC = html.slice(a, os).concat(html.slice(osEnd + 1, z)).filter((l) => !l.startsWith("{const _o=dcOpen;dcOpen=function(){")).join("\n");
 const EXPORTS = "DC,DC_T,DC_TPL,RD,RDT,dcLoad,dcDoc,dcSeedDoc,dcFromTpl,dcNewBlock,dcBlockText,dcStats,dcNumbers,dcCondOk,dcEach,dcField,dcCheck";
+/** Quality rules added by the product phases (docs/product) are not in the source: they are set aside before comparing. */
+const PX_RULES = /^(flabel|fopts|fdupopt|fminmax|fdupl|questdup|questlang|imgalt|tblhead|lorem|contrast|condself|condorder|condval|condnum|condcycle|consent_[a-z]+)$/;
+const pxOnly = (v: unknown) => (Array.isArray(v) ? v.filter((x) => !PX_RULES.test(String((x as { rule?: string })?.rule))) : v);
 
 type Side = Record<string, unknown>;
 type Fn = (...x: unknown[]) => unknown;
@@ -55,7 +58,7 @@ describe("documents = source (golden)", async () => {
   it("every template document, and its text, statistics, numbering, conditions and quality check", () => {
     const r = both((s) => { call(s, "dcLoad"); return tplIds(s).map((id) => { const d = call(s, "dcFromTpl", id) as { pages: { blocks: unknown[] }[]; lang?: string };
       const blocks: unknown[] = []; call(s, "dcEach", (b: unknown) => { blocks.push([call(s, "dcBlockText", b, d), call(s, "dcCondOk", b, d)]); }, d);
-      return [id, d, blocks, call(s, "dcStats", d), call(s, "dcNumbers", d), call(s, "dcCheck", d)]; }); });
+      return [id, d, blocks, call(s, "dcStats", d), call(s, "dcNumbers", d), pxOnly(call(s, "dcCheck", d))]; }); });
     expect(r.port).toEqual(r.source);
     expect((r.source as unknown[]).length).toBeGreaterThan(100);
   });

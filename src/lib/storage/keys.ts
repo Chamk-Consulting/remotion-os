@@ -25,6 +25,14 @@ export const STORAGE_KEYS = {
   calendar: "remotion-calendar", cabinet: "remotion-cabinet", dkCb: "remotion-dk-cb1", planning: "remotion-planning", dkPl: "remotion-dk-pl1",
 } as const;
 export const INDEXED_DB = { name: "remotion-docs-live", version: 1, store: "b" } as const;
+/**
+ * Keys and databases added by the Documents product work (after parity, so outside the 40 source keys above).
+ * - docsStore: the documents store moved out of localStorage "remotion-docs" (migrated once, then removed) — see apps/documents/store.ts
+ * - docsPrintHf: the print centre's custom header/footer preference
+ */
+export const PRODUCT_STORAGE_KEYS = { docsPrintHf: "remotion-docs-xp-hf" } as const;
+export const PRODUCT_INDEXED_DB = { docsStore: { name: "remotion-docs-store", version: 1, store: "kv", keys: ["store", "rev"] } } as const;
+export const PRODUCT_CHANNELS = { docsStore: "remotion-docs-store" } as const;
 export const ALL_STORAGE_KEYS: readonly string[] = Object.values(STORAGE_KEYS);
 
 /** Safe JSON read with the source's tolerant behaviour (try/catch, fallback). */

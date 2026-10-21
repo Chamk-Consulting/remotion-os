@@ -8,11 +8,11 @@
  */
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { useI18n } from "@/lib/i18n/I18nProvider";
-import { useWm } from "@/os/windows/wm";
 import {
-  DC, DC_KEY, dcApplyZoom, dcBody, dcCurSync, dcFind, dcInk, dcInstallGlobal, dcLoad, dcLvGC, dcPopClose, dcRender, dcReset, dcRoot,
-  dcSave, dcStatusSync, dcStore, dcTplCacheClear, dcViewAfter,
+  DC, dcApplyZoom, dcBody, dcCurSync, dcFind, dcInk, dcInstallGlobal, dcLoad, dcLvGC, dcPopClose, dcRender, dcRoot,
+  dcSave, dcStatusSync, dcStore, dcTplCacheClear, dcViewAfter, dcxRemote,
 } from "./documents";
+import { onRemoteChange } from "./store";
 
 /** Window bodies already filled (React's development double-mount must not build and wire a second body). */
 const filled = new WeakSet<Element>();
@@ -58,10 +58,6 @@ export const documentsApp = {
   onResize: () => { dcApplyZoom(); dcInk(".dc-ribt", true); dcInk(".dc-rpt", true); dcViewAfter(); },
 };
 
-// L21041: another tab changed the documents store while the editor is not in use → reload it and repaint.
-if (typeof window !== "undefined") {
-  addEventListener("storage", (e) => {
-    if (e.key !== DC_KEY || DC.view === "editor") return;
-    try { dcReset(); dcLoad(); if (useWm.getState().wins.documents) dcRender(false); } catch {}
-  });
-}
+// Product phase 1 (replaces the L21041 "storage" listener): the store lives in IndexedDB and other tabs announce their
+// writes over a BroadcastChannel (./store). Outside the editor the library reloads; inside it a bar asks the user.
+onRemoteChange(() => { try { dcxRemote(); } catch {} });
