@@ -188,6 +188,7 @@ test("a PDF opened as editable pages can be compared with the original, side by 
     const tgt = document.querySelector(W + " .dc")!; for (const ev of ["dragenter", "dragover", "drop"]) tgt.dispatchEvent(new DragEvent(ev, { bubbles: true, cancelable: true, dataTransfer: dt }));
   }, [b64, W] as const);
   await p.locator(`${W} .dc-impm`).waitFor({ timeout: 15000 }); await p.waitForTimeout(1200);
+  await dclick(p, `${W} .dc-impm [data-dxwzquick]`, 600); /* the wizard opens first; these tests use the one-screen import */
   await dclick(p, `${W} .dc-impm [data-lvmode="live"]`, 4000);
   await dclick(p, `${W} .dc-impm [data-impgo]`, 4000);
   await p.locator(`${W} .dc-cv .wx-page`).first().waitFor({ timeout: 30000 });

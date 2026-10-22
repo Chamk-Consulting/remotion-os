@@ -27,6 +27,7 @@ test("AcroForm fields are imported by name; values in any script; a cover remove
   const ctx = await newShell(browser, baseURL); const p = await openShell(ctx); await openDc(p);
   await dropFile(p, "tests/fixtures/acroform.pdf", "acroform.pdf", "application/pdf");
   await p.locator(`${W} .dc-impm`).waitFor({ timeout: 15000 }); await p.waitForTimeout(1500);
+  await dclick(p, `${W} .dc-impm [data-dxwzquick]`, 600); /* the wizard opens first; these tests use the one-screen import */
   await dclick(p, `${W} .dc-impm [data-impo="pdf:form"]`, 2500);
   await dclick(p, `${W} .dc-impm [data-impgo]`, 4000);
   await p.locator(`${W} .dc-exp [data-exv], ${W} .dc-exp [data-exck]`).first().waitFor({ timeout: 30000 });
@@ -63,6 +64,7 @@ test("form view fills the same fields; a newer version of the PDF keeps the answ
   const ctx = await newShell(browser, baseURL); const p = await openShell(ctx); await openDc(p);
   await dropFile(p, "tests/fixtures/acroform.pdf", "acroform.pdf", "application/pdf");
   await p.locator(`${W} .dc-impm`).waitFor({ timeout: 15000 }); await p.waitForTimeout(1500);
+  await dclick(p, `${W} .dc-impm [data-dxwzquick]`, 600); /* the wizard opens first; these tests use the one-screen import */
   await dclick(p, `${W} .dc-impm [data-impo="pdf:form"]`, 2500);
   await dclick(p, `${W} .dc-impm [data-impgo]`, 4000);
   await p.locator(`${W} .dc-exp [data-exv]`).first().waitFor({ timeout: 30000 });
