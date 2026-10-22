@@ -45,6 +45,7 @@ import { isTop } from "@/os/windows/stack";
 import { FEI, feBmLabel, feBodySVG, feLoadScript } from "@/apps/forms/forms";
 import { readStore, writeStore, type SaveResult, storeEncrypted, storeCanEncrypt, enableEncryption, disableEncryption, lockStore } from "./store";
 import { rmEmit } from "@/apps/health/rm";
+import { readP12, signPdf } from "./pades";
 import { paSt } from "@/apps/patients/patients";
 import { PX_I18N } from "./px-i18n";
 import { createPdfFonts, loadFontkit, fetchFont, ttfSubset } from "./pdf-text";
@@ -1231,7 +1232,7 @@ let dcClick=function(e: MouseEvent,R: HTMLElement){const c=(s: string)=>tgt(e).c
   if(c("[data-bsave]")){dcSaveReusable();return}
   if(c("[data-dstar]")){dcMut(d=>{d.star=!d.star},null,true);dcRefresh("head");const s=R.querySelector<HTMLInputElement>(".dc-star");if(!dcRM())s?.animate([{transform:"scale(.6) rotate(-30deg)"},{transform:"scale(1.25)"},{transform:"none"}],{duration:420,easing:"cubic-bezier(.2,1.3,.3,1)"});dcToast(t(dcDoc().star?"dc_starOn":"dc_starOff"));return}
   if(c("[data-dshare]")){dcShareModal();return}
-  if((b=c("[data-dsharem]"))){dcMenuAt(b,[...(dcxIsCopy(dcDoc())?[]:[{l:t("dcx_send"),ic:DCI.sig,run:()=>dcxSendModal()}]),{l:t("dc_copyLink"),ic:DCI.link,run:()=>dcCopy(dcLink(),t("dc_linkCopied"))},{l:t("dc_manageAccess"),ic:DCI.users||DCI.userplus,run:()=>dcShareModal()}]);return}
+  if((b=c("[data-dsharem]"))){dcMenuAt(b,[...(dcxIsCopy(dcDoc())?[]:[{l:t("dcx_send"),ic:DCI.sig,run:()=>dcxSendModal()}]),{l:t("dcx_pa"),ic:DCI.shield,run:()=>dcxPadesModal()},{l:t("dc_copyLink"),ic:DCI.link,run:()=>dcCopy(dcLink(),t("dc_linkCopied"))},{l:t("dc_manageAccess"),ic:DCI.users||DCI.userplus,run:()=>dcShareModal()}]);return}
   if((b=c("[data-ddraw]"))){dcDrawer(DC.drawer===b.dataset.ddraw?null:b.dataset.ddraw);return}
   if((b=c("[data-dexp]"))){dcExport(b.dataset.dexp);return}
   if((b=c("[data-dexpm]"))){dcExportMenu(b);return}
@@ -7522,7 +7523,7 @@ function dcxPalItems(): DcxCmd[]{const out: DcxCmd[]=[];const ed=DC.view==="edit
   if(ed&&d){out.push({g:A,ic:DCI.search,l:t("dcx_pal_find"),run:()=>dcFindOpen(true)},{g:A,ic:DCI.print,l:t("dcx_pal_pdf"),run:()=>dcExport("pdf")},{g:A,ic:DCI.download,l:t("dcx_pal_export"),run:()=>{dcExportOpen()}},
       {g:A,ic:DCI.hist,l:t("dcx_pal_ver"),run:()=>dcSaveVersion()},{g:A,ic:DCI.check,l:t("dcx_pal_check"),run:()=>dcDrawer("check")},{g:A,ic:DCI.hist,l:t("dcx_pal_hist"),run:()=>dcDrawer("hist")},{g:A,ic:DCI.trash,l:t("dcx_pal_trash"),run:dcxTrashModal});
     if(!dcxIsCopy(d)&&!dcIsWx(d)&&!dcIsLive(d))out.push({g:A,ic:DCI.users,l:t("dcx_pal_send"),run:dcxSendModal})}
-  out.push({g:A,ic:DCI.plus,l:t("dcx_pal_new"),run:()=>dcNewModal()});out.push({g:A,ic:DCI.pen,l:t("dcx_pal_free"),run:()=>{dcxNewFree()}});out.push({g:A,ic:DCI.lock,l:t("dcx_pal_enc"),run:dcxEncModal});if(storeEncrypted())out.push({g:A,ic:DCI.lock,l:t("dcx_pal_lock"),run:()=>{dcxLockNow()}});
+  out.push({g:A,ic:DCI.plus,l:t("dcx_pal_new"),run:()=>dcNewModal()});out.push({g:A,ic:DCI.pen,l:t("dcx_pal_free"),run:()=>{dcxNewFree()}});if(ed&&d)out.push({g:A,ic:DCI.shield,l:t("dcx_pa"),run:dcxPadesModal});out.push({g:A,ic:DCI.lock,l:t("dcx_pal_enc"),run:dcxEncModal});if(storeEncrypted())out.push({g:A,ic:DCI.lock,l:t("dcx_pal_lock"),run:()=>{dcxLockNow()}});
   if(dcxBlockEd()){const I=t("dcx_pal_ins");DC_LIB.forEach(([,,types])=>types.forEach(k=>out.push({g:I,ic:dcxIcon(k),l:t("dcx_pal_insert",{x:t(DC_T[k][1])}),txt:t(DC_T[k][2]),run:()=>dcInsert(k)})));
     dcxReus().forEach(r=>{out.push({g:I,ic:DCI.refresh,l:t("dcx_pal_insert",{x:t("dcx_sl_syn",{x:r.name})}),run:()=>dcInsert("syn:"+r.id)},{g:I,ic:DCI.copy,l:t("dcx_pal_insert",{x:t("dcx_sl_copy",{x:r.name})}),run:()=>dcInsert("reu:"+r.id)})})}
   const V=t("dcx_pal_view");DC_NAV.forEach(([k,ic,lb])=>out.push({g:V,ic:(DCI as unknown as Record<string,string>)[ic]||DCI.docs,l:t("dcx_pal_goto",{x:t(lb)}),run:()=>dcGo(k)}));
@@ -7804,6 +7805,38 @@ async function dcxLockNow(){dcModalClose(true);clearTimeout(dcSaveT);if(dcS){awa
   if(x.closest("[data-dxencoff]")){const c=m.querySelector<HTMLInputElement>("[data-dxencc]")?.value||"";disableEncryption(c).then(r=>{if(r.ok){dcModalClose();dcToast(t("dcx_enc_undone"))}else say(r.reason==="passcode"?"dcx_lk_bad":"dcx_enc_fail")});return}
   if(x.closest("[data-dxenclock]")){dcxLockNow();return}
   _mc(e,m)}}
+
+/* ---- PAdES: sign the document's PDF with the practice's own certificate (./pades) ---- */
+/** The PDF of a document as the export produces it (pages, official form or Word page). */
+async function dcxPdfBytes(d: DcDoc): Promise<Uint8Array>{let b: Blob|Uint8Array;
+  if(dcIsEx(d))b=await dcExPDF(d);
+  else if(dcIsWx(d)){dcWxFlush();b=await dcWxPDF(d as DcWxDoc) as Blob|Uint8Array}
+  else{const {host}=await dcXpHost(d);try{b=await dcMakePDF(d,host.firstElementChild as HTMLElement)}finally{host.remove()}}
+  return b instanceof Uint8Array?b:new Uint8Array(await (b as Blob).arrayBuffer())}
+function dcxPadesModal(){const d=dcDoc();if(!d)return;const L=d.lang||lang();
+  dcModal(`<div class="dc-mh"><span class="ic">${DCI.shield}</span><div><h3>${t("dcx_paT")}</h3><p>${t("dcx_paSub")}</p></div><button type="button" class="dc-ib sm" data-mclose aria-label="${t("fmClose")}">${DCI.x}</button></div>
+    <div class="dc-mb dcx-pa">${dcRow("dcx_paFile",`<input class="dc-inp" type="file" accept=".p12,.pfx,application/x-pkcs12" data-dxp12>`,true)}${dcRow("dcx_paPw",`<input class="dc-inp" type="password" data-dxp12pw autocomplete="off">`,true)}
+      ${dcRow2(dcRow("dcx_paReason",`<input class="dc-inp" data-dxpareason value="${dcE(t("dcx_paReasonDef"))}">`),dcRow("dcx_paLoc",`<input class="dc-inp" data-dxpaloc value="${dcE(String(dcTx(d.clinic,L)||""))}">`))}
+      <label class="dc-tg"><span>${t("dcx_paStamp")}</span><input type="checkbox" data-dxpastamp checked><i></i></label>
+      <p class="dc-note">${DCI.lock}${t("dcx_paPriv")}</p><p class="dc-mut sm">${DCI.info}${t("dcx_paTrust")}</p><p class="dcx-err" role="alert" hidden></p></div>
+    <div class="dc-mf"><button type="button" class="dc-btn" data-mclose>${t("fe_cancel")}</button><button type="button" class="dc-btn pri" data-dxpago>${DCI.shield}${t("dcx_paGo")}</button></div>`,{title:t("dcx_paT")})}
+async function dcxPadesGo(m: HTMLElement){const d=dcDoc();const err=m.querySelector<HTMLElement>(".dcx-err")!;const say=(s: string)=>{err.hidden=false;err.textContent=s};
+  const f=m.querySelector<HTMLInputElement>("[data-dxp12]")?.files?.[0];const pw=m.querySelector<HTMLInputElement>("[data-dxp12pw]")?.value||"";if(!f){say(t("dcx_paNeed"));return}
+  const go=m.querySelector<HTMLButtonElement>("[data-dxpago]")!;const lbl=go.innerHTML;go.disabled=true;go.textContent=t("dcx_paBusy");err.hidden=true;
+  try{let signer;try{signer=await readP12(new Uint8Array(await f.arrayBuffer()),pw)}catch(e){say(t("dcx_paErr_"+(((e as Error).message)||"format")));return}
+    const now=new Date();if(now<signer.notBefore||now>signer.notAfter){say(t("dcx_paErr_expired",{x:signer.notBefore.toLocaleDateString()+" – "+signer.notAfter.toLocaleDateString()}));return}
+    const pdfIn=await dcxPdfBytes(d);const L=await dcPdfLibW();
+    const reason=(m.querySelector<HTMLInputElement>("[data-dxpareason]")?.value||"").trim(),loc=(m.querySelector<HTMLInputElement>("[data-dxpaloc]")?.value||"").trim();
+    const stamp=m.querySelector<HTMLInputElement>("[data-dxpastamp]")?.checked?{lines:[t("dcx_paStampL1",{x:signer.name}),t("dcx_paStampL2",{x:now.toISOString().slice(0,16).replace("T"," ")+" UTC"})]}:null;
+    const out=await signPdf(L as unknown as Parameters<typeof signPdf>[0],pdfIn,signer,{reason,location:loc,stamp,when:now});
+    const name=(dcPlain(dcTx(d.title,d.lang||lang())).replace(/[\\/:*?"<>|]+/g,"-")||"document")+" - signed.pdf";
+    /* the signature is recorded with the document: who, which certificate, the fingerprint of the signed file */
+    const hash=await dcSha256Bytes(out);
+    dcMut(dd=>{const a=((dd as unknown as {pades?: Bag[]}).pades||[]);a.push({at:now.toISOString(),by:signer.name,issuer:signer.issuer,serial:signer.serial,cert:signer.sha256,pdf:hash,reason});(dd as unknown as {pades: Bag[]}).pades=a},null);
+    await dcSaveFile(name,new Blob([out as BlobPart],{type:"application/pdf"}));dcModalClose();dcToast(t("dcx_paDone",{x:signer.name}))}
+  catch(e){console.error(e);say(t("dcx_paErr_fail"))}finally{if(go.isConnected){go.disabled=false;go.innerHTML=lbl}}}
+async function dcSha256Bytes(u: Uint8Array){try{const h=await crypto.subtle.digest("SHA-256",u as BufferSource);return [...new Uint8Array(h)].map(x=>x.toString(16).padStart(2,"0")).join("")}catch(e){return ""}}
+{const _mc=dcModalClick;dcModalClick=function(e,m){if(tgt(e).closest("[data-dxpago]")){dcxPadesGo(m);return}_mc(e,m)}}
 
 /* ---------- used by the React window wiring (DocumentsApp.tsx) and the tests ---------- */
 /** dcS (the store) as it is now, and the cross-tab reload's reset (L21041). */
