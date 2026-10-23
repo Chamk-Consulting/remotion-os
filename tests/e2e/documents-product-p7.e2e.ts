@@ -44,9 +44,18 @@ test("wizard: two files, a conversion each, review, fields, data links with sugg
   await dclick(p, `${W} [data-dxwzsel="1"]`, 400);
   await expect(p.locator(`${W} .dcx-rvtxt`)).toContainText("Consent to treatment");
   await dclick(p, `${W} [data-dxwzsel="0"]`, 400);
+  // overlay: the original page drawn over the result, opacity from the slider
+  await p.locator(`${W} .dc-tg:has([data-dxrvov])`).click(); await p.waitForTimeout(300);
+  await expect(p.locator(`${W} .dcx-rvov > img`)).toBeVisible();
+  await p.locator(`${W} [data-dxrvop]`).fill("80"); await p.waitForTimeout(150);
+  expect(await p.evaluate((W) => getComputedStyle(document.querySelector(`${W} .dcx-rvov > img`)!).opacity, W)).toBe("0.8");
   await next(p);
   // step 4: the form's fields, labels editable
   const n4 = await p.locator(`${W} .dcx-fdt tbody tr`).count(); expect(n4).toBeGreaterThanOrEqual(5);
+  // a field is shown where it sits on its page
+  await p.locator(`${W} .dcx-fdt tbody tr`).nth(1).locator("td.pg").click(); await p.waitForTimeout(300);
+  await expect(p.locator(`${W} .dcx-fdt tbody tr`).nth(1)).toHaveClass(/sel/);
+  await expect(p.locator(`${W} .dcx-fdpv .dcx-hl`)).toHaveCount(1);
   await dclick(p, `${W} [data-dxwzsel="1"]`, 400);
   const mdFields = await p.locator(`${W} .dcx-fdt tbody tr`).count();
   await dclick(p, `${W} [data-dxwzsel="0"]`, 400);
@@ -104,6 +113,17 @@ test("dynamic document: chips and linked fields follow the chosen patient and vi
   expect(await p.locator(`${W} [data-dxwhos="appt"] option`).count()).toBeGreaterThanOrEqual(2);
   let st = (await readStore(p))!.json as St; let d = st.docs[st.cur];
   expect(d.pid).toBeTruthy(); expect(d.links!.prac).toBeTruthy(); expect(d.frozen).toBeUndefined();
+  // typed over, then refreshed from the records
+  const fin = p.locator(`${W} .dc-cv .dc-b[data-b="fld1"] input`).first();
+  await fin.fill("typed by hand"); await fin.blur(); await p.waitForTimeout(700);
+  await dclick(p, `${W} [data-dxwhoref]`, 800);
+  await expect(p.locator(`${W} .dc-cv .dc-b[data-b="fld1"] input`).first()).toHaveValue(mrn);
+  // frozen by hand, then unfrozen
+  await dclick(p, `${W} [data-dxwhofz]`, 800);
+  st = (await readStore(p))!.json as St; expect(st.docs[st.cur].frozen?.why).toBe("manual");
+  await expect(p.locator(`${W} [data-dxwhos="prac"]`)).toBeDisabled();
+  await dclick(p, `${W} [data-dxwhounfz]`, 800);
+  st = (await readStore(p))!.json as St; expect(st.docs[st.cur].frozen).toBeUndefined();
   // sign as PAdES → the values are frozen with the document
   const keys = forge.pki.rsa.generateKeyPair(1024); const cert = forge.pki.createCertificate(); cert.publicKey = keys.publicKey; cert.serialNumber = "02cd";
   cert.validity.notBefore = new Date(Date.now() - 86400e3); cert.validity.notAfter = new Date(Date.now() + 86400e3 * 30);
@@ -139,5 +159,43 @@ test("template: saved from the wizard, a new document from it asks who it is for
   await dclick(p, `${W} [data-dxtpluse]`, 1500);
   await expect(p.locator(`${W} .dcx-who [data-dxwhopat]`)).toBeVisible();
   st = (await readStore(p))!.json as St; expect(st.cur).not.toBe(tplId); expect(st.docs[st.cur].isTpl).toBeUndefined();
+  await ctx.close();
+});
+
+test("send to a patient: the copy keeps the patient's values frozen at sending", async ({ browser, baseURL }) => {
+  const json = await seededStore(browser, baseURL, [
+    { id: "dyn2", type: "p", html: 'For <span class="dc-dyn" contenteditable="false" data-k="patient.full">—</span>, file <span class="dc-dyn" contenteditable="false" data-k="patient.mrn">—</span>.' },
+  ]);
+  const ctx = await shellWithStore(browser, baseURL, json); const p = await openShell(ctx); await openDc(p);
+  await p.locator(`${W} .dcx-who [data-dxwhopat]`).waitFor({ timeout: 15000 });
+  await dclick(p, `${W} [data-dsharem]`, 500);
+  await p.locator(".os-menu button", { hasText: "Send to a patient" }).first().click(); await p.waitForTimeout(700);
+  const label = await p.evaluate((W) => (document.querySelector(`${W} #dcx-pl option`) as HTMLOptionElement).value, W);
+  await p.locator(`${W} .dc-mdl [data-dxpick]`).fill(label); await p.waitForTimeout(300);
+  await dclick(p, `${W} .dc-mdl [data-dxcreate]`, 2500);
+  const st = (await readStore(p))!.json as St; const c = st.docs[st.cur];
+  const [name, mrn] = label.split(" · ");
+  expect(c.pid).toBeTruthy(); expect(c.frozen?.why).toBe("send");
+  expect(c.frozen!.vals["patient.full"]).toBe(name); expect(c.frozen!.vals["patient.mrn"]).toBe(mrn);
+  await ctx.close();
+});
+
+test("spreadsheet as data with charts: each table gets a chart linked to it", async ({ browser, baseURL }) => {
+  const csv = `test-results/p7-pain-${Date.now()}.csv`;
+  fs.writeFileSync(csv, "Session,Pain,Mobility\nS1,7,40\nS2,6,48\nS3,4,55\nS4,3,61\n");
+  const ctx = await newShell(browser, baseURL); const p = await openShell(ctx); await openDc(p);
+  await dropFiles(p, [[csv, "pain.csv", "text/csv"]]);
+  await p.locator(`${W} .dcx-wzm`).waitFor({ timeout: 15000 });
+  await next(p);
+  await dclick(p, `${W} [data-dxcv="0:data"]`, 400);
+  await next(p);
+  await expect(p.locator(`${W} .dcx-rvrep`)).toContainText("linked to their tables");
+  for (let i = 0; i < 3; i++) await next(p);
+  await dclick(p, `${W} [data-dxwznext]`, 2500);
+  const st = (await readStore(p))!.json as St; const d = st.docs[st.cur];
+  const blocks = d.pages.flatMap((pg) => pg.blocks) as (St["docs"][string]["pages"][number]["blocks"][number] & { link?: string; labels?: string[]; series?: { name: string; vals: number[] }[] })[];
+  const tbl = blocks.find((b) => b.type === "table")!; const ch = blocks.find((b) => b.type === "chart")!;
+  expect(ch.link).toBe(tbl.id); expect(ch.labels).toEqual(["S1", "S2", "S3", "S4"]);
+  expect(ch.series!.map((s) => s.name)).toEqual(["Pain", "Mobility"]); expect(ch.series![0].vals).toEqual([7, 6, 4, 3]);
   await ctx.close();
 });

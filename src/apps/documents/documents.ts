@@ -7284,6 +7284,7 @@ function dcxCreateCopy(tpl: DcDoc,o: {prenom: string; nom: string; dob: string; 
     sig:{mode:ts?.mode||"seq",list,audit:[],lock:false,hash:"",cert:ts?.cert!==false}});
   c.pages.forEach(pg=>pg.blocks.forEach(b=>{if(b.type==="sign"&&b.signer&&!list.some(x=>x.id===b.signer))delete b.signer}));
   dcSigPlace(c);dcSigLog(c,"setup");
+  {const D=c as unknown as DcxDynDoc;delete D.isTpl;delete D.frozen;if(o.pid&&(dcxDynKeys(c).length||(tpl as DcxDynDoc).links)){D.links={...((tpl as DcxDynDoc).links||{})};dcxSyncPt(D);D.pt={...D.pt,prenom:o.prenom||D.pt.prenom,nom:o.nom||D.pt.nom};dcxFillBound(D);dcxFreeze(D,"send")}}
   dcS!.docs[id]=c;dcS!.order.unshift(id);dcSave(true);return id}
 
 /* ---- fill bar (replaces the ribbon in a patient copy) ---- */
@@ -7906,6 +7907,11 @@ function dcxSyncPt(d: DcxDynDoc){if(d.frozen)return;const p=dcxPat(d.pid);if(!p)
   Object.assign(pt,{nom:p.last||"",prenom:p.first||"",dob:p.birth||"",dossier:p.mrn||"",sexe:p.sex==="F"||p.sex==="M"?p.sex:"",tel:c.phone||"",email:c.email||"",adr:[a.l1,[a.zip,a.city].filter(Boolean).join(" ")].filter(Boolean).join(", ")});
   if(p.admin?.insurer)pt.mut=p.admin.insurer;d.pt=pt as DcDoc["pt"];const pr=dcxPracId(d);if(pr){try{d.prat=rmPracName(pr)}catch(e){}}}
 function dcxFreeze(d: DcxDynDoc,why: string){if(d.frozen)return;const keys=dcxDynKeys(d);if(!keys.length&&!d.links)return;const L=d.lang||lang();const vals: Record<string,string>={};keys.forEach(k=>{vals[k]=dcxResolve(k,d,L)});d.frozen={at:Date.now(),why,vals}}
+/** typed-over linked fields go back to the record's value; the old patient fields are read again */
+function dcxRefresh(d: DcxDynDoc){if(d.frozen)return 0;const L=d.lang||lang();let n=0;dcxSyncPt(d);
+  if(dcIsEx(d))d.ex.fields.forEach(f=>{if(f.src&&f.value!==undefined&&f.value!==""){f.value="";n++}});
+  else if(!dcIsWx(d))d.pages.forEach(p=>p.blocks.forEach(b=>{const k=b.bind as string|undefined;if(b.type!=="field"||!k)return;const v=dcxResolve(k,d,L,b.ftype==="date");if(String(b.value??"")!==v){b.value=v;n++}b.bv=v}));
+  return n}
 const dcxSigned=(d: DcDoc)=>{const S=dcSig(d);return !!(S&&S.list.length&&S.list.every(x=>(x as unknown as {st: string}).st==="done"))};
 {const _sv=dcSave;dcSave=function(now?){try{if(dcS&&DC.view==="editor"&&dcS.docs[dcS.cur]){const d=dcDoc() as DcxDynDoc;if(!d.frozen&&(d.links||d.pid)&&(dcxSigned(d)||((d as unknown as {pades?: unknown[]}).pades||[]).length)){dcxFreeze(d,((d as unknown as {pades?: unknown[]}).pades||[]).length?"pades":"sign");setTimeout(()=>{try{dcxWhoPaint()}catch(e){}},0)}}}catch(e){console.warn(e)}return _sv(now)} as typeof dcSave}
 {const _od=dcOpenDoc;dcOpenDoc=function(id: string){const d=dcS?.docs[id] as DcxDynDoc|undefined;if(d&&!d.frozen&&d.pid&&d.links){dcxSyncPt(d);dcxFillBound(d)}return _od(id)} as typeof dcOpenDoc}
@@ -7923,7 +7929,8 @@ function dcxWhoHTML(d: DcxDynDoc){const L=d.lang||lang();const p=dcxPat(d.pid),f
   return `<div class="dcx-who${fz?" fz":""}" data-dxwho><span class="ic">${DCI.user}</span><div class="dcx-whob"><span class="lb">${t("dcx_who")}</span>${pat}</div>
     ${sel("prac","dcx_src_prac",[["",t("dcx_whoAuto")+": "+autoPr],...prs.map(x=>[x.id,rmPracName(x)] as [string,string])],l.prac||"")}
     ${ests.length>1?sel("est","dcx_src_clinic",[["",t("dcx_whoAuto")],...ests.map(e=>[e.id,e.n] as [string,string])],l.est||""):""}${visit}
-    ${fz?`<p class="dcx-whofz">${DCI.lock}<span>${t("dcx_whoFrozen",{d:new Date(fz.at).toLocaleDateString(LANGS[lang()]?.locale||loc()),w:t(fz.why==="pades"?"dcx_fz_pades":"dcx_fz_sign")})}</span></p>`:""}</div>`}
+    ${fz?`<p class="dcx-whofz">${DCI.lock}<span>${t("dcx_whoFrozen",{d:new Date(fz.at).toLocaleDateString(LANGS[lang()]?.locale||loc()),w:t(({pades:"dcx_fz_pades",sign:"dcx_fz_sign",manual:"dcx_fz_manual",send:"dcx_fz_send"} as Dict)[fz.why]||"dcx_fz_sign")})}</span>${fz.why==="manual"&&!dcxSigned(d)&&!((d as unknown as {pades?: unknown[]}).pades||[]).length?`<button type="button" class="dc-btn sm" data-dxwhounfz>${DCI.unlock}${t("dcx_whoUnfreeze")}</button>`:""}</p>`
+      :p?`<div class="dcx-whoact"><button type="button" class="dc-btn sm" data-dxwhoref>${DCI.refresh}${t("dcx_whoRefresh")}</button><button type="button" class="dc-btn sm" data-dxwhofz>${DCI.lock}${t("dcx_whoFreeze")}</button></div>`:""}</div>`}
 function dcxWhoPaint(){const R=dcRoot();if(!R||DC.view!=="editor"||!dcS||!dcS.docs[dcS.cur])return;const cv=R.querySelector<HTMLElement>(".dc-cv");if(!cv)return;const d=dcDoc() as DcxDynDoc;
   const old=cv.querySelector<HTMLElement>(":scope > .dcx-who");const show=dcxWhoShow(d);if(!show){old?.remove();return}
   const ae=document.activeElement as HTMLElement|null;if(old&&ae&&old.contains(ae))return;/* never repaint under the person typing */
@@ -7939,6 +7946,9 @@ onDoc("change",e=>{const x=tgt(e) as HTMLInputElement|HTMLSelectElement;if(!x.cl
 {const _ck=dcClick;dcClick=function(e,R){const c=(s: string)=>tgt(e).closest<HTMLElement>(s);
   if(c("[data-dxwhochg]")){dcxSetLinks(d=>{delete d.pid;if(d.links)delete d.links.appt});setTimeout(()=>dcRoot()?.querySelector<HTMLInputElement>("[data-dxwhopat]")?.focus(),80);return}
   if(c("[data-dxtpluse]")){dcxFromTpl(dcDoc() as DcxDynDoc);return}
+  if(c("[data-dxwhoref]")){const d=dcDoc() as DcxDynDoc;if(d.frozen)return;dcPush();const n=dcxRefresh(d);d.upd=Date.now();dcSave();dcRefresh("all");dcToast(t("dcx_whoRefreshed",{n:nf(n)}));return}
+  if(c("[data-dxwhofz]")){const d=dcDoc() as DcxDynDoc;if(d.frozen)return;dcPush();dcxFreeze(d,"manual");d.upd=Date.now();dcSave();dcRefresh("all");return}
+  if(c("[data-dxwhounfz]")){const d=dcDoc() as DcxDynDoc;if(!d.frozen||d.frozen.why!=="manual")return;dcPush();delete d.frozen;d.upd=Date.now();dcSave();dcRefresh("all");return}
   return _ck(e,R)}}
 /** a new document from a template: same content, no patient yet, the bar asks who it is for */
 function dcxFromTpl(src: DcxDynDoc){const c=dcReId(JSON.parse(JSON.stringify(src))) as DcxDynDoc;delete c.isTpl;delete c.pid;delete c.frozen;delete c.sig;delete (c as unknown as {pades?: unknown}).pades;c.links={};c.tplOf=src.id;c.vers=[];c.cmts=[];c.status="draft";
@@ -7952,12 +7962,12 @@ function dcxFromTpl(src: DcxDynDoc){const c=dcReId(JSON.parse(JSON.stringify(src
   return out} as typeof dcCheck}
 
 /* ===================== Product phase 7 — the import wizard: files → conversion → review → fields → link data → create ===================== */
-type DcxWzEn = { conv: string; drop: Record<string, boolean>; bind: Record<string, string>; sug: Record<string, string>; orig?: { k: string; imgs?: string[]; text?: string } | null; origBusy?: boolean };
-type DcxWz = { step: number; max: number; pid: string; tpl: boolean };
+type DcxWzEn = { conv: string; drop: Record<string, boolean>; bind: Record<string, string>; sug: Record<string, string>; fsel?: string; orig?: { k: string; imgs?: string[]; text?: string } | null; origBusy?: boolean };
+type DcxWz = { step: number; max: number; pid: string; tpl: boolean; ov?: boolean; op?: number };
 type DcxImpW = DcImpX & { wz?: DcxWz | null };
 const dcxEnW=(en: DcImpEn)=>{const x=en as DcImpEn & {wz?: DcxWzEn};return x.wz||(x.wz={conv:"edit",drop:{},bind:{},sug:{}})};
-const DCX_CV: Record<string,[string,string]>={edit:["dcx_cv_edit","dcx_cv_editD"],exact:["dcx_cv_exact","dcx_cv_exactD"],form:["dcx_cv_form","dcx_cv_formD"],word:["dcx_cv_word","dcx_cv_wordD"]};
-function dcxWzConvs(k: string|null): string[]{if(!k||k==="json"||k==="jsonl")return ["edit"];const o=["edit"];if((DC_LV[k]&&DC_LV_ENG[k])||k==="pdf")o.push("exact");if(k==="pdf")o.push("form");if(k==="docx")o.push("word");return o}
+const DCX_CV: Record<string,[string,string]>={edit:["dcx_cv_edit","dcx_cv_editD"],exact:["dcx_cv_exact","dcx_cv_exactD"],form:["dcx_cv_form","dcx_cv_formD"],word:["dcx_cv_word","dcx_cv_wordD"],data:["dcx_cv_data","dcx_cv_dataD"]};
+function dcxWzConvs(k: string|null): string[]{if(!k||k==="json"||k==="jsonl")return ["edit"];const o=["edit"];if((DC_LV[k]&&DC_LV_ENG[k])||k==="pdf")o.push("exact");if(k==="pdf")o.push("form");if(k==="docx")o.push("word");if(/^(xlsx|csv|ods)$/.test(k))o.push("data");return o}
 let dcxWzQ: Promise<unknown>=Promise.resolve();
 /* every file is converted the way chosen for it, one after the other (the readers share the dialog options) */
 {const _ip=dcImpParse;dcImpParse=async function(en){const I=DC.imp as DcxImpW|null|undefined;if(!I||!I.wz)return _ip(en);
@@ -7967,6 +7977,7 @@ let dcxWzQ: Promise<unknown>=Promise.resolve();
     if(w.conv==="exact"){if(DC_LV[en.kind!]&&DC_LV_ENG[en.kind!])o.mode="live";else if(en.kind==="pdf")o.pdf="exact"}else if(w.conv==="form")o.pdf="form";else if(w.conv==="word")o.docx="exact";
     const set={mode:o.mode,pdf:o.pdf,docx:o.docx} as Bag;
     try{await _ip(en)}finally{(["mode","pdf","docx"] as const).forEach(k=>{if((o as Bag)[k]===set[k])(o as Bag)[k]=keep[k]})}
+    if(w.conv==="data"&&en.status==="ok"&&en.doc&&!dcIsWx(en.doc)){const n=dcxAddCharts(en.doc);if(n){en.notes=[...(en.notes||[]),t("dcx_rv_charts",{n:nf(n)})];if(en.stats)en.stats.img=(en.stats.img||0)}}
     w.drop={};w.bind={};w.sug={}};
   const p=dcxWzQ.then(run,run);dcxWzQ=p.catch(()=>{});return p as Promise<void>} as typeof dcImpParse}
 {const _io=dcImportOpen;dcImportOpen=function(opt: Bag={}){const r=_io(opt);const I=DC.imp as DcxImpW|null;if(I&&!opt.quick){I.wz={step:1,max:1,pid:"",tpl:false};I.opts.dest="new";const m=dcRoot()?.querySelector<HTMLElement>(".dc-impm");
@@ -8001,6 +8012,10 @@ function dcxSuggest(label: string,ft: string): string{const s=dcxFold7(label).re
   if(has(/code postal|\bcp\b|postcode|zip/))return "patient.address";if(has(/adresse|address|anschrift|domicile|wohnort/))return "patient.address";if(has(/\bville\b|\bcity\b|commune|\bort\b|localite/))return "patient.city";
   if(has(/langue|language|sprache/))return "patient.lang";if(has(/allerg/))return "patient.allergies";if(has(/antecedent|probleme|pathologie|diagnos|problems?\b|history/)&&ft!=="date")return "patient.problems";
   return ""}
+/** "data with charts": a chart after each table that has numbers, linked to it (phase 5 linked charts) */
+function dcxAddCharts(d: DcDoc){let n=0;d.pages.forEach(p=>{for(let i=0;i<p.blocks.length&&n<6;i++){const b=p.blocks[i];if(b.type!=="table")continue;
+  const ch=dcB("chart",{title:b.title||"",kind:"bar",labels:[],vals:[],unit:"",yMax:null,col:DC_CPAL[0],grid:true}) as DcBlock;(ch as unknown as Bag).link=b.id;
+  if(!dcxChPull(ch,d)||!(ch.series||[]).length)continue;p.blocks.splice(i+1,0,ch);i++;n++}});return n}
 function dcxWzOrig(en: DcImpEn){const w=dcxEnW(en);if(w.orig||w.origBusy)return;const f=en.file,k=en.kind;w.origBusy=true;
   (async()=>{try{if(k==="img"){w.orig={k:"img",imgs:[URL.createObjectURL(f)]}}
     else if(k==="pdf"){await dcPdfLib();const pdf=await pdfjsLib.getDocument({data:new Uint8Array(await f.arrayBuffer()),isEvalSupported:false}).promise;const imgs: string[]=[];
@@ -8018,7 +8033,7 @@ function dcxWzBody(I: DcxImpW): string{const W=I.wz!,o=I.opts;const en=I.files[I
       <label class="dc-btn sm dcx-wzadd">${DCI.plus}<span>${t("dcx_wz_add")}</span><input type="file" multiple accept="${DC_IMPACC}" data-impm hidden></label><p class="dcx-wzlocal">${DCI.shield}<span>${t("dcx_wz_local")}</span></p>`}
   if(W.step===2){const all=[...new Set(I.files.flatMap(x=>dcxWzConvs(x.kind)))];
     const rows=I.files.map((x,i)=>{const w=dcxEnW(x);return `<div class="dcx-cvrow"><div class="nm">${dcxWzBadge(x)}<b dir="auto">${dcE(x.file.name)}</b>${dcxWzSt(x)}</div><div class="dcx-cvopts" role="radiogroup" aria-label="${dcE(x.file.name)}">${dcxWzConvs(x.kind).map(c=>`<button type="button" role="radio" aria-checked="${w.conv===c}" data-dxcv="${i}:${c}"><b>${t(DCX_CV[c][0])}</b><small>${t(DCX_CV[c][1])}</small></button>`).join("")}</div></div>`}).join("");
-    const nEdit=I.files.filter(x=>dcxEnW(x).conv==="edit").length;
+    const nEdit=I.files.filter(x=>["edit","data"].includes(dcxEnW(x).conv)).length;
     return `${I.files.length>1&&all.length>1?`<div class="dcx-wzall"><span class="lb">${t("dcx_cv_all")}</span><div class="dc-seg sm">${all.map(c=>`<button type="button" data-dxcvall="${c}">${t(DCX_CV[c][0])}</button>`).join("")}</div></div>`:""}<div class="dcx-cvl">${rows}</div>
       <div class="dcx-wzopts">${nEdit?`<div class="r"><span class="lb">${t("dcx_wz_style")}</span><div class="dc-seg sm">${[["0","dcx_wz_keep"],["1","dcx_wz_clean"]].map(([k,l])=>`<button type="button" aria-pressed="${String(+o.clean)===k}" data-dxwzo="clean:${k}">${t(l)}</button>`).join("")}</div></div>`:""}
       ${nEdit>1?`<div class="r"><span class="lb">${t("dcx_wz_merge")}</span><div class="dc-seg sm">${[["sep","dcx_wz_sep"],["one","dcx_wz_one"]].map(([k,l])=>`<button type="button" aria-pressed="${o.merge===k}" data-dxwzo="merge:${k}">${t(l)}</button>`).join("")}</div></div>`:""}</div>`}
@@ -8026,13 +8041,17 @@ function dcxWzBody(I: DcxImpW): string{const W=I.wz!,o=I.opts;const en=I.files[I
     const orig=!O?`<div class="dc-xpld"><i></i><span>${t("dcx_rv_busy")}</span></div>`:O.k==="img"?`<div class="dcx-rvimgs">${O.imgs!.map(s=>`<img src="${s}" alt="">`).join("")}</div>`:O.k==="text"?`<pre class="dcx-rvtxt" dir="auto">${dcE(O.text||"")}</pre>`:`<p class="dc-mut sm dcx-rvno">${DCI.info}<span>${t("dcx_rv_noOrig")}</span></p>`;
     const res=en.status==="ok"&&en.doc?`<div class="dc-imppv dcx-rvres">${en.doc.pages.slice(0,3).map((p,i)=>`<figure>${dcMiniPage(en.doc!,i)}<figcaption>${nf(i+1)}</figcaption></figure>`).join("")}${en.doc.pages.length>3?`<div class="more">+${nf(en.doc.pages.length-3)}</div>`:""}</div>`
       :en.status==="err"?`<div class="dc-empty">${DCI.warn}<b>${t("dcx_rv_err",{x:""})}</b><p>${dcE(en.err||"")}</p></div>`:`<div class="dc-xpld"><i></i><span>${t("dcx_rv_busy")}</span></div>`;
+    const canOv=!!(O&&O.k==="img"&&en.status==="ok"&&en.doc);const ov=canOv&&!!W.ov;
+    const ovHTML=ov?`<div class="dcx-rvov" style="--op:${(W.op??50)/100}"><div class="dcx-rvres dc-imppv"><figure>${dcMiniPage(en.doc!,0)}</figure></div><img src="${O!.imgs![0]}" alt=""></div>`:"";
     const alt=dcxWzConvs(en.kind).filter(c=>c!==w.conv);const notes=(en.notes||[]).filter(Boolean);
-    return `<div class="dcx-wzsplit">${I.files.length>1?dcxWzList(I):""}<section class="dcx-rv"><div class="dcx-rvcols"><div class="col"><h5>${t("dcx_rv_orig")}</h5>${orig}</div><div class="col"><h5>${t("dcx_rv_res")} · ${t(DCX_CV[w.conv][0])}</h5>${res}</div></div>
+    return `<div class="dcx-wzsplit">${I.files.length>1?dcxWzList(I):""}<section class="dcx-rv">${canOv?`<div class="dcx-rvovbar"><label class="dc-tg"><span>${t("dcx_rv_overlay")}</span><input type="checkbox" data-dxrvov${ov?" checked":""}><i></i></label>${ov?`<input type="range" min="0" max="100" value="${W.op??50}" data-dxrvop aria-label="${t("dcx_rv_overlay")}">`:""}</div>`:""}
+      ${ov?ovHTML:`<div class="dcx-rvcols"><div class="col"><h5>${t("dcx_rv_orig")}</h5>${orig}</div><div class="col"><h5>${t("dcx_rv_res")} · ${t(DCX_CV[w.conv][0])}</h5>${res}</div></div>`}
       <div class="dcx-rvrep"><h5>${t("dcx_rv_report")}</h5>${notes.length?`<ul>${notes.map(n=>`<li>${dcE(n)}</li>`).join("")}</ul>`:`<p class="dc-mut sm">${t("dcx_rv_none")}</p>`}${alt.length?`<div class="dcx-rvalt">${alt.map(c=>`<button type="button" class="dc-btn sm" data-dxcv="${I.sel}:${c}">${t("dcx_rv_try",{x:t(DCX_CV[c][0])})}</button>`).join("")}</div>`:""}</div></section></div>`}
   if(W.step===4){const w=dcxEnW(en);const F=dcxWzFields(en.doc);const L=en.doc?.lang||lang();
     const body=en.doc&&dcIsWx(en.doc)?`<p class="dcx-wznote">${DCI.info}<span>${t("dcx_fd_wx")}</span></p>`:!F.length?`<p class="dcx-wznote">${DCI.info}<span>${t("dcx_fd_none")}</span></p>`
-      :`<p class="dc-mut sm">${t("dcx_fd_n",{n:nf(F.filter(f=>!w.drop[f.id]).length)})}</p><table class="dcx-fdt"><thead><tr><th>${t("dcx_fd_keep")}</th><th>${t("dcx_fd_label")}</th><th>${t("dcx_fd_type")}</th>${F.some(f=>!f.ex)?`<th>${t("dcx_fd_req")}</th>`:""}<th></th></tr></thead><tbody>${F.map(f=>`<tr class="${w.drop[f.id]?"off":""}"><td><input type="checkbox" data-dxfdk="${f.id}"${w.drop[f.id]?"":" checked"} aria-label="${t("dcx_fd_keep")}"></td><td><input class="dc-inp" data-dxfdl="${f.id}" value="${dcE(f.label)}" dir="auto" aria-label="${t("dcx_fd_label")}"></td><td><span class="dcx-ft">${dcE(dcxFt(f.ft))}</span></td>${F.some(x=>!x.ex)?`<td>${f.ex?"":`<input type="checkbox" data-dxfdr="${f.id}"${f.req?" checked":""} aria-label="${t("dcx_fd_req")}">`}</td>`:""}<td class="pg">${t("dcx_fd_page",{n:nf(f.page)})}</td></tr>`).join("")}</tbody></table>`;void L;
-    return `<div class="dcx-wzsplit">${I.files.length>1?dcxWzList(I):""}<section class="dcx-fd">${body}</section></div>`}
+      :`<p class="dc-mut sm">${t("dcx_fd_n",{n:nf(F.filter(f=>!w.drop[f.id]).length)})}</p><table class="dcx-fdt"><thead><tr><th>${t("dcx_fd_keep")}</th><th>${t("dcx_fd_label")}</th><th>${t("dcx_fd_type")}</th>${F.some(f=>!f.ex)?`<th>${t("dcx_fd_req")}</th>`:""}<th></th></tr></thead><tbody>${F.map(f=>`<tr class="${w.drop[f.id]?"off":""}${(w.fsel||F[0].id)===f.id?" sel":""}" data-dxfdsel="${f.id}"><td><input type="checkbox" data-dxfdk="${f.id}"${w.drop[f.id]?"":" checked"} aria-label="${t("dcx_fd_keep")}"></td><td><input class="dc-inp" data-dxfdl="${f.id}" value="${dcE(f.label)}" dir="auto" aria-label="${t("dcx_fd_label")}"></td><td>${f.ex?`<span class="dcx-ft">${dcE(dcxFt(f.ft))}</span>`:`<select class="dc-inp dcx-fts" data-dxfdt="${f.id}" aria-label="${t("dcx_fd_type")}">${[...new Set([f.ft,"text","longtext","number","date","email","phone","nir","checkbox"])].map(k=>`<option value="${k}"${k===f.ft?" selected":""}>${dcE(dcxFt(k))}</option>`).join("")}</select>`}</td>${F.some(x=>!x.ex)?`<td>${f.ex?"":`<input type="checkbox" data-dxfdr="${f.id}"${f.req?" checked":""} aria-label="${t("dcx_fd_req")}">`}</td>`:""}<td class="pg">${t("dcx_fd_page",{n:nf(f.page)})}</td></tr>`).join("")}</tbody></table>`;void L;
+    const fs=F.find(f=>f.id===(w.fsel||F[0]?.id));const pv=fs&&en.doc&&en.doc.pages[fs.page-1]?`<aside class="dcx-fdpv"><h5>${t("dcx_fd_where")} · ${t("dcx_fd_page",{n:nf(fs.page)})}</h5><div class="dc-imppv dcx-rvres" data-hl="${dcE(fs.id)}"><figure>${dcMiniPage(en.doc,fs.page-1)}</figure></div></aside>`:"";
+    return `<div class="dcx-wzsplit">${I.files.length>1?dcxWzList(I):""}<section class="dcx-fd${pv?" haspv":""}"><div class="dcx-fdm">${body}</div>${pv}</section></div>`}
   if(W.step===5){const P=dcxPatients();const pat=P.length?`<label class="dcx-wzpat"><span>${t("dcx_ln_pat")}</span><input class="dc-inp" list="dcx-wzpl" data-dxwzpat autocomplete="off" placeholder="${dcE(t("dcx_whoPh"))}" value="${dcE((()=>{const p=P.find(q=>q.id===W.pid);return p?dcxPatLabel(p):""})())}"><datalist id="dcx-wzpl">${P.map(q=>`<option value="${dcE(dcxPatLabel(q))}"></option>`).join("")}</datalist></label>`:"";
     const groups=DCX_DYN.map(([s,ks])=>`<optgroup label="${dcE(t("dcx_src_"+s))}">${ks.map(k=>`<option value="${s}.${k}">${dcE(t(`dcx_k_${s}_${k}`))}</option>`).join("")}</optgroup>`).join("");
     let total=0,sugN=0;const rows=I.files.map((x,i)=>{const w=dcxEnW(x);const F=dcxWzFields(x.doc).filter(f=>!w.drop[f.id]&&dcxBindable(f.ft==="check"||f.ft==="signature"||f.ft==="sig"?"radio":f.ft));total+=F.length;if(!F.length)return "";
@@ -8055,6 +8074,7 @@ function dcxWzPaint(){const R=dcRoot(),I=DC.imp as DcxImpW|null|undefined;const 
   box.innerHTML=`<div class="dcx-wz"><ol class="dcx-wzsteps">${steps}</ol><div class="dcx-wzbody" data-step="${W.step}">${dcxWzBody(I)}</div><div class="dc-xpbar" hidden><i></i></div></div>
     <footer class="dc-mf"><button type="button" class="dc-btn ghost dcx-wzq" data-dxwzquick>${t("dcx_wz_quick")}</button><span class="dcx-wzwait dc-mut sm">${W.step>=2&&busy?t("dcx_wz_wait"):""}</span><button type="button" class="dc-btn" data-mclose>${t("fe_cancel")}</button>${W.step>1?`<button type="button" class="dc-btn" data-dxwzback>${t("dcx_wz_back")}</button>`:""}<button type="button" class="dc-btn pri" data-dxwznext${nextDis?" disabled":""}>${W.step===6?DCI.check:""}${nextL}</button></footer>`;
   box.querySelectorAll<HTMLElement>(".dcx-rvres .dc-mini").forEach(m=>m.style.setProperty("--k",(m.clientWidth/(+m.dataset.pw!||640)).toFixed(4)));
+  box.querySelectorAll<HTMLElement>("[data-hl]").forEach(pv=>{const id=pv.dataset.hl!;const q=CSS.escape(id);pv.querySelectorAll<HTMLElement>(`[data-b="${q}"],[data-exf="${q}"],[data-exv="${q}"],[data-exck="${q}"],[data-exsg="${q}"]`).forEach(el=>el.classList.add("dcx-hl"))});
   if(keepF&&keepF.sel){const n=box.querySelector<HTMLInputElement>(keepF.sel);if(n){n.focus();try{if(keepF.s!=null)n.setSelectionRange(keepF.s,keepF.s)}catch(e){}}}}
 function dcxWzGo(n: number){const I=DC.imp as DcxImpW|null;if(!I||!I.wz)return;const W=I.wz;
   if(n>W.step){if(!I.files.length){dcToast(t("dcx_wz_needFile"));return}if(W.step>=2&&I.files.some(x=>x.status==="busy")){dcToast(t("dcx_wz_wait"));return}}
@@ -8082,7 +8102,8 @@ function dcxWzCreate(){const I=DC.imp as DcxImpW|null;if(!I||!I.wz)return;const 
   if((b=c("[data-dxwzsel]"))){I.sel=+b.dataset.dxwzsel!;dcImpPaint();return}
   if((b=c("[data-dxcv]"))){const [i,cv]=b.dataset.dxcv!.split(":");if(I.wz.step===3)I.sel=+i;dcxWzSetConv(+i,cv);return}
   if((b=c("[data-dxcvall]"))){const cv=b.dataset.dxcvall!;I.files.forEach((x,i)=>dcxWzSetConv(i,cv));dcImpPaint();return}
-  if((b=c("[data-dxwzo]"))){const [k,v]=b.dataset.dxwzo!.split(":");const o=I.opts;if(k==="clean"){const nv=v==="1";if(o.clean!==nv){o.clean=nv;I.files.forEach(x=>{if(dcxEnW(x).conv==="edit")dcImpParse(x)})}}else (o as Bag)[k]=v;if(k==="dest"&&v==="add")I.wz.tpl=false;dcImpPaint();return}
+  if((b=c("[data-dxwzo]"))){const [k,v]=b.dataset.dxwzo!.split(":");const o=I.opts;if(k==="clean"){const nv=v==="1";if(o.clean!==nv){o.clean=nv;I.files.forEach(x=>{if(["edit","data"].includes(dcxEnW(x).conv))dcImpParse(x)})}}else (o as Bag)[k]=v;if(k==="dest"&&v==="add")I.wz.tpl=false;dcImpPaint();return}
+  if((b=c("[data-dxfdsel]"))&&!tgt(e).closest("input,select,button")){const en=I.files[I.sel]||I.files[0];dcxEnW(en).fsel=b.dataset.dxfdsel!;dcImpPaint();return}
   if(c("[data-dxlnall]")){I.files.forEach(x=>{const w=dcxEnW(x);dcxWzFields(x.doc).forEach(f=>{if(!w.drop[f.id]&&w.sug[f.id]&&!w.bind[f.id])w.bind[f.id]=w.sug[f.id]})});dcImpPaint();return}
   if((b=c("[data-imprm]"))){e.stopPropagation();const i=+b.dataset.imprm!;I.files.splice(i,1);I.sel=Math.max(0,Math.min(I.sel,I.files.length-1));if(!I.files.length){I.wz.step=1;I.wz.max=1}dcImpPaint();return}
   return _ck(e,R)}}
@@ -8090,11 +8111,14 @@ onDoc("change",e=>{const x=tgt(e) as HTMLInputElement;const I=DC.imp as DcxImpW|
   if(x.matches("[data-dxfdk]")){const w=dcxEnW(en);if(x.checked)delete w.drop[x.dataset.dxfdk!];else{w.drop[x.dataset.dxfdk!]=true;delete w.bind[x.dataset.dxfdk!]}dcImpPaint();return}
   if(x.matches("[data-dxfdr]")&&en.doc){const r=dcFind(x.dataset.dxfdr!,en.doc);if(r)r.b.req=x.checked;return}
   if(x.matches("[data-dxln]")){const [i,id]=x.dataset.dxln!.split(":");const w=dcxEnW(I.files[+i]);if(x.value)w.bind[id]=x.value;else delete w.bind[id];dcImpPaint();return}
+  if(x.matches("[data-dxrvov]")){I.wz.ov=x.checked;dcImpPaint();return}
+  if(x.matches("[data-dxfdt]")&&en.doc){const r=dcFind(x.dataset.dxfdt!,en.doc);if(r)r.b.ftype=x.value;dcImpPaint();return}
   if(x.matches("[data-dxwztpl]")){I.wz.tpl=x.checked;if(x.checked&&I.opts.dest==="add"){I.opts.dest="new";dcImpPaint()}return}
   if(x.matches("[data-dxwzpat]")){const v=x.value.trim();const p=dcxPatients().find(q=>dcxPatLabel(q)===v);I.wz.pid=p?p.id:"";return}},true);
 onDoc("input",e=>{const x=tgt(e) as HTMLInputElement;const I=DC.imp as DcxImpW|null|undefined;if(!I||!I.wz||!x.closest?.(".dcx-wz"))return;const en=I.files[I.sel]||I.files[0];
   if(x.matches("[data-dxfdl]")&&en.doc){const id=x.dataset.dxfdl!;if(dcIsEx(en.doc)){const f=en.doc.ex.fields.find(q=>q.id===id);if(f)f.label=x.value}else{const r=dcFind(id,en.doc);if(r)r.b.label=x.value}const w=dcxEnW(en);delete w.sug[id];return}
-  if(x.matches("[data-dxwzpat]")){const p=dcxPatients().find(q=>dcxPatLabel(q)===x.value.trim());I.wz.pid=p?p.id:""}},true);
+  if(x.matches("[data-dxwzpat]")){const p=dcxPatients().find(q=>dcxPatLabel(q)===x.value.trim());I.wz.pid=p?p.id:"";return}
+  if(x.matches("[data-dxrvop]")){I.wz.op=+x.value;const o=x.closest(".dcx-rv")?.querySelector<HTMLElement>(".dcx-rvov");if(o)o.style.setProperty("--op",String(+x.value/100))}},true);
 
 /* ---------- used by the React window wiring (DocumentsApp.tsx) and the tests ---------- */
 /** dcS (the store) as it is now, and the cross-tab reload's reset (L21041). */
