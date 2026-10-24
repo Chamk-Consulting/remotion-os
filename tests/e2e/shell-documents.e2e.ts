@@ -38,8 +38,8 @@ function norm(v: unknown) {
 const tree = (p: Page, sel: string) => p.evaluate((sel) => {
   const keep = (n: string) => ["id", "role", "hidden", "disabled", "type", "dir", "placeholder", "tabindex", "title", "lang", "value", "checked", "selected", "href", "src"].includes(n) || n.startsWith("aria-") || n.startsWith("data-");
   const walk = (e: Element): string[] => {
-    // Product-phase additions (docs/product): dcx-* elements, data-dx* controls and the "Patient copies" view are not in the source.
-    if (e.matches?.('[class^="dcx-"], [class*=" dcx-"], [data-dxsend], [data-dgo="copies"]')) return [];
+    // Product-phase additions (docs/product): dcx-* elements, data-dx* controls (Page setup included) and the "Patient copies" view are not in the source.
+    if (e.matches?.('[class^="dcx-"], [class*=" dcx-"], [data-dxsend], [data-dxlayopen], [data-dgo="copies"]')) return [];
     if (e.tagName === "svg" && !e.closest(".dc-chart")) return ["svg" + (e.getAttribute("class") ? "." + e.getAttribute("class") : "")];
     const attrs = [...e.attributes].filter((a) => keep(a.name) && !(e.hasAttribute("data-an") && (a.name === "aria-label" || a.name === "data-an"))).map((a) => a.name + "=" + a.value).sort().join(",");
     const st = (e as HTMLElement).style?.cssText ? "{" + (e as HTMLElement).style.cssText.replace(/\s+/g, "").replace(/(^|;)z-index:\d+/, "").replace(/^;/, "").replace(/;$/, "") + "}" : "";
