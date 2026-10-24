@@ -29,7 +29,7 @@ async function store(browser: Parameters<typeof newShell>[0], baseURL: string | 
 const parts = (p: Page, id: string) => p.evaluate(([W, id]) => [...document.querySelectorAll<HTMLElement>(`${W} .dc-cv .dc-b[data-b="${id}"]`)].map((b) => {
   const pg = b.closest<HTMLElement>(".dc-page")!; const st = pg.style; const r = b.getBoundingClientRect(), pr = pg.getBoundingClientRect(); const s = pr.width / parseFloat(st.getPropertyValue("--pw"));
   const ed = b.querySelector<HTMLElement>("[data-ed]") || b; const lh = parseFloat(getComputedStyle(ed).lineHeight) || 20;
-  const lim = pr.top + (parseFloat(st.getPropertyValue("--ph")) - parseFloat(st.getPropertyValue("--mb")) - 22) * s;
+  const lim = pr.top + (parseFloat(st.getPropertyValue("--ph")) - (parseFloat(st.getPropertyValue("--mb")) || parseFloat(st.getPropertyValue("--my"))) - 22) * s;
   return { cont: b.classList.contains("dcx-pcont"), part: +(pg.dataset.part || 0), text: (ed.textContent || "").replace(/\s+/g, " ").trim(), lines: Math.round(ed.getBoundingClientRect().height / (lh * s)),
     over: r.bottom - lim, li: b.querySelectorAll("li").length, start: b.querySelector("ol")?.getAttribute("start") || null, firstLiMarked: !!b.querySelector("li[data-dxh]"), img: b.querySelector("img")?.getBoundingClientRect().height || 0, room: lim - pr.top };
 }), [W, id] as const);
