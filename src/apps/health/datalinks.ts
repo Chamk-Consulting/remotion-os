@@ -13,6 +13,7 @@ import { BI, biSt, biSave, biBal } from "@/apps/billing/billing";
 import { PA, paSt, paSetArchiveNote } from "@/apps/patients/patients";
 import { HR, hrSt } from "@/apps/hr/hr";
 import { sdOnReload } from "@/lib/storage/safety";
+import { useWm } from "@/os/windows/wm";
 import { L4 as L4core } from "@/lib/i18n/core";
 import { isLang } from "@/lib/i18n/langs";
 
@@ -45,6 +46,15 @@ export function sdArchiveNote(pid: string): string {
 
 let done = false;
 export function installDataLinks() {
+  /* v77 · the synthetic calendar / practice data is generated in an idle moment after start-up (v94 L28763–L28765) */
+  {
+    const warm = () => {
+      if (CL.st) return; if (document.querySelector(".os-win") && Object.keys(useWm.getState().wins).length && performance.now() < 1500) return;
+      try { paSt(); } catch { /* not ready */ } try { clSt(); } catch { /* not ready */ } try { cbSt(); } catch { /* not ready */ } try { biSt(); } catch { /* not ready */ }
+    };
+    const go = () => { try { ((window as unknown as { requestIdleCallback?: (f: () => void, o: { timeout: number }) => void }).requestIdleCallback || ((f: () => void) => setTimeout(f, 1)))(warm, { timeout: 4000 }); } catch { warm(); } };
+    if (document.readyState === "complete") setTimeout(go, 1800); else addEventListener("load", () => setTimeout(go, 1800));
+  }
   if (done || typeof window === "undefined") return; done = true;
   rmOn("patient.merged", "data-links", (ev) => {
     const p = ev.p as { keep?: string; gone?: string }; const keep = p && p.keep, gone = p && p.gone; if (!keep || !gone) return; let tot = 0;

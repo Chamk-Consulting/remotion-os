@@ -1,4 +1,6 @@
 /** Phase B slice 9 — registration wizard: dual-run parity (source file:// vs React shell). */
+/* Buttons named by v94 a11yName (data-an) get their label on a 250 ms debounce in both versions: that label is
+   compared by catchup-s7-a11y, not in these trees. */
 import { test, expect, type Page, type Browser } from "@playwright/test";
 import path from "node:path";
 import { serveGoogleFontsLocally } from "../helpers/fonts";
@@ -23,7 +25,7 @@ const tree = (p: Page, sel: string) => p.evaluate((sel) => {
   const keep = (n: string) => ["id", "role", "hidden", "disabled", "type", "lang", "dir", "placeholder", "readonly", "href", "for", "value"].includes(n) || n.startsWith("aria-") || (n.startsWith("data-") && !n.startsWith("data-i18n"));
   const walk = (e: Element): string[] => {
     if (e.tagName === "svg" || e.tagName === "canvas" || e.tagName === "IMG") return [e.tagName.toLowerCase()];
-    const attrs = [...e.attributes].filter((a) => keep(a.name)).map((a) => a.name + "=" + a.value).sort().join(",");
+    const attrs = [...e.attributes].filter((a) => keep(a.name) && !(e.hasAttribute("data-an") && (a.name === "aria-label" || a.name === "data-an"))).map((a) => a.name + "=" + a.value).sort().join(",");
     const st = (e as HTMLElement).style?.cssText ? "{" + (e as HTMLElement).style.cssText.replace(/\s+/g, "") + "}" : "";
     const own = [...e.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent!.trim()).filter(Boolean).join(" ");
     const el = e as HTMLInputElement, val = /INPUT|SELECT|TEXTAREA/.test(e.tagName) ? "=" + el.value + (el.type === "checkbox" ? ":" + el.checked : "") + (el.readOnly ? ":ro" : "") : "";

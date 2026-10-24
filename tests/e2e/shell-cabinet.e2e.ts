@@ -3,6 +3,8 @@
  * dual-run parity (source file:// vs React shell). Cabinet works over the Calendar's appointments and the Patients
  * store, so after each step the Cabinet DOM and the cabinet, calendar and bus stores are compared.
  */
+/* Buttons named by v94 a11yName (data-an) get their label on a 250 ms debounce in both versions: that label is
+   compared by catchup-s7-a11y, not in these trees. */
 import { test, expect, type Page, type Browser } from "@playwright/test";
 import path from "node:path";
 import { serveGoogleFontsLocally } from "../helpers/fonts";
@@ -47,7 +49,7 @@ const tree = (p: Page, sel: string) => p.evaluate((sel) => {
   const walk = (e: Element): string[] => {
     if (hook(e)) return [];
     if (e.tagName === "svg" && !e.closest(".pa-obs,.pa-chart")) return ["svg" + (e.getAttribute("class") ? "." + e.getAttribute("class") : "")];
-    const attrs = [...e.attributes].filter((a) => keep(a.name)).map((a) => a.name + "=" + a.value).sort().join(",");
+    const attrs = [...e.attributes].filter((a) => keep(a.name) && !(e.hasAttribute("data-an") && (a.name === "aria-label" || a.name === "data-an"))).map((a) => a.name + "=" + a.value).sort().join(",");
     const st = (e as HTMLElement).style?.cssText ? "{" + (e as HTMLElement).style.cssText.replace(/\s+/g, "").replace(/(^|;)z-index:\d+/, "").replace(/^;/, "").replace(/;$/, "") + "}" : "";
     // .cb-live: the 15-second tick rewrites its last text node (" · hh:mm"), which drops the "Up to date" label in the source
     // too (D-F30); when the tick fires depends on run speed, so only the time part is compared.

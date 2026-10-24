@@ -1,4 +1,6 @@
 /** Phase B slice 8 — lock screen, power screen, sign-out and sign-in: dual-run parity (source file:// vs React shell). */
+/* Buttons named by v94 a11yName (data-an) get their label on a 250 ms debounce in both versions: that label is
+   compared by catchup-s7-a11y, not in these trees. */
 import { test, expect, type Page, type Browser } from "@playwright/test";
 import path from "node:path";
 import { serveGoogleFontsLocally } from "../helpers/fonts";
@@ -23,7 +25,7 @@ const tree = (p: Page, sel: string) => p.evaluate((sel) => {
   const keep = (n: string) => n === "id" || n === "role" || n === "hidden" || n === "disabled" || n === "type" || n === "lang" || n === "dir" || n === "placeholder" || n.startsWith("aria-") || n.startsWith("data-");
   const walk = (e: Element): string[] => {
     if (e.tagName === "svg" || e.tagName === "canvas") return [e.tagName + (e.getAttribute("class") ? "." + e.getAttribute("class") : "")];
-    const attrs = [...e.attributes].filter((a) => keep(a.name) && a.name !== "data-i18n" && a.name !== "data-i18n-aria" && a.name !== "data-i18n-ph").map((a) => a.name + "=" + a.value).sort().join(",");
+    const attrs = [...e.attributes].filter((a) => keep(a.name) && !(e.hasAttribute("data-an") && (a.name === "aria-label" || a.name === "data-an")) && a.name !== "data-i18n" && a.name !== "data-i18n-aria" && a.name !== "data-i18n-ph").map((a) => a.name + "=" + a.value).sort().join(",");
     const st = (e as HTMLElement).style?.cssText ? "{" + (e as HTMLElement).style.cssText.replace(/\s+/g, "") + "}" : "";
     const own = [...e.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent!.trim()).filter(Boolean).join(" ");
     const val = (e as HTMLInputElement).value !== undefined && /INPUT|SELECT|TEXTAREA/.test(e.tagName) ? "=" + (e as HTMLInputElement).value + ((e as HTMLInputElement).type === "checkbox" ? ":" + (e as HTMLInputElement).checked : "") : "";

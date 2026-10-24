@@ -50,9 +50,9 @@ export function a11yFolders() {
     const names: Record<string, string> = {}; SEEDK.forEach((k) => (["en", "fr", "de", "ar"] as Lang[]).forEach((L) => { const v = translate(L, k); if (v && v !== k) names[v] = k; }));
     let ch = 0; const st = useShell.getState(); const L = lang();
     const walk = (list?: It[]) => (list || []).forEach((it) => { if (it && it.type === "folder") { const k = it.tk || names[it.name!]; if (k && names[it.name!] === k) { const v = translate(L, k); if (it.name !== v) { it.name = v; ch++; } it.tk = k; } walk(it.kids); } });
-    const desks = st.desks.map((d) => ({ ...d, items: JSON.parse(JSON.stringify(d.items || [])) as It[] }));
-    desks.forEach((d) => walk(d.items));
-    if (ch) { useShell.setState({ desks: desks as typeof st.desks }); useShell.getState().saveDesks(); }
+    /* in place, like the HTML file: the "tk" marks are kept by the next save even when no name changed */
+    st.desks.forEach((d) => walk(d.items as unknown as It[]));
+    if (ch) { useShell.setState({ desks: [...st.desks] }); useShell.getState().saveDesks(); }
   } catch { /* desktop not ready */ }
 }
 
