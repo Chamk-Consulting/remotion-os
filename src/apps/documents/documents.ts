@@ -270,7 +270,7 @@ type DcRun = DcRunF & { t: string };
 type DcPara = { runs: DcRun[]; list?: string };
 type DcMg = { r: number; c: number; rs: number; cs: number };
 type DcFlowImg = { png: Uint8Array<ArrayBuffer>; w: number; h: number; dw?: number };
-type DcFlowItem = { k: string; st?: string; runs?: DcRun[]; lv?: number; text?: string; ord?: boolean; key?: boolean; head?: string[] | null; rows?: string[][]; meas?: boolean; title?: string; mg?: DcMg[]; cw?: number[]; chart?: boolean; id?: string; png?: Uint8Array<ArrayBuffer>; w?: number; h?: number; dw?: number; cap?: string; [k: string]: unknown };
+type DcFlowItem = { k: string; /** "pb": the section (page index) that starts here */ pi?: number; st?: string; runs?: DcRun[]; lv?: number; text?: string; ord?: boolean; key?: boolean; head?: string[] | null; rows?: string[][]; meas?: boolean; title?: string; mg?: DcMg[]; cw?: number[]; chart?: boolean; id?: string; png?: Uint8Array<ArrayBuffer>; w?: number; h?: number; dw?: number; cap?: string; [k: string]: unknown };
 type DcFlowO = { img?: (x: DcFlowItem) => string; xhtml?: boolean; pb?: string; chartTables?: boolean; [k: string]: unknown };
 type DcSlideP = { t: string; bul?: boolean; b?: boolean };
 type DcSlide = { cover?: boolean; title: string; sub?: string; paras: DcSlideP[]; table?: string[][] | null; img?: DcFlowItem | null };
@@ -777,9 +777,20 @@ function dcReId(d: DcDoc){d.pages.forEach(p=>{p.id=dcId()});const map: Dict={};d
 /* ---------- page geometry (100 % zoom ≈ 0.81 × real A4 so a page fits beside both panels) ---------- */
 const DC_PS: Record<string, number[]>={a4:[640,905,21,29.7],letter:[640,828,21.6,27.9],a5:[451,640,14.8,21],legal:[658,1084,21.59,35.56],a3:[905,1280,29.7,42]};
 const DC_PCM: Record<string, number[]>={a4:[21,29.7],letter:[21.59,27.94],a5:[14.8,21],legal:[21.59,35.56],a3:[29.7,42]};
-const dcPaperCm=(d: { set: { size: string; or: string } })=>{const c=DC_PCM[d.set.size]||DC_PCM.a4;return d.set.or==="l"?[c[1],c[0]]:c};
 const DC_MG: Record<string, number[]>={narrow:[24,26],normal:[30,32],wide:[61,58]};
-function dcGeo(d?: DcDoc){d=d||dcDoc();const s=d.set,[w,h,cw,ch]=DC_PS[s.size]||DC_PS.a4,land=s.or==="l";const mg=(s.mgx!=null?[s.mgx,s.mgy??s.mgx]:(DC_MG[s.mg]||DC_MG.normal)) as number[];return {w:land?h:w,h:land?w:h,cm:(land?ch:cw),mx:mg[0],my:mg[1]}}
+/** Page layout of one document page (a section: it always starts on a new sheet). Every key is optional and falls back to the
+ *  document's settings: size, orientation and the four margins (sheet px, like set.mgx / set.mgy). */
+export type DcLay = { size?: string; or?: string; mt?: number; mb?: number; ml?: number; mr?: number };
+const DC_LAYK = ["size", "or", "mt", "mb", "ml", "mr"] as const;
+/** The layout that applies to page `pi` (document settings, then that page's own). */
+function dcLayOf(d: DcDoc, pi?: number | null){const s=d.set;const mg=(s.mgx!=null?[s.mgx,s.mgy??s.mgx]:(DC_MG[s.mg]||DC_MG.normal)) as number[];
+  const base={size:(s.size as string)||"a4",or:(s.or as string)||"p",mt:(s.mt as number)??mg[1],mb:(s.mb as number)??mg[1],ml:(s.ml as number)??mg[0],mr:(s.mr as number)??mg[0]};
+  const own=(pi!=null&&d.pages[pi]?.lay) as DcLay|undefined;if(own)DC_LAYK.forEach(k=>{if(own[k]!=null)(base as Record<string, unknown>)[k]=own[k]});return base}
+const dcPaperCm=(d: { set: { size: string; or: string } }, pi?: number | null)=>{const L=pi!=null&&(d as DcDoc).pages?dcLayOf(d as DcDoc,pi):d.set;const c=DC_PCM[L.size]||DC_PCM.a4;return L.or==="l"?[c[1],c[0]]:c};
+/** Sheet geometry of page `pi` (or of the document when omitted): size in sheet px, cm across, the four margins; mx / my stay the
+ *  left / top margins for the code that only knows one value per axis. */
+function dcGeo(d?: DcDoc, pi?: number | null){d=d||dcDoc();const L=dcLayOf(d,pi),[w,h,cw,ch]=DC_PS[L.size]||DC_PS.a4,land=L.or==="l";
+  return {w:land?h:w,h:land?w:h,cm:(land?ch:cw),mx:L.ml,my:L.mt,mt:L.mt,mb:L.mb,ml:L.ml,mr:L.mr,size:L.size,or:L.or,land}}
 const dcPt=(pt: number)=>Math.round(pt*1.075*100)/100;
 /* conditional display */
 let dcCondOk=function(b: DcBlock,d?: DcDoc){const c=b.cond;if(!c||!c.src)return true;d=d||dcDoc();let v;if(c.src.includes(".")){v=dcField(c.src,d)}else{const r=dcFind(c.src,d);if(!r)return true;v=r.b.type==="scale"?r.b.val:dcBlockText(r.b,d)}
@@ -830,8 +841,8 @@ let dcBlockHTML=function(b: DcBlock,ctx: { d: DcDoc; L: string; ed: boolean; num
   const cm=ctx.cm[b.id]||0;
   return `<div class="dc-b t-${b.type}${b.var?" v-"+b.var:""}${ctx.sel===b.id?" dc-sel":""}${ok?"":" hid"}${b.ai?" dc-aiB":""}" data-b="${b.id}" style="--w:${b.w||100}${b.mt?`;margin-top:${b.mt}px`:""}">${dcBlockInner(b,ctx)}${!ok?`<span class="dc-hidb" contenteditable="false">${DCI.eyeoff}${t("dc_hiddenCond")}</span>`:""}${b.ai?`<span class="dc-aib" contenteditable="false">${DCI.spark}${t("dc_aiDraft")}</span>`:""}${cm&&ctx.ed?`<button type="button" class="dc-cmk" data-cmk="${b.id}" contenteditable="false" aria-label="${t("dc_comments")}">${DCI.comment}<b>${nf(cm)}</b></button>`:""}</div>`}
 let dcCtx=function(o: Partial<DcCtx>={}){const d=o.d||dcDoc();const cm: Record<string, number>={};(d.cmts||[]).forEach(c=>{if(!c.res&&c.b)cm[c.b]=(cm[c.b]||0)+1});return Object.assign({d,L:d.lang||lang(),ed:DC.vm!=="read",nums:d.set.num?dcNumbers(d):{},sel:DC.sel,cm},o)}
-let dcPageHTML=function(p: DcPage,pi: number,ctx: { d: DcDoc; L: string; ed: boolean; nums: Dict; sel: string|null|undefined; cm: Record<string,number>; }&Partial<DcCtx>){const d=ctx.d,g=dcGeo(d),s=d.set,N=d.pages.length,dir=(d.lang||lang())==="ar"?"rtl":"ltr";
-  return `<div class="dc-page" data-page="${pi}" dir="${dir}" lang="${dcHtmlE(secLang(d.lang||lang()))}" style="${dcHtmlE(`--pw:${g.w};--ph:${g.h};--mx:${g.mx}px;--my:${g.my}px;--dfs:${dcPt(s.fs)}px;--dlh:${s.lh};--dff:'${secFont(s.font)||"Inter"}',${s.font==="Georgia"||s.font==="Times New Roman"?"serif":"system-ui,sans-serif"};--dc-pacc:${secColor(s.acc)||"#18a058"};--dc-hc:${s.hcol==="acc"?(secColor(s.acc)||"#18a058"):"#1d3557"}`)}">
+let dcPageHTML=function(p: DcPage,pi: number,ctx: { d: DcDoc; L: string; ed: boolean; nums: Dict; sel: string|null|undefined; cm: Record<string,number>; }&Partial<DcCtx>){const d=ctx.d,g=dcGeo(d,pi),s=d.set,N=d.pages.length,dir=(d.lang||lang())==="ar"?"rtl":"ltr";
+  return `<div class="dc-page" data-page="${pi}" data-psz="${g.size}" data-por="${g.or}"${d.pages[pi]?.lay?' data-lay="1"':""} dir="${dir}" lang="${dcHtmlE(secLang(d.lang||lang()))}" style="${dcHtmlE(`--pw:${g.w};--ph:${g.h};--mx:${g.mx}px;--my:${g.my}px;--mt:${g.mt}px;--mb:${g.mb}px;--ml:${g.ml}px;--mr:${g.mr}px;--dfs:${dcPt(s.fs)}px;--dlh:${s.lh};--dff:'${secFont(s.font)||"Inter"}',${s.font==="Georgia"||s.font==="Times New Roman"?"serif":"system-ui,sans-serif"};--dc-pacc:${secColor(s.acc)||"#18a058"};--dc-hc:${s.hcol==="acc"?(secColor(s.acc)||"#18a058"):"#1d3557"}`)}">
     ${s.wm?`<div class="dc-wm" aria-hidden="true">${dcE(t(s.wm==="conf"?"dc_wmConf":"dc_wmDraft"))}</div>`:""}
     <div class="dc-pin">${p.blocks.map(b=>dcBlockHTML(b,ctx)).join("")}${ctx.ed&&!p.blocks.length?`<p class="dc-pempty">${t("dc_pageEmpty")}</p>`:""}</div>
     ${s.ftr!==false?`<footer class="dc-pf"><span>${dcE(dcTx(d.clinic,ctx.L))} · ${dcE(dcTx(d.title,ctx.L))}</span><span>${dcE(dcTv("dc_pageNofM",{n:nf(pi+1),m:nf(N)},ctx.L))}</span></footer>`:""}
@@ -878,7 +889,7 @@ function dcParaLabel(){const b=dcSelB();if(!b)return t("dc_stNormal");if(b.type=
 let dcRibbonHTML=function(){const s=dcDoc().set,k=DC.rib,sep='<span class="dc-vs"></span>';let h="";
   if(k==="home"||k==="file")h=`${dcTb('data-dcmd="undo"',"undo","fe_undo")}${dcTb('data-dcmd="redo"',"redo","fe_redo")}${sep}${dcDd("para",dcParaLabel(),88)}${dcDd("font",dcE(s.font),84)}${dcDd("size",nf(s.fs),48)}${sep}${dcTb('data-dcmd="bold"',"bold","dc_bold",false)}${dcTb('data-dcmd="italic"',"italic","dc_italic",false)}${dcTb('data-dcmd="underline"',"under","dc_under",false)}${sep}<button type="button" class="dc-tb col" data-dd="color" title="${t("dc_color")}" aria-label="${t("dc_color")}">${DCI.color}<i style="background:${DC.col||"#e5484d"}"></i>${DCI.chev}</button><button type="button" class="dc-tb col" data-dd="hl" title="${t("dc_hl")}" aria-label="${t("dc_hl")}">${DCI.hl}<i style="background:${DC.hlc||"#ffe066"}"></i>${DCI.chev}</button>${sep}${dcTb('data-dcmd="justifyLeft"',"al","dc_alL",false)}${dcTb('data-dcmd="justifyCenter"',"ac","dc_alC",false)}${dcTb('data-dcmd="justifyRight"',"ar","dc_alR",false)}<button type="button" class="dc-tb col" data-dd="list" title="${t("dc_list")}" aria-label="${t("dc_list")}">${DCI.ul}${DCI.chev}</button>${sep}${dcBig('data-dins="table"',"table","dc_cTable")}${dcBig('data-dins="img"',"image","dc_cImage")}${dcBig('data-dcmd="link"',"link","dc_cLink")}${dcBig('data-dcmd="comment"',"comment","dc_comment")}${dcBig('data-dins="sign"',"sig","dc_cSign")}`;
   else if(k==="insert")h=`${dcBig('data-dcmd="addpage"',"pageadd","dc_addPage")}${dcBig('data-dcmd="pbreak"',"pbreak","dc_pbreak")}${sep}${dcBig('data-dins="table"',"table","dc_cTable")}${dcBig('data-dins="img"',"image","dc_cImage")}${dcBig('data-dins="link"',"link","dc_cLink")}${dcBig('data-dd="field"',"dyn","dc_cDyn")}${dcBig('data-dins="sign"',"sig","dc_cSign")}${dcBig('data-dins="sep"',"sep","dc_cSep")}${sep}${dcBig('data-dins="scale"',"scale","dc_cScale")}${dcBig('data-dins="chart"',"chart","dc_cChart")}${dcBig('data-dins="anat"',"anat","dc_cAnat")}${dcBig('data-dins="meas"',"meas","dc_cMeas")}${sep}${dcBig('data-dins="hdr"',"hdrsec","dc_cHdr")}${dcBig('data-dins="toc"',"toc","dc_cToc")}`;
-  else if(k==="layout")h=`${dcBig('data-dd="mg"',"margin","dc_margins")}${dcBig('data-dd="or"',"orient","dc_orient")}${dcBig('data-dd="psize"',"size","dc_psize")}${sep}${dcBig('data-dcmd="ftr"',"num","dc_footer",s.ftr!==false)}${dcBig('data-dd="wm"',"wm","dc_watermark",!!s.wm)}${sep}${dcBig('data-dd="theme"',"sliders","dc_themeCol")}${dcBig('data-dd="lh"',"aj","dc_lineH")}`;
+  else if(k==="layout")h=`${dcBig('data-dd="mg"',"margin","dc_margins")}${dcBig('data-dd="or"',"orient","dc_orient")}${dcBig('data-dd="psize"',"size","dc_psize")}${dcBig('data-dxlayopen',"sliders","dcx_lay_title",dcDoc().pages.some(p=>!!p.lay))}${sep}${dcBig('data-dcmd="ftr"',"num","dc_footer",s.ftr!==false)}${dcBig('data-dd="wm"',"wm","dc_watermark",!!s.wm)}${sep}${dcBig('data-dd="theme"',"sliders","dc_themeCol")}${dcBig('data-dd="lh"',"aj","dc_lineH")}`;
   else if(k==="refs")h=`${dcBig('data-dins="toc"',"toc","dc_cToc")}${dcBig('data-dcmd="num"',"ol","dc_numbering",s.num)}${dcBig('data-dd="field"',"dyn","dc_insField")}${sep}${dcBig('data-dcmd="outline"',"outline","dc_outline")}`;
   else if(k==="review")h=`${dcBig('data-dcmd="comment"',"comment","dc_newComment")}${dcBig('data-ddraw="cmts"',"subs","dc_comments")}${sep}${dcBig('data-dcmd="spell"',"spell","dc_spell",dcS!.spell!==false)}${dcBig('data-dcmd="stats"',"stats","dc_stats")}${sep}${dcBig('data-dcmd="askrev"',"hourglass","dc_askReview",dcDoc().status==="review")}${dcBig('data-dcmd="approve"',"check","dc_approve",dcDoc().status==="pub")}${dcBig('data-ddraw="hist"',"hist","dc_history")}`;
   else if(k==="view")h=`${dcBig('data-dvm="page"',"vpage","dc_vmPage",DC.vm==="page")}${dcBig('data-dvm="web"',"vweb","dc_vmWeb",DC.vm==="web")}${dcBig('data-dvm="read"',"vread","dc_vmRead",DC.vm==="read")}${sep}${dcBig('data-dcmd="ruler"',"ruler","dc_ruler",DC.ruler)}${dcBig('data-dcmd="lp"',"panelL","dc_thumbs",DC.lpOpen)}${dcBig('data-dcmd="rp"',"panelR","dc_panel",DC.rpOpen)}${sep}${dcTb('data-dz="-"',"zout","fe_zoomOut")}<button type="button" class="dc-dd" data-dd="zoom" style="min-width:70px"><span class="v">${nf(Math.round(DC.z!*100))} %</span>${DCI.chev}</button>${dcTb('data-dz="+"',"zin","fe_zoomIn")}${dcBig('data-dz="fit"',"full","dc_fitW")}`;
@@ -895,7 +906,7 @@ let dcPlanHTML=function(){const o=dcOutline();return o.length?`<div class="dc-pl
 let dcCanvasHTML=function(){const d=dcDoc(),ctx=dcCtx(),g=dcGeo(d);
   return `<div class="dc-cv vm-${DC.vm}${DC.ruler&&DC.vm==="page"?" ru":""}" style="--z:${dcZ()};--pw:${g.w};--ph:${g.h}">${DC.ruler&&DC.vm==="page"?`<div class="dc-hrw"><span></span><span></span>${dcRulerH(g,d)}<span></span></div>`:""}<div class="dc-pages">${d.pages.map((p,i)=>`<div class="dc-prow" data-pr="${i}">${DC.ruler&&DC.vm==="page"?`<div class="dc-vr" style="--cm:${(g.w/g.cm).toFixed(3)}px"></div>`:"<span></span>"}<span></span>${dcPageHTML(p,i,ctx)}<span></span></div>`).join("")}<div class="dc-pgadd"><button type="button" class="dc-btn ol sm" data-dcmd="addpage">${DCI.plus}${t("dc_addPage")}</button></div></div></div>`}
 function dcRulerH(g: ReturnType<typeof dcGeo>,d: DcDoc){const cm=g.w/g.cm,n=Math.floor(g.cm);let h="";for(let i=1;i<n;i++)h+=`<i style="left:${(i*cm).toFixed(2)}px">${i}</i>`;
-  return `<div class="dc-hr" style="--cm:${cm.toFixed(3)}px;--mx:${g.mx}px">${h}<b class="m l" data-mgdrag="l" style="left:${g.mx}px" title="${t("dc_margins")}"></b><b class="m r" data-mgdrag="r" style="left:${g.w-g.mx}px" title="${t("dc_margins")}"></b></div>`}
+  return `<div class="dc-hr" style="--cm:${cm.toFixed(3)}px;--mx:${g.mx}px">${h}<b class="m l" data-mgdrag="l" style="left:${g.ml}px" title="${t("dcx_lay_left")}"></b><b class="m r" data-mgdrag="r" style="left:${g.w-g.mr}px" title="${t("dcx_lay_right")}"></b></div>`}
 function dcZ(){const cv=dcRoot()?.querySelector<HTMLInputElement>(".dc-cv");let z=DC.z;if(cv&&DC.vm!=="web"){const g=dcGeo(),av=cv.clientWidth-(DC.ruler&&DC.vm==="page"?46:28);if(av>80&&g.w*z!>av)z=Math.max(.25,av/g.w)}return Math.round(z!*1000)/1000}
 
 /* status bar */
@@ -966,7 +977,7 @@ let dcDocTabHTML=function(){const d=dcDoc(),s=d.set,L=d.lang||lang(),st=dcStats(
   return `<div class="dc-scroll">${sec("dc_dInfo",`${dcRow("dc_title",dcInp('data-dp="title"',dcTx(d.title,L)))}${dcRow2(dcRow("dc_domain",dcSelH('data-dp="dom"',DC_DOMS.map(([k])=>[k,t("dc_dm_"+k)]),d.dom)),dcRow("dc_status",dcSelH('data-dp="status"',["draft","review","pub","arch"].map(k=>[k,t(DC_ST[k])]),d.status)))}${dcRow("dc_cLang",dcSelH('data-dp="lang"',[["",t("dc_followUi")],...Object.keys(LANGS).map(k=>[k,LANGS[k].name])],d.lang||""))}`)}
   ${sec("dc_dPatient",`${d.sample?`<p class="dc-note">${DCI.info}${t("dc_samplePt")}</p>`:""}${dcRow2(dcRow("dc_s_nom",dcInp('data-dp="pt.nom"',p.nom)),dcRow("dc_s_prenom",dcInp('data-dp="pt.prenom"',p.prenom)))}${dcRow2(dcRow("dc_s_dob",dcInp('data-dp="pt.dob"',p.dob,{type:"date"})),dcRow("dc_s_sexe",dcSelH('data-dp="pt.sexe"',[["F",dcTx("dc_s_fem")],["M",dcTx("dc_s_masc")],["X",dcTx("dc_s_other")]],p.sexe)))}${dcRow("dc_s_dossier",dcInp('data-dp="pt.dossier"',p.dossier,{dir:"ltr"}))}${dcRow2(dcRow("dc_s_tel",dcInp('data-dp="pt.tel"',p.tel,{dir:"ltr"})),dcRow("dc_s_email",dcInp('data-dp="pt.email"',p.email,{dir:"ltr"})))}${dcRow("dc_s_adr",dcInp('data-dp="pt.adr"',p.adr))}`)}
   ${sec("dc_dPrat",`${dcRow("dc_s_prat",dcInp('data-dp="prat"',d.prat))}${dcRow("dc_s_date",dcInp('data-dp="date"',d.date,{type:"date"}))}${dcRow("dc_clinic",dcInp('data-dp="clinic"',dcTx(d.clinic,L)))}`,false)}
-  ${sec("dc_dLayout",`${dcRow2(dcRow("dc_psize",dcSelH('data-dp="set.size"',[["a4","A4"],["letter","Letter"]],s.size)),dcRow("dc_orient",dcSelH('data-dp="set.or"',[["p",t("dc_portrait")],["l",t("dc_landscape")]],s.or)))}${dcRow("dc_margins",dcSegH("data-dmg",[["narrow","dc_mgNarrow"],["normal","dc_mgNormal"],["wide","dc_mgWide"]],s.mgx!=null?"":s.mg))}${dcTg('data-dp="set.ftr" data-bt="boolT"',s.ftr!==false,"dc_footer")}${dcTg('data-dp="set.num" data-bt="bool"',s.num,"dc_numbering")}${dcRow("dc_watermark",dcSelH('data-dp="set.wm"',[["",t("dc_none")],["draft",t("dc_wmDraft")],["conf",t("dc_wmConf")]],s.wm))}`,false)}
+  ${sec("dc_dLayout",`${dcRow2(dcRow("dc_psize",dcSelH('data-dp="set.size"',[["a4","A4"],["letter","Letter"]],s.size)),dcRow("dc_orient",dcSelH('data-dp="set.or"',[["p",t("dc_portrait")],["l",t("dc_landscape")]],s.or)))}${dcRow("dc_margins",dcSegH("data-dmg",[["narrow","dc_mgNarrow"],["normal","dc_mgNormal"],["wide","dc_mgWide"]],s.mgx!=null?"":s.mg))+`<button type="button" class="dc-lnk" data-dxlayopen>${DCI.sliders}${t("dcx_lay_open")}</button>`}${dcTg('data-dp="set.ftr" data-bt="boolT"',s.ftr!==false,"dc_footer")}${dcTg('data-dp="set.num" data-bt="bool"',s.num,"dc_numbering")}${dcRow("dc_watermark",dcSelH('data-dp="set.wm"',[["",t("dc_none")],["draft",t("dc_wmDraft")],["conf",t("dc_wmConf")]],s.wm))}`,false)}
   ${sec("dc_dStats",`<div class="dc-stats">${([["dc_stPages",st.pages],["dc_stWords",st.w],["dc_stChars",st.ch],["dc_stBlocks",st.n]] as [string, number][]).map(([l,n])=>`<div><b>${nf(n)}</b><span>${t(l)}</span></div>`).join("")}</div><p class="dc-mut">${t("dc_readTime",{n:nf(st.read)})}</p>`,false)}</div>`}
 /* styles tab */
 let dcStylesHTML=function(){const s=dcDoc().set,b=dcSelB();
@@ -1039,6 +1050,12 @@ let dcOnEdit=function(el: HTMLElement){const be=el.closest<HTMLInputElement>(".d
   if(p!.startsWith("@"))d[p!.slice(1)]=v;else{dcSetPath(r.b,p!,v);if(p!.startsWith("pairs.")&&p!.endsWith(".1"))el.classList.remove("dyn");if(r.b.ai)delete r.b.ai}
   d.upd=Date.now();dcSave();dcThumbsSoon(900);clearTimeout(DC.wt);DC.wt=setTimeout(()=>{dcStatusSync();if(p==="text"||p==="title"){if(DC.lp==="plan")dcRefresh("left");dcRoot()?.querySelectorAll<HTMLInputElement>(".t-toc").forEach(x=>dcRefreshBlock(x.dataset.b!));if(p==="title"&&r.b.type==="hdr"){}}},500);
   if(p!.startsWith("@")){const R=dcRoot();R!.querySelectorAll<HTMLInputElement>(".dc-pf span:first-child").forEach(s=>s.textContent=dcTx(d.clinic)+" · "+dcTx(d.title))}}
+/* a block cut over two sheets (smart page breaks) is saved whole: the edited part is joined with the others first */
+{const _oe=dcOnEdit;dcOnEdit=function(el){const be=el.closest<HTMLElement>(".dc-b");const host=be?.closest(".dc-pages");const key=el.dataset.ed;
+  if(be&&host&&key&&(be.classList.contains("dcx-pcont")||be.nextElementSibling?.classList.contains("dcx-pcont")||host.querySelector(`.dc-b.dcx-pcont[data-b="${be.dataset.b}"]`))){
+    const eds=dcxEdParts(host,be.dataset.b!,key);if(eds.length>1){const m=eds[0].cloneNode(true) as HTMLElement;for(const e of eds.slice(1))dcxJoin(m,e.cloneNode(true) as HTMLElement);
+      const w=dcxParts(host,be.dataset.b!)[0].cloneNode(false) as HTMLElement;w.appendChild(m);return _oe(m)}}
+  return _oe(el)}}
 
 /* ---------- selection ---------- */
 let dcSelect=function(id: string | null,o: { scroll?: boolean; pulse?: boolean; focus?: boolean; [k: string]: unknown }={}){const R=dcRoot();if(!R)return;const prev=DC.sel;DC.sel=id;
@@ -1095,7 +1112,7 @@ function dcMoveBlock(id: string,dir: number){const d=dcDoc(),r=dcFind(id);if(!r)
   const R=dcRoot(),before=dcFlipRects();dcMut(dd=>{const [b]=dd.pages[r.pi].blocks.splice(r.bi,1);dd.pages[pi].blocks.splice(bi,0,b)},"canvas");dcFlipPlay(before);dcScrollTo(R!.querySelector<HTMLInputElement>(`.dc-b[data-b="${id}"]`),true)}
 function dcFlipRects(){const m: Record<string, DOMRect>={};dcRoot()?.querySelectorAll<HTMLInputElement>(".dc-b").forEach(el=>{m[el.dataset.b!]=el.getBoundingClientRect()});return m}
 function dcFlipPlay(m: Record<string, DOMRect>){if(dcRM())return;dcRoot()?.querySelectorAll<HTMLInputElement>(".dc-b").forEach(el=>{const a=m[el.dataset.b!];if(!a)return;const b=el.getBoundingClientRect();const dx=a.left-b.left,dy=a.top-b.top;if(Math.abs(dx)+Math.abs(dy)<1)return;el.animate([{transform:`translate(${dx}px,${dy}px)`},{transform:"none"}],{duration:420,easing:"cubic-bezier(.2,1.1,.3,1)"})})}
-let dcAddPage=function(after?: number | null){const d=dcDoc();const pi=after==null?DC.cur:after;const p={id:dcId(),blocks:[dcB("p",{html:""})]};dcMut(dd=>{dd.pages.splice(pi!+1,0,p)},"canvas");dcRefresh("left");const el=dcRoot()?.querySelector<HTMLInputElement>(`.dc-page[data-page="${pi!+1}"]`);if(el){dcScrollTo(el);if(!dcRM())el.animate([{opacity:0,transform:"translateY(24px) scale(.98)"},{opacity:1,transform:"none"}],{duration:480,easing:"cubic-bezier(.2,1,.3,1)"})}dcToast(t("dc_pageAdded"))}
+let dcAddPage=function(after?: number | null){const d=dcDoc();const pi=after==null?DC.cur:after;const p: DcPage={id:dcId(),blocks:[dcB("p",{html:""})]};const lay=d.pages[pi!]?.lay;if(lay)p.lay={...(lay as DcLay)};/* a new section keeps the layout of the one it follows */dcMut(dd=>{dd.pages.splice(pi!+1,0,p)},"canvas");dcRefresh("left");const el=dcRoot()?.querySelector<HTMLInputElement>(`.dc-page[data-page="${pi!+1}"]`);if(el){dcScrollTo(el);if(!dcRM())el.animate([{opacity:0,transform:"translateY(24px) scale(.98)"},{opacity:1,transform:"none"}],{duration:480,easing:"cubic-bezier(.2,1,.3,1)"})}dcToast(t("dc_pageAdded"))}
 function dcPageBreak(){const r=DC.sel&&dcFind(DC.sel);if(!r){dcAddPage();return}if(r.bi===r.p.blocks.length-1){dcAddPage(r.pi);return}dcMut(d=>{const moved=d.pages[r.pi].blocks.splice(r.bi+1);d.pages.splice(r.pi+1,0,{id:dcId(),blocks:moved})},"canvas");dcRefresh("left");dcToast(t("dc_pbreakDone"))}
 function dcDelPage(pi: number){const d=dcDoc();if(d.pages.length<2){dcToast(t("dc_lastPage"));return}dcMut(dd=>{dd.pages.splice(pi,1)},"canvas");DC.sel=null;dcRefresh("left");dcToast(t("dc_pageDeleted"),()=>dcUndo())}
 function dcMovePage(pi: number,dir: number){const d=dcDoc(),j=pi+dir;if(j<0||j>=d.pages.length)return;dcMut(dd=>{const [p]=dd.pages.splice(pi,1);dd.pages.splice(j,0,p)},"canvas");dcRefresh("left")}
@@ -1126,9 +1143,13 @@ function dcResizeStart(e: PointerEvent,id: string | undefined,side: string | und
   const up=()=>{removeEventListener("pointermove",mv);removeEventListener("pointerup",up);tip.remove();if(cur!==startW){r!.b.w=cur===100?undefined:cur;dcDoc().upd=Date.now();dcSave();dcRefresh("right");dcThumbsSoon()}else DC.undo!.pop()};
   addEventListener("pointermove",mv);addEventListener("pointerup",up)}
 /* margin markers on the ruler */
-function dcMarginStart(e: PointerEvent,side: string | undefined){const d=dcDoc(),g=dcGeo(d);const hr=tgt(e).closest<HTMLInputElement>(".dc-hr"),z=parseFloat(getComputedStyle(hr!).zoom)||1,sx=e.clientX,start=g.mx;dcPush();
-  const mv=(ev: PointerEvent)=>{let dx=(ev.clientX-sx)/z;if(side==="r")dx=-dx;const v=Math.round(Math.max(12,Math.min(g.w/3,start+dx)));d.set.mgx=v;d.set.mgy=Math.round(v*1.05);const R=dcRoot();R!.querySelectorAll<HTMLInputElement>(".dc-page").forEach(p=>{p.style.setProperty("--mx",v+"px");p.style.setProperty("--my",d.set.mgy+"px")});hr!.querySelector<HTMLInputElement>(".m.l")!.style.left=v+"px";hr!.querySelector<HTMLInputElement>(".m.r")!.style.left=(g.w-v)+"px";hr!.style.setProperty("--mx",v+"px")};
-  const up=()=>{removeEventListener("pointermove",mv);removeEventListener("pointerup",up);d.upd=Date.now();dcSave();dcThumbsSoon();if(DC.rt==="doc")dcRefresh("right")};addEventListener("pointermove",mv);addEventListener("pointerup",up)}
+/* ruler handles: the left one sets the document's left margin, the right one its right margin (each on its own; sections with
+   their own margin keep it) */
+function dcMarginStart(e: PointerEvent,side: string | undefined){const d=dcDoc(),g=dcGeo(d);const hr=tgt(e).closest<HTMLInputElement>(".dc-hr"),z=parseFloat(getComputedStyle(hr!).zoom)||1,sx=e.clientX,key=side==="r"?"mr":"ml",start=side==="r"?g.mr:g.ml;dcPush();
+  const mv=(ev: PointerEvent)=>{let dx=(ev.clientX-sx)/z;if(side==="r")dx=-dx;const v=Math.round(Math.max(12,Math.min(g.w/3,start+dx)));const S=d.set;if(S.mt==null){S.mt=g.mt;S.mb=g.mb;S.ml=g.ml;S.mr=g.mr}S[key]=v;S.mgx=S.ml;S.mgy=S.mt;
+    const R=dcRoot();R!.querySelectorAll<HTMLElement>(".dc-cv .dc-page").forEach(p=>{const own=d.pages[+p.dataset.page!]?.lay as DcLay|undefined;if(own&&own[key as "ml"]!=null)return;p.style.setProperty("--"+key,v+"px");if(key==="ml")p.style.setProperty("--mx",v+"px")});
+    if(key==="ml")hr!.querySelector<HTMLInputElement>(".m.l")!.style.left=v+"px";else hr!.querySelector<HTMLInputElement>(".m.r")!.style.left=(g.w-v)+"px";if(key==="ml")hr!.style.setProperty("--mx",v+"px")};
+  const up=()=>{removeEventListener("pointermove",mv);removeEventListener("pointerup",up);d.upd=Date.now();dcSave();dcRefresh("canvas");dcThumbsSoon();if(DC.rt==="doc")dcRefresh("right")};addEventListener("pointermove",mv);addEventListener("pointerup",up)}
 
 /* ---------- popovers and menus ---------- */
 function dcMenuAt(btn: Element,items: unknown[]){const r=btn.getBoundingClientRect();osMenu(document.documentElement.dir==="rtl"?r.right:r.left,r.bottom+4,items as MenuItem[])}
@@ -1258,7 +1279,7 @@ let dcClick=function(e: MouseEvent,R: HTMLElement){const c=(s: string)=>tgt(e).c
   if((b=c("[data-trow-add]"))){const bb=dcFind(b.closest<HTMLInputElement>(".dc-b")?.dataset.b||DC.sel)?.b;if(!bb)return;dcMut(()=>{bb.rows!.push(bb.cols!.map(()=>""))},null);const n=dcRefreshBlock(bb.id);dcRefresh("right");const tr=n?.querySelector<HTMLInputElement>("tbody tr:last-child");if(tr){if(!dcRM())tr.animate([{opacity:0,transform:"translateY(-6px)"},{opacity:1,transform:"none"}],{duration:300});tr.querySelector<HTMLInputElement>("td")?.focus()}return}
   if((b=c("[data-tcol-add]"))){const bb=dcFind(b.closest<HTMLInputElement>(".dc-b")?.dataset.b||DC.sel)?.b;if(!bb)return;dcMut(()=>{bb.cols!.push({l:t("dc_colN",{n:bb.cols!.length+1})});bb.rows!.forEach(r=>r.push(""))},null);dcRefreshBlock(bb.id,true);dcRefresh("right");return}
   if(c("[data-trow-del]")){const bb=dcSelB();if(bb!.rows!.length<2)return;dcMut(()=>{bb!.rows!.pop()},null);dcRefreshBlock(bb!.id,true);dcRefresh("right");return}
-  if((b=c("[data-dmg]"))){dcMut(d=>{d.set.mg=b!.dataset.dmg!;delete d.set.mgx;delete d.set.mgy},"canvas");return}
+  if((b=c("[data-dmg]"))){dcMut(d=>{d.set.mg=b!.dataset.dmg!;delete d.set.mgx;delete d.set.mgy;delete d.set.mt;delete d.set.mb;delete d.set.ml;delete d.set.mr},"canvas");return}
   if((b=c("[data-dtheme]"))){dcMut(d=>{d.set.acc=b!.dataset.dtheme!},"canvas");return}
   if((b=c("[data-dhcol]"))){dcMut(d=>{d.set.hcol=b!.dataset.dhcol!},"canvas");return}
   if((b=c("[data-qs]"))){dcApplyStyle(b.dataset.qs!);return}
@@ -1335,7 +1356,7 @@ let dcCmd=function(k: string|undefined,btn: HTMLInputElement){const R=dcRoot(),d
     case "full":osMax("documents");setTimeout(()=>{dcApplyZoom();dcInk(".dc-ribt",true);dcInk(".dc-rpt",true)},380);break;
   }}
 function dcSetVm(v: string){if(DC.vm===v)return;DC.vm=v;if(v==="read")dcSelect(null);dcRefresh("all");const R=dcRoot();R!.dataset.vm=v;if(!dcRM())R!.querySelector<HTMLInputElement>(".dc-pages")?.animate([{opacity:.4,transform:"scale(.985)"},{opacity:1,transform:"none"}],{duration:360,easing:"cubic-bezier(.2,1,.3,1)"});dcToast(t(({page:"dc_vmPage",web:"dc_vmWeb",read:"dc_vmRead"} as Dict)[v]))}
-function dcFit(){const cv=dcRoot()?.querySelector<HTMLInputElement>(".dc-cv");if(!cv)return;const g=dcGeo();DC.z=Math.max(.25,Math.min(2,Math.floor((cv.clientWidth-(DC.ruler?56:36))/g.w*100)/100));dcSetZoom(DC.z,true)}
+function dcFit(){const cv=dcRoot()?.querySelector<HTMLInputElement>(".dc-cv");if(!cv)return;const d=dcDoc();const W=Math.max(dcGeo(d).w,...d.pages.map((_,i)=>dcGeo(d,i).w));DC.z=Math.max(.25,Math.min(2,Math.floor((cv.clientWidth-(DC.ruler?56:36))/W*100)/100));dcSetZoom(DC.z,true)}
 /* dropdowns */
 function dcDD(k: string,btn: HTMLElement){const d=dcDoc(),s=d.set;
   const chk=(cur: unknown,v: unknown)=>String(cur)===String(v);
@@ -1346,9 +1367,9 @@ function dcDD(k: string,btn: HTMLElement){const d=dcDoc(),s=d.set;
     case "color":case "hl":dcColorPop(btn,k);break;
     case "list":dcMenuAt(btn,[{l:t("dc_listUl"),ic:DCI.ul,run:()=>dcExec("insertUnorderedList")},{l:t("dc_listOl"),ic:DCI.ol,run:()=>dcExec("insertOrderedList")},"-",{l:t("dc_indent"),ic:DCI.indent,run:()=>dcExec("indent")},{l:t("dc_outdent"),ic:DCI.outdent,run:()=>dcExec("outdent")}]);break;
     case "field":dcFieldMenu(btn);break;
-    case "mg":dcMenuAt(btn,[["narrow","dc_mgNarrow"],["normal","dc_mgNormal"],["wide","dc_mgWide"]].map(([v,l])=>({l:t(l),check:s.mgx==null&&s.mg===v,run:()=>dcMut(dd=>{dd.set.mg=v;delete dd.set.mgx;delete dd.set.mgy},"canvas")})));break;
-    case "or":dcMenuAt(btn,[["p","dc_portrait"],["l","dc_landscape"]].map(([v,l])=>({l:t(l),check:s.or===v,run:()=>{dcMut(dd=>{dd.set.or=v},"canvas");dcThumbsSoon(0)}})));break;
-    case "psize":dcMenuAt(btn,[["a4","A4 · 21 × 29,7 cm"],["letter","Letter · 21,6 × 27,9 cm"]].map(([v,l])=>({l,check:s.size===v,run:()=>dcMut(dd=>{dd.set.size=v},"canvas")})));break;
+    case "mg":dcxLayDD(k,btn);break;
+    case "or":dcxLayDD(k,btn);break;
+    case "psize":dcxLayDD(k,btn);break;
     case "wm":dcMenuAt(btn,[["","dc_none"],["draft","dc_wmDraft"],["conf","dc_wmConf"]].map(([v,l])=>({l:t(l),check:chk(s.wm||"",v),run:()=>{dcMut(dd=>{dd.set.wm=v},"canvas");dcRefresh("rib")}})));break;
     case "theme":dcPop(btn,`<div class="dc-palh">${t("dc_themeCol")}</div><div class="dc-pal">${DC_THEMES.map(c=>`<button type="button" style="--c:${c}" data-pcol="${c}" data-pk="theme" aria-label="${c}"></button>`).join("")}</div>`,"pal");break;
     case "lh":dcMenuAt(btn,[1.15,1.3,1.5,1.8,2].map(v=>({l:nf(v),check:s.lh===v,run:()=>dcMut(dd=>{dd.set.lh=v},"canvas")})));break;
@@ -1571,7 +1592,7 @@ let dcDocMD=function(d: DcDoc){const tp=document.createElement("template");tp.in
   [...tp.content.children].forEach(el=>{const tg=el.tagName;if(/^H\d$/.test(tg))out.push("#".repeat(+tg[1])+" "+el.textContent);else if(tg==="TABLE"){const rows=[...el.querySelectorAll<HTMLInputElement>("tr")].map(r=>"| "+[...r.children].map(c=>c.textContent.replace(/\|/g,"\\|")).join(" | ")+" |");if(rows.length){const n=el.querySelector<HTMLInputElement>("tr")!.children.length;rows.splice(1,0,"| "+Array(n).fill("---").join(" | ")+" |")}out.push(rows.join("\n"))}else if(tg==="HR")out.push("---");else if(tg==="BLOCKQUOTE")out.push("> "+inl(el));else if(tg!=="BR")out.push(inl(el))});return out.filter(Boolean).join("\n\n")}
 let dcPrint=function(){const R=dcRoot();const old=document.getElementById("dc-print");old?.remove();const box=document.createElement("div");box.id="dc-print";
   const d=dcDoc(),ctx=dcCtx({ed:false,sel:null,cm:{},thumb:true});box.innerHTML=d.pages.map((p,i)=>dcPageHTML(p,i,ctx)).join("");box.querySelectorAll<HTMLInputElement>("[contenteditable]").forEach(x=>x.removeAttribute("contenteditable"));
-  const g=dcGeo(d);const st=document.createElement("style");st.id="dc-print-style";st.textContent=`@page{size:${d.set.size==="letter"?"letter":"A4"} ${d.set.or==="l"?"landscape":"portrait"};margin:0}`;document.head.appendChild(st);
+  const g=dcGeo(d);const st=document.createElement("style");st.id="dc-print-style";st.textContent=dcxPageCss(d);document.head.appendChild(st);
   document.body.appendChild(box);document.documentElement.classList.add("dc-printing");box.style.setProperty("--pz",((d.set.or==="l"?(d.set.size==="letter"?1056:1123):(d.set.size==="letter"?816:794))/g.w).toFixed(4));
   const clean=()=>{document.documentElement.classList.remove("dc-printing");box.remove();st.remove();removeEventListener("afterprint",clean)};addEventListener("afterprint",clean);
   dcToast(t("dc_printHint"));setTimeout(()=>{try{window.print()}catch(e){}setTimeout(clean,1500)},120)}
@@ -2556,13 +2577,15 @@ async function dcImportPdf(f: File){await feLoadScript("/vendor/pdfjs-3.11.174/p
    and repeat their header. Headings stay with the block that follows them. */
 const DC_FOOT=22;
 DC.vp=[];
-function dcPgLimit(page: Element,g: ReturnType<typeof dcGeo>){const r=page.getBoundingClientRect(),s=r.width/g.w;return {ok:r.width>40,lim:r.top+(g.h-g.my-DC_FOOT)*s,s}}
+/* each sheet carries its own size and margins (per-page layout): read from its style, the document geometry is the fallback */
+function dcPgLimit(page: Element,g: ReturnType<typeof dcGeo>){const r=page.getBoundingClientRect(),st=(page as HTMLElement).style,v=(k: string)=>parseFloat(st.getPropertyValue(k));
+  const w=v("--pw")||g.w,h=v("--ph")||g.h,mb=v("--mb");const s=r.width/w;return {ok:r.width>40,lim:r.top+(h-(isNaN(mb)?g.mb:mb)-DC_FOOT)*s,s}}
 function dcPgKids(pin: Element): DcPgEl[]{return [...pin.children].filter(x=>x.classList.contains("dc-b")) as DcPgEl[]}
 /* put everything back on the first sheet of each section */
-function dcPgMerge(host: HTMLElement){if(typeof dcPgFitReset==="function")dcPgFitReset(host);
+function dcPgMerge(host: HTMLElement){if(typeof dcPgFitReset==="function")dcPgFitReset(host);dcxImgFitReset(host);
   host.querySelectorAll<HTMLInputElement>(".dc-page[data-part]").forEach(pg=>{const first=host.querySelector<HTMLInputElement>(`.dc-page[data-page="${pg.dataset.page}"]:not([data-part]) .dc-pin`);const pin=pg.querySelector<HTMLInputElement>(".dc-pin");
     if(first)[...pin!.children].forEach(x=>first.appendChild(x));const row=pg.parentElement?.classList.contains("dc-prow")?pg.parentElement:pg;row.remove()});
-  host.querySelectorAll<DcPgEl>(".dc-bc").forEach(c=>{const o=c._orig;if(o&&o.isConnected){const tb=o.querySelector<HTMLInputElement>("tbody");if(tb)c.querySelectorAll<HTMLInputElement>("tbody>tr").forEach(tr=>tb.appendChild(tr))}c.remove()})}
+  host.querySelectorAll<DcPgEl>(".dc-bc").forEach(c=>{const o=c._orig;if(c.classList.contains("dcx-pcont")){if(o&&o.isConnected){dcxJoinBlock(o,c);o.querySelectorAll("[data-ed]").forEach(e=>e.normalize())}c.remove();return}if(o&&o.isConnected){const tb=o.querySelector<HTMLInputElement>("tbody");if(tb)c.querySelectorAll<HTMLInputElement>("tbody>tr").forEach(tr=>tb.appendChild(tr))}c.remove()})}
 /* new continuation sheet right after `cur` */
 function dcPgNewPart(cur: HTMLElement,part: number){const row=cur.parentElement?.classList.contains("dc-prow")?cur.parentElement:null,src=row||cur;
   const cl=src.cloneNode(false) as HTMLElement;if(row){[...row.children].forEach(ch=>{if(ch===cur){const pg=cur.cloneNode(false) as HTMLElement;[...cur.children].forEach(x=>{if(x.classList.contains("dc-pin"))pg.appendChild(x.cloneNode(false));else pg.appendChild(x.cloneNode(true))});cl.appendChild(pg)}else cl.appendChild(ch.cloneNode(true))})}
@@ -2580,7 +2603,7 @@ function dcPgSplit(host: HTMLElement,g: ReturnType<typeof dcGeo>){
       const L=dcPgLimit(cur,g);if(!L.ok)return false;let k=kids.findIndex(x=>x.getBoundingClientRect().bottom>L.lim+L.s);const pb=kids.findIndex((x,i)=>i>0&&x.classList.contains("pgb"));
       if(pb>0&&(k<0||pb<=k)){cur=dcPgNewPart(cur,++part);const np=cur.querySelector<HTMLInputElement>(".dc-pin");kids.slice(pb).forEach(x=>np!.appendChild(x));continue}
       if(k<0)break;
-      const kb=kids[k];if(kb.classList.contains("t-table")&&!kb.classList.contains("keep")&&dcPgSplitTable(kb,L.lim))continue;if(kb.classList.contains("t-p")&&!kb.classList.contains("keep")&&kb.closest(".dc-xph")&&dcxPgSplitPara(kb,L.lim))continue;
+      const kb=kids[k];if(kb.classList.contains("t-table")&&!kb.classList.contains("keep")&&dcPgSplitTable(kb,L.lim))continue;if(!kb.classList.contains("keep")&&dcxPgSplitAny(kb,L,k,kids))continue;
       if(kb.classList.contains("t-chart")&&!kb.classList.contains("keep")&&!kb.classList.contains("nofit")&&!kb.classList.contains("dc-fit")){const sv=kb.querySelector<HTMLInputElement>("svg.dc-chart");if(sv){const r=kb.getBoundingClientRect(),sr=sv.getBoundingClientRect();const room=L.lim-sr.top-(r.bottom-sr.bottom)-2;if(room>=sr.height*.7&&room>=150*L.s&&room<sr.height){kb.classList.add("dc-fit");sv.style.height=(room/L.s)+"px";sv.style.width="auto";sv.style.marginInline="auto";continue}}}
       if(k===0){if(kids.length===1)break;k=1}
       while(k>1&&(kids[k-1].classList.contains("t-h")||kids[k-1].classList.contains("kn")))k--;
@@ -2694,8 +2717,8 @@ async function makePDF(host: HTMLElement,title: string,PW: number,PH: number,onP
   /* product phase 2: clickable links and bookmarks (outline) from the headings */
   const heads: {t: string; lv: number; pg: number; y: number}[]=[];
   let pgNo=0;const pgAll=[...host.querySelectorAll<RdxEl>('.dc-page')];for(const page of pgAll){onPage&&onPage(++pgNo,pgAll.length);await new Promise(r=>setTimeout(r,0));
-    const pr=page.getBoundingClientRect();const k=Math.min(PW/pr.width,PH/pr.height);const ox=(PW-pr.width*k)/2;
-    const X=(px: number)=>ox+(px-pr.left)*k,Y=(py: number|undefined)=>PH-(py!-pr.top)*k;
+    /* per-page layout: a sheet carries its own paper size and orientation (data-psz / data-por), the document size is the fallback */const pz=page.dataset.psz&&DC_PCM[page.dataset.psz]?DC_PCM[page.dataset.psz]:null;const [PWp,PHp]=pz?(page.dataset.por==="l"?[pz[1]*28.3465,pz[0]*28.3465]:[pz[0]*28.3465,pz[1]*28.3465]):[PW,PH];const pr=page.getBoundingClientRect();const k=Math.min(PWp/pr.width,PHp/pr.height);const ox=(PWp-pr.width*k)/2;
+    const X=(px: number)=>ox+(px-pr.left)*k,Y=(py: number|undefined)=>PHp-(py!-pr.top)*k;
     const ops: string[]=[],used=new Map<string, number>();const links: {r: number[]; uri: string}[]=[];
     /* product phase 4: masks are real redactions — no text under them is written, and they are painted into the pictures they cover */
     const masks=[...page.querySelectorAll<HTMLElement>('.wx-mask,[data-redact]')].map(m=>m.getBoundingClientRect()).filter(m=>m.width>0&&m.height>0);
@@ -2804,7 +2827,7 @@ async function makePDF(host: HTMLElement,title: string,PW: number,PH: number,onP
     const cid=add({dict:z?'/Filter /FlateDecode':'',data:z||content});
     const res=`<< /Font << ${Object.keys(FN).map(f=>`/${f} ${fontRef[f]} 0 R`).join(' ')} ${PXF.pageResources()} >> /XObject << ${[...used].map(([n,id])=>`/${n} ${id} 0 R`).join(' ')} >> >>`;
     const annots=links.map(l=>add(`<< /Type /Annot /Subtype /Link /Rect [${l.r.map(f2).join(' ')}] /Border [0 0 0] /A << /S /URI /URI ${pxUri(l.uri)} >> >>`));
-    pageIds.push(add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PW} ${PH}] /Resources ${res} /Contents ${cid} 0 R${annots.length?` /Annots [${annots.map(a=>a+' 0 R').join(' ')}]`:''} >>`));
+    pageIds.push(add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PWp} ${PHp}] /Resources ${res} /Contents ${cid} 0 R${annots.length?` /Annots [${annots.map(a=>a+' 0 R').join(' ')}]`:''} >>`));
   }
   if(pxOk)await PXF.finish(add as (o: string|{dict: string; data: Uint8Array})=>number,pxSet,u=>deflate(u as Uint8Array<ArrayBuffer>,'deflate'));
   let outRef=0;
@@ -2880,7 +2903,7 @@ let dcFlowImgs=async function(d: DcDoc,host: HTMLElement){const out: Record<stri
 function dcFlow(d: DcDoc,imgs?: Record<string, DcFlowImg>): DcFlowItem[]{imgs=imgs||{};const L=d.lang||lang(),nums: Record<string, string>=d.set.num?dcNumbers(d):{},items: DcFlowItem[]=[];const T=(v: unknown)=>dcTx(v,L);const N=(b: DcBlock)=>nums[b.id]?nums[b.id]+" ":"";
   const P=(html: unknown,st?: string)=>dcParas(T(html),d,L).forEach(p=>items.push(p.list?{k:"li",ord:p.list==="ol",runs:p.runs}:{k:"p",st:st||"",runs:p.runs}));
   const IMG=(b: DcBlock,cap: string,dw?: number)=>{const im=imgs[b.id];if(im)items.push({k:"img",id:b.id,png:im.png,w:im.w,h:im.h,dw:dw||im.dw||Math.min(560,im.w),cap:cap||""})};
-  d.pages.forEach((p,pi)=>{if(pi>0)items.push({k:"pb"});p.blocks.forEach(b=>{if(!dcCondOk(b,d))return;switch(b.type){
+  d.pages.forEach((p,pi)=>{if(pi>0)items.push({k:"pb",pi});p.blocks.forEach(b=>{if(!dcCondOk(b,d))return;switch(b.type){
     case "hdr":items.push({k:"p",st:"small",runs:dcR(T(d.clinic),{b:1})});if(T(d.tag))items.push({k:"p",st:"small",runs:dcR(T(d.tag))});items.push({k:"title",text:T(b.title||d.title)});
       items.push({k:"p",st:"small",runs:[{t:T("dc_s_date")+" : ",b:1},{t:dcFmtDate(d.date,L)+"    "},{t:T("dc_s_prat")+" : ",b:1},{t:d.prat||""}]});items.push({k:"hr"});break;
     case "h":items.push({k:"h",lv:Math.min(3,b.lv||1),text:N(b)+T(b.text)});break;
@@ -2912,13 +2935,18 @@ function dcFlow(d: DcDoc,imgs?: Record<string, DcFlowImg>): DcFlowItem[]{imgs=im
 const dcRunsText=(r: DcRun[])=>r.map(x=>x.t).join("");
 
 /* ---------- writers ---------- */
-function dcPageTw(d: DcDoc){const g=dcGeo(d),px2cm=g.cm/g.w;const [Wc,Hc]=dcPaperCm(d);const W=Math.round(Wc*567),H=Math.round(Hc*567);return {w:W,h:H,mx:Math.round(g.mx*px2cm*567),my:Math.round(g.my*px2cm*567),px2cm,cw:Math.round(W-2*g.mx*px2cm*567)}}
+/** Page geometry in twips (1/567 cm) of the document, or of section `pi` when given (per-page layout). */
+function dcPageTw(d: DcDoc,pi?: number|null){const g=dcGeo(d,pi),px2cm=g.cm/g.w;const [Wc,Hc]=dcPaperCm(d,pi);const W=Math.round(Wc*567),H=Math.round(Hc*567);const tw=(px: number)=>Math.round(px*px2cm*567);
+  const mt=tw(g.mt),mb=tw(g.mb),ml=tw(g.ml),mr=tw(g.mr);return {w:W,h:H,mx:ml,my:mt,mt,mb,ml,mr,land:g.land,px2cm,cw:Math.round(W-ml-mr)}}
 function dcFootParts(L: string){const s=dcTv("dc_pageNofM",{n:"\u0001",m:"\u0002"},L);const a=s.split("\u0001"),b=(a[1]||"").split("\u0002");return [a[0],b[0]||"/",b[1]||""]}
 
 /* DOCX */
-async function dcMakeDOCX(d: DcDoc,flow: DcFlowItem[],o: {skipChartTables?: boolean; [k: string]: unknown}={}){const L=d.lang||lang(),rtl=L==="ar",s=d.set,pg=dcPageTw(d),E=dcXE,font=s.font||"Calibri",hc=dcHex(s.hcol==="acc"?s.acc:"#1d3557")||"1D3557",acc=dcHex(s.acc)||"2F6BF0";
+async function dcMakeDOCX(d: DcDoc,flow: DcFlowItem[],o: {skipChartTables?: boolean; [k: string]: unknown}={}){const L=d.lang||lang(),rtl=L==="ar",s=d.set;let pg=dcPageTw(d,0);const secs=d.pages.some(p=>!!p.lay);let secPi=0;const E=dcXE,font=s.font||"Calibri",hc=dcHex(s.hcol==="acc"?s.acc:"#1d3557")||"1D3557",acc=dcHex(s.acc)||"2F6BF0";
   const rels: string[]=[],media: DcZipF[]=[];let rid=10,nimg=0;const nums: number[]=[];
   const bidi=rtl?"<w:bidi/>":"";
+  /* section properties of document page `pi` (its paper, orientation and four margins); a section that is not the last one starts
+     the next on a new page */
+  const sectX=(pi: number,last: boolean)=>{const q=dcPageTw(d,secs?pi:null);return `<w:sectPr>${s.ftr!==false?'<w:footerReference w:type="default" r:id="rIdF"/>':""}${last?"":'<w:type w:val="nextPage"/>'}<w:pgSz w:w="${q.w}" w:h="${q.h}"${q.land?' w:orient="landscape"':""}/><w:pgMar w:top="${q.mt}" w:right="${q.mr}" w:bottom="${q.mb+340}" w:left="${q.ml}" w:header="400" w:footer="340" w:gutter="0"/>${rtl?"<w:bidi/>":""}</w:sectPr>`};
   const run=(r: DcRun)=>{const c=r.c;const pr=`${r.b?"<w:b/><w:bCs/>":""}${r.i?"<w:i/><w:iCs/>":""}${r.u?'<w:u w:val="single"/>':""}${r.s?"<w:strike/>":""}${c?`<w:color w:val="${c}"/>`:""}${r.hl?'<w:highlight w:val="yellow"/>':""}${rtl?"<w:rtl/>":""}`;
     const parts=String(r.t).split("\n").map(x=>`<w:t xml:space="preserve">${E(x)}</w:t>`).join("<w:br/>");const x=`<w:r>${pr?`<w:rPr>${pr}</w:rPr>`:""}${parts}</w:r>`;
     if(r.a&&/^(https?:|mailto:)/i.test(r.a)){const id="rId"+(++rid);rels.push(`<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${E(r.a)}" TargetMode="External"/>`);return `<w:hyperlink r:id="${id}">${x}</w:hyperlink>`}return x};
@@ -2934,7 +2962,7 @@ async function dcMakeDOCX(d: DcDoc,flow: DcFlowItem[],o: {skipChartTables?: bool
       case "p":body.push(para(({quote:"Quote",box:"Box",note:"Note",small:"Small",cap:"Caption",toc1:"TOC1",toc2:"TOC2"} as Dict)[x.st!]||"",x.runs!));break;
       case "li":{let id;if(x.ord){if(!prevLi||olId==null){nums.push(1);olId=nums.length+1}id=olId}else id=1;prevLi=true;body.push(para("ListParagraph",x.runs!,`<w:numPr><w:ilvl w:val="0"/><w:numId w:val="${id}"/></w:numPr>`));break}
       case "hr":body.push(`<w:p><w:pPr><w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="D5DCE3"/></w:pBdr><w:spacing w:after="160"/></w:pPr></w:p>`);break;
-      case "pb":body.push(`<w:p><w:r><w:br w:type="page"/></w:r></w:p>`);break;
+      case "pb":if(secs&&x.pi!=null){body.push(`<w:p><w:pPr>${sectX(secPi,false)}</w:pPr></w:p>`);secPi=x.pi;pg=dcPageTw(d,secPi)}else body.push(`<w:p><w:r><w:br w:type="page"/></w:r></w:p>`);break;/* per-page layout: each document page is a Word section */
       case "table":{if(x.chart&&o.skipChartTables!==false)break;const n=Math.max(1,...x.rows!.map(r=>r.length),x.head?x.head.length:0),cw=Math.floor(pg.cw/n);
         const tw=x.cw&&x.cw.length===n&&x.cw.some(Boolean)?(()=>{const tot=x.cw.reduce((a,v)=>a+(v||100/n),0);return x.cw.map(v=>Math.round((v||100/n)/tot*cw*n))})():Array.from({length:n},()=>cw);const {sk,an}=dcMgSkip(x);const vcont=new Map<string, DcMg>();(x.mg||[]).forEach(m=>{for(let i=1;i<m.rs;i++)vcont.set((m.r+i)+":"+m.c,m)});
         const cell=(txt: string,head: boolean,key: boolean|undefined,r: number,j: number)=>{const m=an[r+":"+j],vc=vcont.get(r+":"+j),span=m?m.cs:vc?vc.cs:1;const w=tw.slice(j,j+span).reduce((a,v)=>a+v,0);return `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${span>1?`<w:gridSpan w:val="${span}"/>`:""}${m&&m.rs>1?'<w:vMerge w:val="restart"/>':vc?"<w:vMerge/>":""}${head||key?`<w:shd w:val="clear" w:color="auto" w:fill="${head?"EEF2F6":"F7F9FB"}"/>`:""}</w:tcPr>${(()=>{const fx=(x as unknown as {fx?: (string|null)[][]|null}).fx;const f=!vc&&!head&&r>=0&&fx?fx[r]?.[j]:null;return f?cellF(f,txt,head||key):cellP(vc?"":txt,head||key)})()}</w:tc>`};
@@ -2944,7 +2972,7 @@ async function dcMakeDOCX(d: DcDoc,flow: DcFlowItem[],o: {skipChartTables?: bool
         const emu=pg.px2cm*360000,maxW=pg.cw/567*360000,cx=Math.round(Math.min(maxW,x.dw!*emu)),cy=Math.round(cx*x.h!/x.w!);
         body.push(`<w:p><w:pPr><w:jc w:val="center"/><w:keepNext/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${nimg}" name="Image ${nimg}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="${nimg}" name="${name}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${id}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`);break}}}
   const ftr=s.ftr!==false,[f1,f2,f3]=dcFootParts(L);
-  const sect=`<w:sectPr>${ftr?'<w:footerReference w:type="default" r:id="rIdF"/>':""}<w:pgSz w:w="${pg.w}" w:h="${pg.h}"${s.or==="l"?' w:orient="landscape"':""}/><w:pgMar w:top="${pg.my}" w:right="${pg.mx}" w:bottom="${pg.my+340}" w:left="${pg.mx}" w:header="400" w:footer="340" w:gutter="0"/>${rtl?"<w:bidi/>":""}</w:sectPr>`;
+  const sect=sectX(secPi,true);
   const NS='xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"';
   const X='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
   const doc=`${X}<w:document ${NS}><w:body>${body.join("")}${sect}</w:body></w:document>`;
@@ -2979,6 +3007,9 @@ ${pst("Footer","footer",'<w:spacing w:after="0"/>',`<w:color w:val="8A96A3"/><w:
 /* ODT */
 async function dcMakeODT(d: DcDoc,flow: DcFlowItem[]){const L=d.lang||lang(),rtl=L==="ar",s=d.set,g=dcGeo(d),E=dcXE,px2cm=g.cm/g.w,cm=(v: number)=>(Math.round(v*1000)/1000)+"cm",font=s.font||"Liberation Sans",hc="#"+(dcHex(s.hcol==="acc"?s.acc:"#1d3557")||"1D3557"),acc="#"+(dcHex(s.acc)||"2F6BF0");
   const land=s.or==="l",[PWc,PHc]=dcPaperCm(d),mx=g.mx*px2cm,my=g.my*px2cm,cwc=PWc-2*mx;
+  /* per-page layout: one ODF master page per layout used by a document page (sections); the first one is "Standard" */
+  const secs=d.pages.some(p=>!!p.lay),masters: string[]=[],lkey=(i: number)=>{const Q=dcLayOf(d,i);return [Q.size,Q.or,Q.mt,Q.mb,Q.ml,Q.mr].join("_")},mIdx=(i: number)=>{const k=lkey(i);let j=masters.indexOf(k);if(j<0){masters.push(k);j=masters.length-1}return j},mPi: number[]=[];
+  if(secs){mIdx(0);mPi[0]=0}
   const tst=new Map<string, {n: string; r: DcRun}>(),media: DcZipF[]=[];let nimg=0,ntbl=0;
   const tsn=(r: DcRun)=>{const k=(r.b?"b":"")+(r.i?"i":"")+(r.u?"u":"")+(r.s?"s":"")+(r.c?"c"+r.c:"")+(r.hl?"h":"");if(!k)return null;if(!tst.has(k))tst.set(k,{n:"T"+(tst.size+1),r});return tst.get(k)!.n};
   const span=(r: DcRun)=>{const tx=String(r.t).split("\n").map(x=>E(x)).join("<text:line-break/>");const n=tsn(r);let x=n?`<text:span text:style-name="${n}">${tx}</text:span>`:tx;if(r.a)x=`<text:a xlink:type="simple" xlink:href="${E(r.a)}">${x}</text:a>`;return x};
@@ -2989,7 +3020,7 @@ async function dcMakeODT(d: DcDoc,flow: DcFlowItem[]){const L=d.lang||lang(),rtl
     case "p":out.push(P(({quote:"Quote",box:"Box",note:"Note",small:"Small",cap:"Caption",toc1:"Toc1",toc2:"Toc2"} as Dict)[x.st!]||"Standard",x.runs!));break;
     case "li":{const ls=x.ord?"LN":"LB";if(inList!==ls){closeList();out.push(`<text:list text:style-name="${ls}">`);inList=ls}out.push(`<text:list-item>${P("List",x.runs!)}</text:list-item>`);break}
     case "hr":out.push(`<text:p text:style-name="Rule"/>`);break;
-    case "pb":out.push(`<text:p text:style-name="PB"/>`);break;
+    case "pb":if(secs&&x.pi!=null){const j=mIdx(x.pi);if(mPi[j]==null)mPi[j]=x.pi;out.push(`<text:p text:style-name="PM${j}"/>`)}else out.push(`<text:p text:style-name="PB"/>`);break;
     case "table":{if(x.chart)break;const n=Math.max(1,...x.rows!.map(r=>r.length),x.head?x.head.length:0);ntbl++;
       const c=(txt: string,h: boolean,k?: boolean)=>`<table:table-cell table:style-name="${h?"CH":k?"CK":"C"}" office:value-type="string"><text:p text:style-name="${h||k?"TH":"TD"}">${E(txt)}</text:p></table:table-cell>`;
       out.push(`<table:table table:name="Table${ntbl}" table:style-name="Tbl"><table:table-column table:number-columns-repeated="${n}"/>${x.head?`<table:table-header-rows><table:table-row>${Array.from({length:n},(_,j)=>c(x.head![j]||"",true)).join("")}</table:table-row></table:table-header-rows>`:""}${x.rows!.map(r=>`<table:table-row>${Array.from({length:n},(_,j)=>c(r[j]??"",false,x.key&&j===0)).join("")}</table:table-row>`).join("")}</table:table>`);break}
@@ -3002,7 +3033,7 @@ async function dcMakeODT(d: DcDoc,flow: DcFlowItem[]){const L=d.lang||lang(),rtl
 <style:style style:name="Tbl" style:family="table"><style:table-properties style:width="${cm(cwc)}" table:align="margins" fo:margin-bottom="0.2cm"/></style:style>
 <style:style style:name="C" style:family="table-cell"><style:table-cell-properties fo:padding="0.08cm" fo:border="0.5pt solid #c9d2db"/></style:style>
 <style:style style:name="CH" style:family="table-cell"><style:table-cell-properties fo:padding="0.08cm" fo:border="0.5pt solid #c9d2db" fo:background-color="#eef2f6"/></style:style>
-<style:style style:name="CK" style:family="table-cell"><style:table-cell-properties fo:padding="0.08cm" fo:border="0.5pt solid #c9d2db" fo:background-color="#f7f9fb"/></style:style></office:automatic-styles>`;
+<style:style style:name="CK" style:family="table-cell"><style:table-cell-properties fo:padding="0.08cm" fo:border="0.5pt solid #c9d2db" fo:background-color="#f7f9fb"/></style:style>${secs?masters.map((_,j)=>`<style:style style:name="PM${j}" style:family="paragraph" style:parent-style-name="Standard" style:master-page-name="${j===0?"Standard":"M"+j}"/>`).join(""):""}</office:automatic-styles>`;
   const content=`${X}<office:document-content ${NS}><office:font-face-decls><style:font-face style:name="${E(font)}" svg:font-family="'${E(font)}'"/></office:font-face-decls>${auto}<office:body><office:text>${out.join("")}</office:text></office:body></office:document-content>`;
   const ps=(n: string,disp: string,par: string,pp: string,tp: string)=>`<style:style style:name="${n}" style:display-name="${disp}" style:family="paragraph" style:parent-style-name="${par}" style:class="text"><style:paragraph-properties${wm} ${pp}/><style:text-properties ${tp}/></style:style>`;
   const fs=s.fs||11,[f1,f2,f3]=dcFootParts(L);
@@ -3026,7 +3057,12 @@ ${ps("TH","Table Heading","Standard",'fo:margin-bottom="0cm"','fo:font-weight="b
 <office:master-styles><style:master-page style:name="Standard" style:page-layout-name="pm1">${s.ftr!==false?`<style:footer><text:p text:style-name="Footer">${E(dcTx(d.clinic,L)+" · "+dcTx(d.title,L))}<text:tab/>${E(f1)}<text:page-number text:select-page="current">1</text:page-number>${E(f2)}<text:page-count>1</text:page-count>${E(f3)}</text:p></style:footer>`:""}</style:master-page></office:master-styles></office:document-styles>`;
   const meta=`${X}<office:document-meta ${NS}><office:meta><dc:title>${E(dcTx(d.title,L))}</dc:title><meta:generator>Remotion Documents</meta:generator><dc:language>${L}</dc:language></office:meta></office:document-meta>`;
   const man=`${X}<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3"><manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text"/><manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/><manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/><manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>${media.map(m=>`<manifest:file-entry manifest:full-path="${m.name}" manifest:media-type="image/png"/>`).join("")}</manifest:manifest>`;
-  return RDX.makeZip([{name:"mimetype",data:"application/vnd.oasis.opendocument.text",store:true},{name:"META-INF/manifest.xml",data:man},{name:"content.xml",data:content},{name:"styles.xml",data:styles},{name:"meta.xml",data:meta},...media],"application/vnd.oasis.opendocument.text")}
+  /* sections: page layouts pm1..pmN and master pages Standard, M1..MN-1, each with the same footer as Standard */
+  function odtSecStyles(st: string){const pl=(j: number)=>{const i=mPi[j]??0,g2=dcGeo(d,i),k2=g2.cm/g2.w,[W,H]=dcPaperCm(d,i);return `<style:page-layout style:name="pm${j+1}"><style:page-layout-properties fo:page-width="${cm(W)}" fo:page-height="${cm(H)}" style:print-orientation="${g2.land?"landscape":"portrait"}" fo:margin-top="${cm(g2.mt*k2)}" fo:margin-bottom="${cm(Math.max(.5,g2.mb*k2-.6))}" fo:margin-left="${cm(g2.ml*k2)}" fo:margin-right="${cm(g2.mr*k2)}"${wm}/><style:footer-style><style:header-footer-properties fo:min-height="0.5cm" fo:margin-top="0.3cm"/></style:footer-style></style:page-layout>`};
+    st=st.replace(/<style:page-layout style:name="pm1">[\s\S]*?<\/style:page-layout>/,masters.map((_,j)=>pl(j)).join(""));
+    const m=/<style:master-page style:name="Standard" style:page-layout-name="pm1">([\s\S]*?)<\/style:master-page>/.exec(st);const inner=m?m[1]:"";
+    return st.replace("</office:master-styles>",masters.slice(1).map((_,j)=>`<style:master-page style:name="M${j+1}" style:page-layout-name="pm${j+2}">${inner}</style:master-page>`).join("")+"</office:master-styles>")}
+  return RDX.makeZip([{name:"mimetype",data:"application/vnd.oasis.opendocument.text",store:true},{name:"META-INF/manifest.xml",data:man},{name:"content.xml",data:content},{name:"styles.xml",data:secs?odtSecStyles(styles):styles},{name:"meta.xml",data:meta},...media],"application/vnd.oasis.opendocument.text")}
 
 /* RTF */
 function dcMakeRTF(d: DcDoc,flow: DcFlowItem[]){const L=d.lang||lang(),rtl=L==="ar",s=d.set,pg=dcPageTw(d),fs2=Math.round((s.fs||11)*2);
@@ -3295,7 +3331,7 @@ dcExport=function(k){if(k==="print"){dcPrint();return}dcExportOpen(k==="pdf"&&!D
 dcExportItems=function(){return [...DC_XPF.filter(x=>x.k!=="print").map(x=>({l:t(x.n),ic:DCI.download||DCI.docs,run:()=>dcExportOpen(x.k)})),"-",{l:t("dc_print"),ic:DCI.print,run:()=>dcPrint()}]};
 /* print: paginated sheets, same as the PDF */
 dcPrint=async function(){const d=dcDoc();dcToast(t("dc_xpPreparing"));const {host}=await dcXpHost(d);document.getElementById("dc-print")?.remove();const box=document.createElement("div");box.id="dc-print";
-  box.innerHTML=host.firstElementChild!.innerHTML;host.remove();const g=dcGeo(d);const st=document.createElement("style");st.id="dc-print-style";st.textContent=`@page{size:${d.set.size==="letter"?"letter":"A4"} ${d.set.or==="l"?"landscape":"portrait"};margin:0}`;document.head.appendChild(st);
+  box.innerHTML=host.firstElementChild!.innerHTML;host.remove();const g=dcGeo(d);const st=document.createElement("style");st.id="dc-print-style";st.textContent=dcxPageCss(d);document.head.appendChild(st);
   document.body.appendChild(box);document.documentElement.classList.add("dc-printing");box.style.setProperty("--pz",((d.set.or==="l"?(d.set.size==="letter"?1056:1123):(d.set.size==="letter"?816:794))/g.w).toFixed(4));
   const clean=()=>{document.documentElement.classList.remove("dc-printing");box.remove();st.remove();removeEventListener("afterprint",clean)};addEventListener("afterprint",clean);
   dcToast(t("dc_printHint"));setTimeout(()=>{try{window.print()}catch(e){}setTimeout(clean,1500)},120)};
@@ -3325,7 +3361,7 @@ dcThumbs=function(){const R=dcRoot();if(!R||DC.view!=="editor")return;const g=dc
   R.querySelectorAll<HTMLInputElement>(".dc-th .pv").forEach(pv=>{const src=pages[+pv.dataset.thv!];if(!src)return;const c=src.cloneNode(true) as HTMLElement;
     c.querySelectorAll<HTMLInputElement>("[contenteditable]").forEach(x=>x.removeAttribute("contenteditable"));c.querySelectorAll<HTMLInputElement>(".dc-sx,.dc-cmk,.dc-hidb,.dc-aib,.dc-tadd,.dc-dropl").forEach(x=>x.remove());c.querySelectorAll<HTMLInputElement>(".dc-sel").forEach(x=>x.classList.remove("dc-sel"));c.querySelectorAll<HTMLInputElement>("[id]").forEach(x=>x.removeAttribute("id"));
     [c,...c.querySelectorAll<HTMLInputElement>("*")].forEach(el=>[...el.attributes].forEach(at=>{if(at.name.startsWith("data-")||at.name==="tabindex"||at.name==="role"||at.name==="aria-label")el.removeAttribute(at.name)}));c.style.zoom="";c.style.animation="none";c.classList.add("thumb");c.inert=true;c.setAttribute("aria-hidden","true");/* v94: a picture of the page, not controls */
-    const w=pv.clientWidth||110;pv.style.setProperty("--k",(w/g.w).toFixed(4));pv.style.height=(g.h*w/g.w)+"px";pv.replaceChildren(c)});
+    const w=pv.clientWidth||110,pw=parseFloat(src.style.getPropertyValue("--pw"))||g.w,ph=parseFloat(src.style.getPropertyValue("--ph"))||g.h;pv.style.setProperty("--k",(w/pw).toFixed(4));pv.style.height=(ph*w/pw)+"px";pv.replaceChildren(c)});
   dcInk(".dc-lpb",true)};
 /* labels/counts without rebuilding */
 dcPagUI=function(){const R=dcRoot();if(!R)return;const vp=dcVPages(),d=dcDoc();
@@ -3755,7 +3791,7 @@ let dcCheck=function(d?: DcDoc){d=d||dcDoc();const L=d.lang||lang(),out=[] as Dc
   used.forEach((bid,k)=>{const v=dcField(k,d,L);if(!String(v||"").trim()){const r=dcFind(bid,d);add("warn","pt",t("dc_ck_field",{x:dcFieldLabel(k)}),{b:bid,pi:r?.pi,k,fixDoc:dcFKDp(k)})}});
   const oc=(d.cmts||[]).filter(c=>!c.res).length;if(oc)add("info","cmts",t("dc_ck_cmts",{n:nf(oc)}),{fix:"cmts"});
   /* sheets that overflow (a single element taller than a page) */
-  const R=dcRoot();if(R&&DC.view==="editor"&&DC.vm!=="web"){const g=dcGeo(d);R.querySelectorAll<HTMLInputElement>(".dc-cv .dc-page").forEach(pg=>{const r=pg.getBoundingClientRect(),s=r.width/g.w;if(r.height/s>g.h+4){const b=pg.querySelector<HTMLInputElement>(".dc-pin>.dc-b");if(b)add("warn","tall",t("dc_ck_tall"),{b:b.dataset.b,pi:+pg.dataset.page!})}})}
+  const R=dcRoot();if(R&&DC.view==="editor"&&DC.vm!=="web"){const g=dcGeo(d);R.querySelectorAll<HTMLInputElement>(".dc-cv .dc-page").forEach(pg=>{const r=pg.getBoundingClientRect(),pw=parseFloat(pg.style.getPropertyValue("--pw"))||g.w,ph=parseFloat(pg.style.getPropertyValue("--ph"))||g.h,s=r.width/pw;if(r.height/s>ph+4){const b=pg.querySelector<HTMLInputElement>(".dc-pin>.dc-b");if(b)add("warn","tall",t("dc_ck_tall"),{b:b.dataset.b,pi:+pg.dataset.page!})}})}
   const ign=new Set((d.chkIgn as string[]|undefined)||[]);out.forEach(x=>x.ign=ign.has(x.key));
   const ord: Record<string, number>={err:0,warn:1,info:2};out.sort((a,b)=>ord[a.sev]-ord[b.sev]||((a.pi??-1)-(b.pi??-1)));return out}
 function dcCheckCounts(list: DcCkIss[]){const c: Record<string, number>={err:0,warn:0,info:0};list.forEach(x=>{if(!x.ign)c[x.sev]++});return c}
@@ -3858,8 +3894,8 @@ async function dcReadDocx(file: File,o?: Bag){const z=await RD.unzip(await file.
   const lvlOf=(numId: string|null|undefined,ilvl: number): DcWLvl=>(absF[numAbs[numId!]!]||{} as Record<string, DcWLvl>)[ilvl]||{fmt:"bullet"};
   /* page */
   const body=dcDesc(dx,"body")[0];const sect=dcKid(body,"sectPr")||dcDesc(body,"sectPr").pop();const page: Record<string, string|number>={};let cwTw=9360;
-  if(sect){const sz=dcKid(sect,"pgSz"),mg=dcKid(sect,"pgMar");if(sz){const w=+dcAttr(sz,"w")!,h=+dcAttr(sz,"h")!;page.or=w>h?"l":"p";page.size=Math.abs(Math.min(w,h)-12240)<300?"letter":"a4";cwTw=w}
-    if(mg){const l=+(dcAttr(mg,"left")||1440),r=+(dcAttr(mg,"right")||1440),tp=+(dcAttr(mg,"top")||1440);cwTw-=l+r;page.mgx=Math.round(l/567*30.48);page.mgy=Math.round(tp/567*30.48)}}
+  if(sect){const L=dcxSectLay(sect);if(L.size){page.or=L.or!;page.size=L.size}if(L.cwTw)cwTw=L.cwTw;
+    if(L.ml!=null){page.mgx=L.ml;page.mgy=L.mt!;if(L.mr!==L.ml||L.mb!==L.mt){page.mt=L.mt!;page.mb=L.mb!;page.ml=L.ml;page.mr=L.mr!}}}
   const imgs={n:0,skip:0};
   const imgFrom=async (rid: string)=>{const r=rels[rid];if(!r||r.mode==="External")return null;const path=("word/"+r.t).replace(/word\/\.\.\//,"").replace(/^word\/\/?word\//,"word/").replace(/\/\.\//g,"/");const p2=r.t!.startsWith("/")?r.t!.slice(1):path;const data=await z.read(p2);const mime=dcMime(p2);if(!data||!mime){imgs.skip++;return null}imgs.n++;return `data:${mime};base64,${dcB64U(data)}`};
   const runStyle=(eff: DcWRp,inLink: unknown)=>{const st: (string)[]=[];if(eff.color&&eff.color!=="auto"&&eff.color.toUpperCase()!==(baseR.color||"000000").toUpperCase()&&!(inLink&&/^0563C1$/i.test(eff.color)))st.push("color:#"+eff.color);
@@ -3923,7 +3959,7 @@ async function dcReadDocx(file: File,o?: Bag){const z=await RD.unzip(await file.
     const Wn=Math.max(1,...rows.map(r=>r.length));rows.forEach(r=>{for(let k=0;k<Wn;k++)if(r[k]==null)r[k]=""});
     if(!head&&rows.length>1){const f=Array.from({length:Wn},(_,j)=>cs["0:"+j]);if(f.every(x=>x&&(x.b||x.bg)))head=true}
     const tot=grid.reduce((a,x)=>a+x,0);out.push({k:"table",rows,cs,head,mg:mg.filter(m=>m.rs>1||m.cs>1),w:grid.length===Wn&&tot?grid.map(x=>Math.round(x/tot*100)):null})}
-  async function walk(el: Element){for(const n of [...el.children]){if(n.localName==="p")await para(n);else if(n.localName==="tbl")await table(n);else if(n.localName==="sdt"){const c=dcKid(n,"sdtContent");if(c)await walk(c)}else if(n.localName==="customXml")await walk(n)}}
+  async function walk(el: Element){for(const n of [...el.children]){if(n.localName==="p"){await para(n);const sp=dcKid(dcKid(n,"pPr"),"sectPr");/* the end of a section that is not the last: its layout belongs to the pages before */if(sp&&el===body){flushList();pendPB=false;const L=dcxSectLay(sp);delete L.cwTw;out.push({k:"pb",lay:L})}}else if(n.localName==="tbl")await table(n);else if(n.localName==="sdt"){const c=dcKid(n,"sdtContent");if(c)await walk(c)}else if(n.localName==="customXml")await walk(n)}}
   await walk(body);flushList();
   if(fnotes.length){out.push({k:"sep"});for(let i=0;i<fnotes.length;i++){let h="";for(const p of dcKids(fnotes[i],"p")){paraStyleId=null;h+=await runs(p,{})}out.push({k:"p",html:`<small><sup>${i+1}</sup> ${h}</small>`})}}
   const firstH=out.find(x=>x.k==="h");const core=coreX&&dcDesc(coreX,"title")[0]?.textContent?.trim();const lng=(baseR.lang||"").slice(0,2).toLowerCase();
@@ -4197,9 +4233,10 @@ let dcReadOld=async function(kind: string,file: File,name: string){const M={doc:
   if(M[kind as keyof typeof M])od=(await M[kind as keyof typeof M](file)).doc;else if(kind==="md")od=RD.markdownToDoc(await file.text(),name);else od=RD.plainToDoc(await file.text(),name);return {old:od,title:name,notes:kind==="doc"||kind==="ppt"?[t("dc_impOldBin")]:[]}}
 
 /* ---------------- items → blocks ---------------- */
-function dcItemsToPages(items: DcImpItem[],d: DcDoc){const pages: DcPage[]=[{id:dcId(),blocks:[]}];const cur=()=>pages[pages.length-1].blocks;
+function dcItemsToPages(items: DcImpItem[],d: DcDoc){const pages: DcPage[]=[{id:dcId(),blocks:[]}];const cur=()=>pages[pages.length-1].blocks;let secAt=0;
   for(const x of items){switch(x.k){
-    case "pb":if(cur().length)pages.push({id:dcId(),blocks:[]});break;
+    case "pb":{const L=x.lay as DcLay|undefined;/* a section's layout covers every page since the previous section ended */if(L){for(let j=secAt;j<pages.length;j++)pages[j].lay=Object.assign({},L)}
+      if(cur().length||L)pages.push({id:dcId(),blocks:[]});if(L)secAt=pages.length-1;break}
     case "h":{const b=dcB("h",{lv:x.lv,text:x.text});if(x.hs)b.hs=x.hs;cur().push(b);break}
     case "p":{const b=dcB("p",{html:x.bg?`<div style="background-color:${x.bg}">${x.html}</div>`:x.html});if(x.var)b.var=x.var;cur().push(b);break}
     case "list":cur().push(dcB("p",{html:x.html}));break;
@@ -4236,8 +4273,8 @@ let dcImpParse=async function(en: DcImpEn){const o=(DC.imp as DcImpX).opts,f=en.
     else if(k==="docx")r=await dcReadDocx(f,o);else if(k==="odt")r=await dcReadOdt(f,o);else if(k==="rtf")r=await dcReadRtf(f,o);else if(k==="html")r=await dcReadHtml(await f.text(),name,o);else if(k==="epub")r=await dcReadEpub(f,o);
     else if(k==="pptx")r=await dcReadPptx(f,o);else if(k==="xlsx")r=await dcReadXlsx(f,o);else if(k==="csv")r=dcReadCsv(await f.text(),name);else if(k==="pdf")r=await dcReadPdf(f,o);else r=await dcReadOld(k!,f,name);
     if(!d){if(r.old){d=dcFromOld(r.old,name) as DcDoc;if(!String(d.title||"").trim()||String(d.title).length>90)d.title=name}
-      else{d=dcFromTpl("gen_blank") as DcDoc;d.title=String(r.title||name).trim().slice(0,120)||name;const s: DcImpSet=r.set||{};["size","or","mgx","mgy","font","fs","lh","hcol","ftr","num"].forEach(x=>{if(s[x]!==undefined&&s[x]!==null&&s[x]!=="")d!.set[x]=s[x]});if(s.mgx!=null&&s.mgy==null)d.set.mgy=Math.round(s.mgx*1.05);
-        if(s.fs)d.set.fs=Math.max(7,Math.min(20,s.fs));if(r.lang)d.lang=r.lang;d.pages=dcItemsToPages(r.items||[],d);if(!d.pages.length)d.pages=[{id:dcId(),blocks:[dcB("p",{html:""})]}];d.set.num=false}}
+      else{d=dcFromTpl("gen_blank") as DcDoc;d.title=String(r.title||name).trim().slice(0,120)||name;const s: DcImpSet=r.set||{};["size","or","mgx","mgy","mt","mb","ml","mr","font","fs","lh","hcol","ftr","num"].forEach(x=>{if(s[x]!==undefined&&s[x]!==null&&s[x]!=="")d!.set[x]=s[x]});if(s.mgx!=null&&s.mgy==null)d.set.mgy=Math.round(s.mgx*1.05);
+        if(s.fs)d.set.fs=Math.max(7,Math.min(20,s.fs));if(r.lang)d.lang=r.lang;d.pages=dcItemsToPages(r.items||[],d);dcxLayNorm(d);if(!d.pages.length)d.pages=[{id:dcId(),blocks:[dcB("p",{html:""})]}];d.set.num=false}}
     secDoc(d);/* v92: cleaned before the first preview */d.imported={from:f.name,at:Date.now()};en.doc=d;en.notes=(r&&r.notes)||[];en.stats=dcImpStats(d);en.status="ok"}
   catch(e){console.error(e);en.status="err";en.err=(e as Error).message||String(e)}
   dcImpPaint()}
@@ -4739,10 +4776,10 @@ function dcTextMenu(e: PointerEvent,el: HTMLInputElement){const s=getSelection()
   osMenu(e.clientX,e.clientY,items)}
 function dcPageMenu(e: PointerEvent,pg: HTMLInputElement){const d=dcDoc();const pi=Math.min(+pg.dataset.page!||0,d.pages.length-1);const at={pi,bi:d.pages[pi].blocks.length};
   osMenu(e.clientX,e.clientY,[{l:t("dc_cmPasteHere"),ic:DCI.paste||DCI.copy,disabled:!DC.clip,run:()=>dcPasteBlock(at)},{l:t("dc_cmInsert"),ic:DCI.plus,sub:()=>dcInsSub(at)},"-",
-    {l:t("dc_addPageAfter"),ic:DCI.pageadd,run:()=>dcAddPage(pi)},{l:t("dc_cmLayout"),ic:DCI.vpage||DCI.doc,run:()=>{DC.rib="layout";dcRefresh("all")}},{l:t("dc_props"),ic:DCI.info,run:()=>{DC.rt="doc";DC.rpOpen=true;dcRefresh("right")}}])}
+    {l:t("dc_addPageAfter"),ic:DCI.pageadd,run:()=>dcAddPage(pi)},{l:t("dc_cmLayout"),ic:DCI.vpage||DCI.doc,run:()=>{DC.rib="layout";dcRefresh("all")}},{l:t("dcx_lay_open"),ic:DCI.sliders,run:()=>dcxLayModal(pi)},{l:t("dc_props"),ic:DCI.info,run:()=>{DC.rt="doc";DC.rpOpen=true;dcRefresh("right")}}])}
 function dcThumbMenu(e: PointerEvent,th: HTMLInputElement){const d=dcDoc();const vi=th.dataset.thvi!=null?+th.dataset.thvi:null;const v=vi!=null&&DC.vp?DC.vp[vi]:null;const pi=v?v.pi:+th.dataset.thp!||0;const sheets=(DC.vp||[]).filter(x=>x.pi===pi).length||1;const N=d.pages.length;
   osMenu(e.clientX,e.clientY,[{l:t("dc_cmGoPage"),ic:DCI.vpage||DCI.doc,run:()=>vi!=null&&typeof dcGoVPage==="function"?dcGoVPage(vi):null},"-",
-    {l:t("dc_addPageAfter"),ic:DCI.pageadd,run:()=>dcAddPage(pi)},{l:t("dc_cmDupSec"),ic:DCI.copy,run:()=>dcDupPage(pi)},{l:t("dc_moveUp"),ic:DCI.up,run:()=>dcMovePage(pi,-1),disabled:pi===0},{l:t("dc_moveDown"),ic:DCI.down,run:()=>dcMovePage(pi,1),disabled:pi===N-1},"-",
+    {l:t("dc_addPageAfter"),ic:DCI.pageadd,run:()=>dcAddPage(pi)},{l:t("dc_cmDupSec"),ic:DCI.copy,run:()=>dcDupPage(pi)},{l:t("dcx_lay_open"),ic:DCI.sliders,run:()=>dcxLayModal(pi)},{l:t("dc_moveUp"),ic:DCI.up,run:()=>dcMovePage(pi,-1),disabled:pi===0},{l:t("dc_moveDown"),ic:DCI.down,run:()=>dcMovePage(pi,1),disabled:pi===N-1},"-",
     {l:sheets>1?t("dc_cmDelSec",{n:nf(sheets)}):t("dc_delPage"),ic:DCI.del,danger:true,run:()=>dcDelPage(pi),disabled:N<2}])}
 onDoc("contextmenu",e=>{const R=dcRoot();if(!R||!R.contains(tgt(e)))return;const c=(s: string)=>tgt(e).closest<HTMLInputElement>(s);let b: HTMLInputElement|null;
   if(c(".dc-mdl,.dc-rp,.dc-drawer,.dc-find,.dc-rib")||(c("input,textarea,select")&&!c("[data-ed]")))return;
@@ -5892,14 +5929,15 @@ function dcPrintCenter(){const d=dcDoc();if(!d)return;const PR={dest:"print",pag
   m.addEventListener("click",dcPrClick);m.addEventListener("change",dcPrChange);m.addEventListener("input",e=>{if(tgt(e).matches("[data-prrange]")){DC.pr!.range=tgt(e).value;(DC.pr as unknown as DcPrState).pages="range";m.querySelectorAll<HTMLInputElement>("[data-prpages]").forEach(b=>b.setAttribute("aria-pressed",(b.dataset.prpages==="range") as unknown as string));dcPrPaint()}});
   dcPrBuild()}
 function dcPrSettingsHTML(){const d=dcDoc(),s=d.set,P=DC.pr as DcPrState | null | undefined,ex=dcIsEx&&dcIsEx(d);const g=dcGeo(d);const pxmm=g.w/(g.cm*10);
-  const mgk=s.mgx!=null?"custom":s.mg||"normal";const sigOn=typeof dcSigActed==="function"&&d.sig&&dcSigActed(d.sig as DcSig);
+  const mgk=s.mgx!=null||s.mt!=null?"custom":s.mg||"normal";const sigOn=typeof dcSigActed==="function"&&d.sig&&dcSigActed(d.sig as DcSig);
   const themes=[...DC_DTHM.map(T=>[T.id,t("dc_thm_"+T.id)]),...(((dcS!.myThemes as { id: string; name: string }[] | undefined)||[]).map(T=>[T.id,T.name]))];
   return `<div class="dc-prsec"><h6>${t("dc_pr_dest")}</h6><div class="dc-prdest">${[["print","print","dc_pr_dPrint","dc_pr_dPrintS"],["pdf","download","dc_pr_dPdf","dc_pr_dPdfS"]].map(([k,ic,l,sub])=>`<button type="button" data-prdest="${k}" aria-pressed="${P!.dest===k}"><span class="ic">${DCI[ic]||DCI.print}</span><span><b>${t(l)}</b><small>${t(sub)}</small></span></button>`).join("")}</div></div>
     <div class="dc-prsec"><h6>${t("dc_pr_pages")}</h6><div class="dc-seg sm full">${[["all","dc_pr_all"],["cur","dc_pr_cur"],["range","dc_pr_range"],["odd","dcx_pr_odd"],["even","dcx_pr_even"]].map(([k,l])=>`<button type="button" data-prpages="${k}" aria-pressed="${P!.pages===k}">${t(l)}</button>`).join("")}</div><input class="dc-inp" data-prrange value="${dcE(P!.range)}" placeholder="${t("dc_pr_rangePh")}" inputmode="numeric" aria-label="${t("dc_pr_range")}"></div>
     ${ex?`<p class="dc-note">${DCI.info}${t("dc_pr_exNote")}</p>`:`<div class="dc-prsec"><h6>${t("dc_pr_layout")}</h6>
       ${dcRow2(dcRow("dc_psize",`<select class="dc-inp" data-prset="size">${DC_PRSZ.map(([k,l])=>`<option value="${k}"${(s.size||"a4")===k?" selected":""}>${l}</option>`).join("")}</select>`),dcRow("dc_orient",`<div class="dc-seg sm full">${[["p","dc_portrait"],["l","dc_landscape"]].map(([k,l])=>`<button type="button" data-pror="${k}" aria-pressed="${(s.or||"p")===k}">${t(l)}</button>`).join("")}</div>`))}
       ${dcRow("dc_margins",`<div class="dc-seg sm full">${[["narrow","dc_mgNarrow"],["normal","dc_mgNormal"],["wide","dc_mgWide"],["custom","dc_pr_custom"]].map(([k,l])=>`<button type="button" data-prmg="${k}" aria-pressed="${mgk===k}">${t(l)}</button>`).join("")}</div>`)}
-      ${mgk==="custom"?dcRow2(dcRow("dc_pr_mgX",`<input class="dc-inp" type="number" min="5" max="60" step="1" data-prmgx="x" value="${Math.round(g.mx/pxmm)}">`),dcRow("dc_pr_mgY",`<input class="dc-inp" type="number" min="5" max="60" step="1" data-prmgx="y" value="${Math.round(g.my/pxmm)}">`)):""}
+      ${mgk==="custom"?(()=>{const f=(k: "mt"|"mb"|"ml"|"mr",l: string)=>dcRow(l,`<input class="dc-inp" type="number" min="0" max="80" step="1" data-prmg4="${k}" value="${Math.round(g[k]/pxmm)}">`);return dcRow2(f("mt","dcx_lay_top"),f("mb","dcx_lay_bottom"))+dcRow2(f("ml","dcx_lay_left"),f("mr","dcx_lay_right"))})():""}
+      ${d.pages.some(p=>!!p.lay)?`<p class="dc-note">${DCI.info}${t("dcx_lay_own")} · <button type="button" class="dc-lnk" data-dxlayopen>${t("dcx_lay_open")}</button></p>`:""}
       ${dcRow("dc_pr_theme",`<select class="dc-inp" data-prtheme><option value="">${t("dc_pr_themeCur")}</option>${themes.map(([k,l])=>`<option value="${k}"${s.theme===k?" selected":""}>${dcE(l)}</option>`).join("")}</select>`)}
       ${dcRow("dc_watermark",`<select class="dc-inp" data-prset="wm">${[["",t("dc_none")],["draft",t("dc_wmDraft")],["conf",t("dc_wmConf")]].map(([k,l])=>`<option value="${k}"${(s.wm||"")===k?" selected":""}>${l}</option>`).join("")}</select>`)}
       <label class="dc-tg"><span>${t("dc_pr_footer")}</span><input type="checkbox" data-prtg="ftr"${s.ftr!==false?" checked":""}><i></i></label></div>`}
@@ -5928,13 +5966,14 @@ function dcPrClick(e: Event){const c=(s: string)=>tgt(e).closest<HTMLInputElemen
   if((x=c("[data-prpages]"))){P.pages=x.dataset.prpages!;dcPrRefreshSettings();dcPrPaint();if(P.pages==="range")setTimeout(()=>dcRoot()!.querySelector<HTMLInputElement>(".dc-prm [data-prrange]")?.focus(),30);return}
   if((x=c("[data-prview]"))){P.view=+x.dataset.prview!;dcRoot()!.querySelectorAll<HTMLInputElement>(".dc-prm [data-prview]").forEach(b=>b.setAttribute("aria-pressed",(b===x) as unknown as string));dcPrPaint();return}
   if((x=c("[data-pror]"))){const v=x.dataset.pror;dcPrSet(d=>{d.set.or=v!});return}
-  if((x=c("[data-prmg]"))){const v=x.dataset.prmg;dcPrSet(d=>{if(v==="custom"){const g=dcGeo(d);d.set.mgx=g.mx;d.set.mgy=g.my}else{d.set.mg=v!;delete d.set.mgx;delete d.set.mgy}});return}
+  if((x=c("[data-prmg]"))){const v=x.dataset.prmg;dcPrSet(d=>{if(v==="custom"){const g=dcGeo(d);d.set.mgx=g.ml;d.set.mgy=g.mt;d.set.mt=g.mt;d.set.mb=g.mb;d.set.ml=g.ml;d.set.mr=g.mr}else{d.set.mg=v!;delete d.set.mgx;delete d.set.mgy;delete d.set.mt;delete d.set.mb;delete d.set.ml;delete d.set.mr}});return}
   if((x=c(".dc-prpg"))){const n=+x.dataset.prn!;P.pages="range";const cur=dcPrSelected();if(P.range.trim()&&cur.has(n))cur.delete(n);else cur.add(n);P.range=[...cur].sort((a,b)=>a-b).join(", ");dcPrRefreshSettings();dcPrPaint();return}
   if((x=c("[data-prnup]"))){P.nup=+x.dataset.prnup!;dcPrRefreshSettings();dcPrPaint();return}
   if(c("[data-prgo]")){dcPrGo();return}}
 function dcPrChange(e: Event){const x=tgt(e);const P=DC.pr as DcPrState | null | undefined;if(!P)return;
   if(x.matches("[data-prset]")){const k=x.dataset.prset,v=x.value;dcPrSet(d=>{d.set[k!]=v||(k==="wm"?"":v)});return}
   if(x.matches("[data-prtheme]")){const v=x.value;if(v){dcThmApply(v);dcPrRefreshSettings();clearTimeout(dcPrT);dcPrT=setTimeout(dcPrBuild,120)}return}
+  if(x.matches("[data-prmg4]")){const v=Math.max(0,Math.min(80,+x.value||0));dcPrSet(d=>{const g=dcGeo(d);const pxmm=g.w/(g.cm*10);const S=d.set;if(S.mt==null){S.mt=g.mt;S.mb=g.mb;S.ml=g.ml;S.mr=g.mr}S[x.dataset.prmg4!]=Math.round(v*pxmm);S.mgx=S.ml;S.mgy=S.mt});return}
   if(x.matches("[data-prmgx]")){const v=Math.max(5,Math.min(60,+x.value||15));dcPrSet(d=>{const g=dcGeo(d);const pxmm=g.w/(g.cm*10);if(x.dataset.prmgx==="x")d.set.mgx=Math.round(v*pxmm);else d.set.mgy=Math.round(v*pxmm)});return}
   if(x.matches("[data-prhf]")){const k=x.dataset.prhf as keyof DcxHf;const hf=P.hf||(P.hf=dcxHfDefault());if(k==="on"||k==="skip1")(hf as unknown as Record<string, unknown>)[k]=x.checked;else (hf as unknown as Record<string, unknown>)[k]=x.value;try{localStorage.setItem("remotion-docs-xp-hf",JSON.stringify(hf))}catch{}if(k==="on")dcPrRefreshSettings();dcPrPaint();return}
   if(x.matches("[data-prtg]")){const k=x.dataset.prtg;if(k==="ftr"){const on=x.checked;dcPrSet(d=>{d.set.ftr=(on?undefined:false) as boolean});return}P[k!]=x.checked;if(k==="cert"){clearTimeout(dcPrT);dcPrT=setTimeout(dcPrBuild,60)}else dcPrPaint()}}
@@ -5948,7 +5987,7 @@ async function dcPrGo(){const P=DC.pr as DcPrState | null | undefined;if(!P||!P.
 function dcPrPrint(d: DcDoc,P: DcPrState,sel: Set<number>){document.getElementById("dc-print")?.remove();document.getElementById("dc-print-style")?.remove();const box=document.createElement("div");box.id="dc-print";if(P.gray)box.classList.add("gray");if(!P.bg)box.classList.add("nobg");
   const pages=[...P.host!.querySelectorAll<HTMLInputElement>(".dc-page")].filter((p,i)=>sel.has(i+1));box.innerHTML=pages.map(p=>p.outerHTML).join("");box.querySelectorAll<HTMLInputElement>("[contenteditable]").forEach(x=>x.removeAttribute("contenteditable"));
   dcxPrDecorate([...box.querySelectorAll<HTMLElement>(".dc-page")],P,d);
-  const g=dcGeo(d),[wc,hc]=dcPaperCm(d);const st=document.createElement("style");st.id="dc-print-style";st.textContent=`@page{size:${wc}cm ${hc}cm;margin:0}`;document.head.appendChild(st);
+  const g=dcGeo(d),[wc,hc]=dcPaperCm(d);const st=document.createElement("style");st.id="dc-print-style";st.textContent=dcxPageCss(d,[wc,hc]);document.head.appendChild(st);
   document.body.appendChild(box);document.documentElement.classList.add("dc-printing");box.style.setProperty("--pz",((wc/2.54*96)/g.w).toFixed(4));
   const clean=()=>{document.documentElement.classList.remove("dc-printing");box.remove();st.remove();removeEventListener("afterprint",clean)};addEventListener("afterprint",clean);
   setTimeout(()=>{let ok=true;try{window.print()}catch(e){ok=false}setTimeout(()=>{clean();},1500);dcToast(t("dc_pr_printHint"))},150)}
@@ -7659,14 +7698,14 @@ function dcxPgSplitPara(be: HTMLElement,lim: number){const tw=document.createTre
     for(let i=all.length-1;i>=0&&Math.abs(all[i].top-lineTop)<2;i--)if(!/\s/.test(all[i].n.data[all[i].o]))start=all[i]}
   // the rest must hold at least two lines too
   const endR=be.getBoundingClientRect();const lh=Math.max(1,cut.bottom-cut.top);if(endR.bottom-lineTop<lh*1.8)return false;
-  const cutR=document.createRange();cutR.setStart(start.n,start.o);cutR.setEnd(be,be.childNodes.length);
+  const cutR=document.createRange();cutR.setStart(start.n,start.o);cutR.setEnd(be,be.childNodes.length);dcxCutClimb(cutR,be);
   const liCut=start.n.parentElement?.closest("li");const olBefore=liCut?.parentElement?.tagName==="OL"?liCut.parentElement as HTMLOListElement:null;let liN=0;if(olBefore&&liCut){liN=[...olBefore.children].indexOf(liCut)+(+(olBefore.getAttribute("start")||1))}
   let midLi=false;if(liCut){const r0=document.createRange();r0.setStart(liCut,0);r0.setEnd(start.n,start.o);midLi=r0.toString().trim().length>0}
-  const frag=cutR.extractContents();const c=be.cloneNode(false) as DcPgEl;c.appendChild(frag);
+  const dep=dcxCutDepth(cutR,be);const frag=cutR.extractContents();dcxMarkSeam(frag,dep);const c=be.cloneNode(false) as DcPgEl;c.appendChild(frag);c._orig=(be as DcPgEl)._orig||be;
   c.querySelectorAll<HTMLElement>("[id]").forEach(x=>x.removeAttribute("id"));
   // a numbered list goes on with the right number; an item cut in the middle does not show its bullet or number twice
   if(liN){const ol=c.querySelector("ol");if(ol)ol.setAttribute("start",String(liN))}
-  if(midLi){const li=c.querySelector("li");if(li)li.style.listStyle="none"}
+  if(midLi){const li=c.querySelector<HTMLElement>("li[data-dxh]");if(li)li.style.listStyle="none"}
   c.classList.add("dc-bc","dcx-pcont");c.classList.remove("dc-sel");c.style.marginTop="0";be.after(c);return true}
 
 /* ---- free document: one blank, freely editable page (no blocks), on the Word-page engine — as a word processor ---- */
@@ -8156,3 +8195,169 @@ export {
   DC, DC_KEY, DC_T, DC_TPL, dcLoad, dcSave, dcDoc, dcFind, dcEach, dcBody, dcRender, dcRoot, dcApplyZoom, dcInk, dcViewAfter, dcCurSync,
   dcStatusSync, dcPopClose, dcLvGC, dcSeedDoc, dcFromTpl, dcNewBlock, dcBlockText, dcTx, dcPlain, dcNumbers, dcStats, dcCondOk, RD, RDT, dcField, dcCheck,
 };
+
+/* ===== product · page setup per section (layout per page) =====
+   A document page (d.pages[i]) is a section: it always starts on a new sheet and may run over several sheets. Each section may
+   carry its own layout (page.lay: size, orientation, four margins); the document settings are the default. The dialog applies
+   a layout to the whole document, to this section, to this section and the ones after, or to a list of sections. */
+const DCX_SIZES: [string, string][] = [["a4", "A4 · 21 × 29,7 cm"], ["letter", "Letter · 21,6 × 27,9 cm"], ["a5", "A5 · 14,8 × 21 cm"], ["legal", "Legal · 21,6 × 35,6 cm"], ["a3", "A3 · 29,7 × 42 cm"]];
+/** sheet px per mm for a paper size (portrait width: the px scale does not depend on the orientation) */
+const dcxPxMm = (size: string) => { const p = DC_PS[size] || DC_PS.a4; return p[0] / (p[2] * 10); };
+type DcxLayFull = { size: string; or: string; mt: number; mb: number; ml: number; mr: number };
+/** "2-4, 6" → [1,2,3,5] (0-based section indexes), or null when a part is outside 1..n */
+function dcxParseRange(v: string, n: number): number[] | null {
+  const out = new Set<number>(); const parts = v.split(/[,،;]/).map((x) => x.trim()).filter(Boolean); if (!parts.length) return null;
+  for (const p of parts) { const m = /^(\d+)\s*(?:[-–]\s*(\d+))?$/.exec(p); if (!m) return null; const a = +m[1], b = m[2] ? +m[2] : a; if (a < 1 || b > n || a > b) return null; for (let i = a; i <= b; i++) out.add(i - 1); }
+  return [...out].sort((x, y) => x - y);
+}
+/** Writes a layout: on the document (and every section loses its own copy of those keys) or on the given sections. */
+function dcxLayApply(d: DcDoc, L: DcxLayFull, scope: "all" | number[]) {
+  if (scope === "all") {
+    const s = d.set; s.size = L.size; s.or = L.or;
+    if (L.mt === L.mb && L.ml === L.mr) { s.mgx = L.ml; s.mgy = L.mt; delete s.mt; delete s.mb; delete s.ml; delete s.mr; }
+    else { s.mgx = L.ml; s.mgy = L.mt; s.mt = L.mt; s.mb = L.mb; s.ml = L.ml; s.mr = L.mr; }
+    d.pages.forEach((p) => { delete p.lay; });
+    return;
+  }
+  const base = dcLayOf(d, null);
+  scope.forEach((i) => { const p = d.pages[i]; if (!p) return; const own: DcLay = {}; DC_LAYK.forEach((k) => { if (L[k] !== base[k]) (own as Record<string, unknown>)[k] = L[k]; }); if (Object.keys(own).length) p.lay = own; else delete p.lay; });
+}
+/** Quick menus (Margins, Orientation, Size) set the document value for the whole document, sections included. */
+function dcxLayClearKeys(d: DcDoc, keys: (keyof DcLay)[]) { d.pages.forEach((p) => { const o = p.lay as DcLay | undefined; if (!o) return; keys.forEach((k) => delete o[k]); if (!Object.keys(o).length) delete p.lay; }); }
+function dcxLayModal(pi?: number) {
+  const d = dcDoc(); const N = d.pages.length; const cur = Math.max(0, Math.min(N - 1, pi ?? DC.cur ?? 0)); const L = dcLayOf(d, cur); const k = dcxPxMm(L.size);
+  const own = !!d.pages[cur]?.lay; const scope = own ? "this" : "all";
+  const mm = (px: number) => Math.round(px / k);
+  const num = (key: string, lab: string, v: number) => dcRow(lab, `<input class="dc-inp" type="number" min="0" max="80" step="1" data-dxlaymg="${key}" data-px="${v}" value="${mm(v)}">`);
+  dcModal(dcMHead(DCI.sliders, t("dcx_lay_title"), t("dcx_lay_secOf", { n: nf(cur + 1), m: nf(N) })) + `<div class="dc-mb dcx-laym" data-pi="${cur}">
+    <p class="dc-mut sm">${t("dcx_lay_sub")}</p>${own ? `<p class="dcx-lay-own">${DCI.info}${t("dcx_lay_own")}</p>` : ""}
+    <div class="dc-row"><span class="lb">${t("dcx_lay_apply")}</span>${dcSegH("data-dxlaysc", [["all", t("dcx_lay_all")], ["this", t("dcx_lay_this")], ["after", t("dcx_lay_after")], ["range", t("dcx_lay_range")]], scope)}</div>
+    <label class="dc-row dcx-lay-range" hidden><span class="lb">${t("dcx_lay_range")}</span><input class="dc-inp" type="text" inputmode="numeric" data-dxlayrange placeholder="${dcE(t("dcx_lay_rangePh"))}" value="${nf(cur + 1)}"><small class="dc-mut" data-dxlayerr hidden></small></label>
+    ${dcRow2(dcRow("dcx_lay_size", `<select class="dc-inp" data-dxlaysize>${DCX_SIZES.map(([v, l]) => `<option value="${v}"${L.size === v ? " selected" : ""}>${l}</option>`).join("")}</select>`), `<div class="dc-row"><span class="lb">${t("dcx_lay_or")}</span>${dcSegH("data-dxlayor", [["p", t("dc_portrait")], ["l", t("dc_landscape")]], L.or)}</div>`)}
+    <div class="dc-row"><span class="lb">${t("dcx_lay_mg")}</span>${dcSegH("data-dxlaypre", [["narrow", t("dc_mgNarrow")], ["normal", t("dc_mgNormal")], ["wide", t("dc_mgWide")]], "")}</div>
+    ${dcRow2(num("mt", "dcx_lay_top", L.mt), num("mb", "dcx_lay_bottom", L.mb))}${dcRow2(num("ml", "dcx_lay_left", L.ml), num("mr", "dcx_lay_right", L.mr))}</div>
+    <footer class="dc-mf">${own ? `<button type="button" class="dc-btn" data-dxlayreset>${t("dcx_lay_reset")}</button><span style="flex:1"></span>` : ""}<button type="button" class="dc-btn" data-mclose>${t("fe_cancel")}</button><button type="button" class="dc-btn pri" data-dxlayok>${DCI.check}${t("dcx_lay_apply_btn")}</button></footer>`, { title: t("dcx_lay_title") });
+  dcxLaySync();
+}
+function dcxLayM() { return dcRoot()?.querySelector<HTMLElement>(".dcx-laym") || null; }
+function dcxLaySync() { const m = dcxLayM(); if (!m) return; const sc = m.querySelector<HTMLElement>('[data-dxlaysc][aria-pressed="true"]')?.dataset.dxlaysc; const r = m.querySelector<HTMLElement>(".dcx-lay-range"); if (r) r.hidden = sc !== "range"; }
+function dcxLayRead(m: HTMLElement): DcxLayFull { const size = m.querySelector<HTMLSelectElement>("[data-dxlaysize]")!.value; const k = dcxPxMm(size); const or = m.querySelector<HTMLElement>('[data-dxlayor][aria-pressed="true"]')?.dataset.dxlayor || "p";
+  const v = (key: string) => { const x = m.querySelector<HTMLInputElement>(`[data-dxlaymg="${key}"]`)!; if (x.value === x.defaultValue && x.dataset.px) return +x.dataset.px; /* untouched: the exact value, not one rounded through mm */ return Math.round(Math.max(0, Math.min(80, +x.value || 0)) * k); };
+  return { size, or, mt: v("mt"), mb: v("mb"), ml: v("ml"), mr: v("mr") }; }
+function dcxLayOk() {
+  const m = dcxLayM(); if (!m) return; const d = dcDoc(); const N = d.pages.length; const cur = +m.dataset.pi!; const L = dcxLayRead(m);
+  const sc = m.querySelector<HTMLElement>('[data-dxlaysc][aria-pressed="true"]')?.dataset.dxlaysc || "all";
+  let scope: "all" | number[] = "all";
+  if (sc === "this") scope = [cur]; else if (sc === "after") scope = d.pages.map((_, i) => i).filter((i) => i >= cur);
+  else if (sc === "range") { const r = dcxParseRange(m.querySelector<HTMLInputElement>("[data-dxlayrange]")!.value, N); const e = m.querySelector<HTMLElement>("[data-dxlayerr]"); if (!r) { if (e) { e.hidden = false; e.textContent = t("dcx_lay_rangeBad", { n: nf(N) }); } return; } scope = r; }
+  dcModalClose(); dcMut((dd) => dcxLayApply(dd, L, scope), "all"); dcThumbsSoon(0); dcToast(t("dcx_lay_done"));
+}
+{ const _mc = dcModalClick; dcModalClick = function (e, m) {
+  const x = tgt(e); let b: HTMLElement | null;
+  if ((b = x.closest<HTMLElement>("[data-dxlaysc]"))) { b.parentElement!.querySelectorAll("button").forEach((y) => y.setAttribute("aria-pressed", String(y === b))); dcxLaySync(); return; }
+  if ((b = x.closest<HTMLElement>("[data-dxlayor]"))) { b.parentElement!.querySelectorAll("button").forEach((y) => y.setAttribute("aria-pressed", String(y === b))); return; }
+  if ((b = x.closest<HTMLElement>("[data-dxlaypre]"))) { const mm = DC_MG[b.dataset.dxlaypre!] || DC_MG.normal; const box = dcxLayM()!; const k = dcxPxMm(box.querySelector<HTMLSelectElement>("[data-dxlaysize]")!.value);
+    const set = (key: string, px: number) => { box.querySelector<HTMLInputElement>(`[data-dxlaymg="${key}"]`)!.value = String(Math.round(px / k)); }; set("mt", mm[1]); set("mb", mm[1]); set("ml", mm[0]); set("mr", mm[0]); return; }
+  if (x.closest("[data-dxlayok]")) { dcxLayOk(); return; }
+  if (x.closest("[data-dxlayreset]")) { const box = dcxLayM(); const pi = box ? +box.dataset.pi! : 0; dcModalClose(); dcMut((dd) => { delete dd.pages[pi].lay; }, "all"); dcThumbsSoon(0); dcToast(t("dcx_lay_done")); return; }
+  _mc(e, m);
+}; }
+/* the size select keeps the margins in mm when the paper changes */
+onDoc("change", (e) => { const x = tgt(e) as unknown as HTMLSelectElement; if (!x.matches?.("[data-dxlaysize]")) return; const m = dcxLayM(); if (m) m.querySelector<HTMLElement>("[data-dxlayerr]")?.setAttribute("hidden", ""); }, true);
+/* Layout quick menus (Margins, Orientation, Size): document values for the whole document, then "Page setup…" (called from dcDD) */
+function dcxLayDD(k: string, btn: HTMLElement) {
+  const d = dcDoc(), s = d.set; const more = ["-", { l: t("dcx_lay_open"), ic: DCI.sliders, run: () => dcxLayModal() }];
+  if (k === "mg") { dcMenuAt(btn, [...[["narrow", "dc_mgNarrow"], ["normal", "dc_mgNormal"], ["wide", "dc_mgWide"]].map(([v, l]) => ({ l: t(l), check: s.mgx == null && s.mt == null && s.mg === v, run: () => dcMut((dd) => { dd.set.mg = v; delete dd.set.mgx; delete dd.set.mgy; delete dd.set.mt; delete dd.set.mb; delete dd.set.ml; delete dd.set.mr; dcxLayClearKeys(dd, ["mt", "mb", "ml", "mr"]); }, "canvas") })), ...more] as never); return; }
+  if (k === "or") { dcMenuAt(btn, [...[["p", "dc_portrait"], ["l", "dc_landscape"]].map(([v, l]) => ({ l: t(l), check: s.or === v, run: () => { dcMut((dd) => { dd.set.or = v; dcxLayClearKeys(dd, ["or"]); }, "canvas"); dcThumbsSoon(0); } })), ...more] as never); return; }
+  dcMenuAt(btn, [...DCX_SIZES.map(([v, l]) => ({ l, check: s.size === v, run: () => { dcMut((dd) => { dd.set.size = v; dcxLayClearKeys(dd, ["size"]); }, "canvas"); dcThumbsSoon(0); } })), ...more] as never);
+}
+onDoc("click", (e) => { const b = tgt(e).closest?.<HTMLElement>("[data-dxlayopen]"); if (!b || !b.closest(".dc")) return; e.stopPropagation(); dcxLayModal(); }, true);
+/** Print CSS: the document's paper as the default @page, plus one named page per other size / orientation used by a section, so
+ *  each printed sheet keeps its own paper (Chrome, Edge and Safari print named pages; others fall back to the default). */
+function dcxPageCss(d: DcDoc, def?: number[]) {
+  const [w0, h0] = def || dcPaperCm(d); let css = `@page{size:${w0}cm ${h0}cm;margin:0}`; const seen = new Set<string>();
+  d.pages.forEach((_, i) => { const L = dcLayOf(d, i); const key = L.size + "_" + L.or; if (seen.has(key)) return; seen.add(key); const [w, h] = dcPaperCm(d, i);
+    css += `@page dcp_${key}{size:${w}cm ${h}cm;margin:0}.dc-page[data-psz="${L.size}"][data-por="${L.or}"]{page:dcp_${key}}`; });
+  return css;
+}
+
+/* ---------------- DOCX sections: one layout per <w:sectPr> ---------------- */
+/** Layout of one Word section (sheet px for the margins, like set.mgx). */
+function dcxSectLay(sect: Element): DcLay & { cwTw?: number }{const L: DcLay & { cwTw?: number }={};const sz=dcKid(sect,"pgSz"),mg=dcKid(sect,"pgMar");
+  if(sz){const w=+(dcAttr(sz,"w")||11906),h=+(dcAttr(sz,"h")||16838);L.or=w>h||dcAttr(sz,"orient")==="landscape"&&w>=h?"l":"p";const sh=Math.min(w,h)/567,lo=Math.max(w,h)/567;
+    let best="a4",bd=1e9;for(const k in DC_PCM){const c=DC_PCM[k];const dd=Math.abs(c[0]-sh)+Math.abs(c[1]-lo);if(dd<bd){bd=dd;best=k}}L.size=best;L.cwTw=w}
+  if(mg){const px=(v: string|null,dv: number)=>Math.round(Math.abs(+(v||dv))/567*30.48);const l=+(dcAttr(mg,"left")||1440),r=+(dcAttr(mg,"right")||1440);if(L.cwTw)L.cwTw-=l+r;
+    L.mt=px(dcAttr(mg,"top"),1440);L.mb=px(dcAttr(mg,"bottom"),1440);L.ml=px(String(l),1440);L.mr=px(String(r),1440)}
+  return L}
+/** After an import with several sections: the first section's layout becomes the document's (Word keeps the last one in the
+ *  body), each page keeps only what differs from it, and a layout that adds nothing is dropped. */
+function dcxLayNorm(d: DcDoc){if(!d.pages.some(p=>!!p.lay))return;const body=dcLayOf(d,null);d.pages.forEach(p=>{if(!p.lay)p.lay=Object.assign({},body)});
+  const f=dcLayOf(d,0);d.set.size=f.size;d.set.or=f.or;d.set.mgx=f.ml;d.set.mgy=f.mt;if(f.mr!==f.ml||f.mb!==f.mt){d.set.mt=f.mt;d.set.mb=f.mb;d.set.ml=f.ml;d.set.mr=f.mr}else["mt","mb","ml","mr"].forEach(k=>delete d.set[k]);
+  const b=dcLayOf(d,null) as Record<string, unknown>;for(const p of d.pages){if(!p.lay)continue;const o: Record<string, unknown>={};
+  DC_LAYK.forEach(k=>{const v=(p.lay as Record<string, unknown>)[k];if(v!=null&&v!==b[k])o[k]=v});if(Object.keys(o).length)p.lay=o as DcLay;else delete p.lay}}
+
+/* ---------------- smart page breaks (editor and exports alike) ----------------
+ * The editor now cuts blocks exactly like the PDF / print sheets: a paragraph between two lines (two lines at least on each
+ * side), a list between two items (two items at least on each side), an image taller than a sheet shrinks to fit it, and any
+ * other block taller than a sheet is cut between lines. A cut block is a ".dc-bc.dcx-pcont" clone after the original; the
+ * halves that the cut went through carry data-dxh so they are joined back (pagination, editing) into one block again. */
+/** Moves the start of a cut out of elements it would leave empty (a cut at the first character of an item or a nested block
+ *  goes before that element), so joining the halves never adds an empty item. */
+function dcxCutClimb(r: Range,be: Element){for(let g=0;g<20;g++){const n=r.startContainer;const el=n.nodeType===1?n as Element:n.parentElement;if(!el||el===be||!be.contains(el))return;
+  const pre=document.createRange();pre.setStart(el,0);pre.setEnd(r.startContainer,r.startOffset);if(pre.toString().length||pre.cloneContents().querySelector("img,br,hr"))return;
+  if(n.nodeType===1&&r.startOffset===0&&n!==el)return;if(el.hasAttribute("data-ed"))return;r.setStartBefore(el)}}
+/** How many elements, from the block down, the cut goes through (each one is split in two). */
+function dcxCutDepth(r: Range,be: Element){let n: Node|null=r.startContainer.nodeType===1?r.startContainer:r.startContainer.parentElement;let k=0;while(n&&n!==be){k++;n=n.parentNode}return k}
+function dcxMarkSeam(frag: DocumentFragment,dep: number){let n: Node|null=frag.firstChild;for(let i=0;i<dep&&n;i++){if(n.nodeType!==1)break;(n as Element).setAttribute("data-dxh","1");n=n.firstChild}}
+/** Appends `src`'s content to `dst`; the first child, when it is the other half of `dst`'s last child, is joined into it. */
+function dcxJoin(dst: Element,src: Element){const f=src.firstChild as Element|null;const l=dst.lastElementChild===dst.lastChild?dst.lastElementChild:null;
+  if(f&&f.nodeType===1&&f.hasAttribute("data-dxh")&&l&&l.tagName===f.tagName){dcxJoin(l,f);f.remove()}
+  while(src.firstChild){const n=src.firstChild;if(n.nodeType===1)(n as Element).removeAttribute("data-dxh");dst.appendChild(n)}}
+/** All the parts of one block on screen, in order (the original first). */
+function dcxParts(host: ParentNode,id: string){return [...host.querySelectorAll<DcPgEl>(`.dc-b[data-b="${id}"]`)]}
+/** A list cut between two items. 1: cut; 0: the bottom is not in a list; -1: in a list but the 2 + 2 rule refuses the cut. */
+function dcxPgSplitList(be: DcPgEl,lim: number): number{const ed=be.querySelector<HTMLElement>("[data-ed]")||be.querySelector<HTMLElement>(".dc-p")||be;
+  const ls=[...ed.children].find(x=>/^(UL|OL)$/.test(x.tagName)&&x.getBoundingClientRect().top<lim&&x.getBoundingClientRect().bottom>lim);if(!ls)return 0;
+  const items=[...ls.children].filter(x=>x.tagName==="LI");let j=-1;for(let i=0;i<items.length;i++){if(items[i].getBoundingClientRect().bottom<=lim-2)j=i;else break}
+  const before=j+1,after=items.length-before;const r=document.createRange();
+  if(before>=2&&after>=2)r.setStartBefore(items[j+1]);
+  else if(before<2&&ls.previousElementSibling&&ls.getBoundingClientRect().top-ed.getBoundingClientRect().top>28)r.setStartBefore(ls);/* the list goes on the next sheet, the text above it stays */
+  else return -1;
+  r.setEnd(be,be.childNodes.length);const n0=ls.tagName==="OL"?(+(ls.getAttribute("start")||1))+before:0;
+  const dep=dcxCutDepth(r,be);const frag=r.extractContents();dcxMarkSeam(frag,dep);const c=be.cloneNode(false) as DcPgEl;c.appendChild(frag);c._orig=be._orig||be;
+  c.querySelectorAll<HTMLElement>("[id]").forEach(x=>x.removeAttribute("id"));if(n0&&before>=2){const ol=c.querySelector("ol[data-dxh]");if(ol)ol.setAttribute("start",String(n0))}
+  c.classList.add("dc-bc","dcx-pcont");c.classList.remove("dc-sel");c.style.marginTop="0";be.after(c);return 1}
+/** An image block taller than the room left on a sheet it starts: the picture shrinks (aspect kept) so the block fits. */
+function dcxImgFit(be: HTMLElement,L: { lim: number; s: number }){const im=be.querySelector<HTMLImageElement>("img");if(!im)return false;const r=be.getBoundingClientRect(),ir=im.getBoundingClientRect();
+  const room=L.lim-ir.top-(r.bottom-ir.bottom)-2;if(room<60*L.s||room>=ir.height)return false;im.style.maxHeight=(room/L.s)+"px";im.style.width="auto";im.style.maxWidth="100%";be.classList.add("dcx-ifit");return true}
+function dcxImgFitReset(host: HTMLElement){host.querySelectorAll<HTMLElement>(".dcx-ifit").forEach(b=>{b.classList.remove("dcx-ifit");const im=b.querySelector<HTMLImageElement>("img");if(im){im.style.maxHeight="";im.style.width=im.dataset.w||"";im.style.maxWidth=""}})}
+/** Tries to cut the block that crosses the sheet bottom; true when something changed. */
+function dcxPgSplitAny(kb: DcPgEl,L: { lim: number; s: number },k: number,kids: DcPgEl[]){
+  if(kb.classList.contains("t-table"))return false;
+  if(kb.classList.contains("t-img")){if(k===0&&!kb.classList.contains("dcx-ifit")){const im=kb.querySelector<HTMLImageElement>("img");if(im&&im.dataset.w==null)im.dataset.w=im.style.width;return dcxImgFit(kb,L)}return false}
+  const first=k===0;void kids;
+  if(kb.classList.contains("t-p")){const lr=dcxPgSplitList(kb,L.lim);if(lr===1)return true;if(lr===-1&&!first)return false;return dcxPgSplitPara(kb,L.lim)}
+  /* another block taller than what is left of a sheet it starts: cut between lines rather than overflow */
+  if(first&&!kb.classList.contains("t-chart")&&kb.querySelector("[data-ed],blockquote,p,li,.dc-p,div"))return dcxPgSplitPara(kb,L.lim);
+  return false}
+/* the caret survives a new cut: saved as a character offset in the block (all its parts), put back after */
+type DcxCaret={id: string;key: string;a: number;b: number}|null;
+function dcxEdParts(host: ParentNode,id: string,key: string){return dcxParts(host,id).map(p=>p.querySelector<HTMLElement>(`[data-ed="${key}"]`)).filter(Boolean) as HTMLElement[]}
+function dcxCaretOff(eds: HTMLElement[],n: Node,o: number){let c=0;for(const e of eds){if(e.contains(n)){const r=document.createRange();r.setStart(e,0);r.setEnd(n,o);return c+r.toString().length}c+=(e.textContent||"").length}return -1}
+function dcxCaretAt(eds: HTMLElement[],pos: number): [Node,number,HTMLElement]|null{let c=0;for(const e of eds){const tw=document.createTreeWalker(e,NodeFilter.SHOW_TEXT);for(let t=tw.nextNode() as Text|null;t;t=tw.nextNode() as Text|null){if(c+t.length>=pos)return [t,pos-c,e];c+=t.length}}
+  const e=eds[eds.length-1];return e?[e,e.childNodes.length,e]:null}
+function dcxCaretSave(host: HTMLElement): DcxCaret{const s=getSelection();if(!s||!s.rangeCount)return null;const r=s.getRangeAt(0);const n=r.startContainer;const el=(n.nodeType===1?n as Element:n.parentElement)?.closest<HTMLElement>("[data-ed]");
+  if(!el||!host.contains(el))return null;const be=el.closest<HTMLElement>(".dc-b");if(!be)return null;const id=be.dataset.b!,key=el.dataset.ed!;const eds=dcxEdParts(host,id,key);
+  const a=dcxCaretOff(eds,r.startContainer,r.startOffset),b=dcxCaretOff(eds,r.endContainer,r.endOffset);return a<0?null:{id,key,a,b:b<0?a:b}}
+function dcxCaretPut(host: HTMLElement,c: DcxCaret){if(!c)return;const eds=dcxEdParts(host,c.id,c.key);const A=dcxCaretAt(eds,c.a),B=dcxCaretAt(eds,c.b);if(!A||!B)return;
+  try{const s=getSelection()!;const cur=s.rangeCount?s.getRangeAt(0):null;if(cur&&cur.startContainer===A[0]&&cur.startOffset===A[1]&&cur.endContainer===B[0]&&cur.endOffset===B[1])return;
+    if(document.activeElement!==A[2])A[2].focus({preventScroll:true});const r=document.createRange();r.setStart(A[0],A[1]);if(B[2]===A[2])r.setEnd(B[0],B[1]);s.removeAllRanges();s.addRange(r)}catch(e){}}
+{const _pg=dcPaginate;dcPaginate=function(host,d,web){const c=host.closest(".dc-xph")?null:dcxCaretSave(host);const r=_pg(host,d,web);if(c)dcxCaretPut(host,c);return r}}
+/* a block cut in parts is edited as one: its HTML is the parts joined back */
+{const _rb=dcRefreshBlock;dcRefreshBlock=function(id,anim?){dcRoot()?.querySelectorAll(`.dc-b.dcx-pcont[data-b="${id}"]`).forEach(x=>x.remove());return _rb(id,anim)}}
+/** Joins a continuation block back into its original: each cut piece goes back into the piece it was cut from, wherever the
+ *  editor has put other things (handles, badges) since. */
+function dcxJoinBlock(o: Element,c: Element){for(const n of [...c.childNodes]){if(n.nodeType===1&&(n as Element).hasAttribute("data-dxh")){const e=n as HTMLElement;
+    const into=e.dataset.ed!=null?o.querySelector(`[data-ed="${e.dataset.ed}"]`):[...o.children].reverse().find(x=>x.tagName===e.tagName&&x.className===e.className);
+    if(into){dcxJoin(into,e);e.remove();continue}e.removeAttribute("data-dxh")}
+  o.appendChild(n)}}
