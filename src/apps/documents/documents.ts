@@ -270,7 +270,7 @@ type DcRun = DcRunF & { t: string };
 type DcPara = { runs: DcRun[]; list?: string };
 type DcMg = { r: number; c: number; rs: number; cs: number };
 type DcFlowImg = { png: Uint8Array<ArrayBuffer>; w: number; h: number; dw?: number };
-type DcFlowItem = { k: string; /** "pb": the section (page index) that starts here */ pi?: number; st?: string; runs?: DcRun[]; lv?: number; text?: string; ord?: boolean; key?: boolean; head?: string[] | null; rows?: string[][]; meas?: boolean; title?: string; mg?: DcMg[]; cw?: number[]; chart?: boolean; id?: string; png?: Uint8Array<ArrayBuffer>; w?: number; h?: number; dw?: number; cap?: string; [k: string]: unknown };
+type DcFlowItem = { k: string; /** break rules of the block it comes from */ brk?: { pgb?: boolean; keep?: boolean; kn?: boolean; wo?: number; hrep?: boolean }; /** "pb": the section (page index) that starts here */ pi?: number; st?: string; runs?: DcRun[]; lv?: number; text?: string; ord?: boolean; key?: boolean; head?: string[] | null; rows?: string[][]; meas?: boolean; title?: string; mg?: DcMg[]; cw?: number[]; chart?: boolean; id?: string; png?: Uint8Array<ArrayBuffer>; w?: number; h?: number; dw?: number; cap?: string; [k: string]: unknown };
 type DcFlowO = { img?: (x: DcFlowItem) => string; xhtml?: boolean; pb?: string; chartTables?: boolean; [k: string]: unknown };
 type DcSlideP = { t: string; bul?: boolean; b?: boolean };
 type DcSlide = { cover?: boolean; title: string; sub?: string; paras: DcSlideP[]; table?: string[][] | null; img?: DcFlowItem | null };
@@ -1052,7 +1052,7 @@ let dcOnEdit=function(el: HTMLElement){const be=el.closest<HTMLInputElement>(".d
   if(p!.startsWith("@")){const R=dcRoot();R!.querySelectorAll<HTMLInputElement>(".dc-pf span:first-child").forEach(s=>s.textContent=dcTx(d.clinic)+" · "+dcTx(d.title))}}
 /* a block cut over two sheets (smart page breaks) is saved whole: the edited part is joined with the others first */
 {const _oe=dcOnEdit;dcOnEdit=function(el){const be=el.closest<HTMLElement>(".dc-b");const host=be?.closest(".dc-pages");const key=el.dataset.ed;
-  if(be&&host&&key&&(be.classList.contains("dcx-pcont")||be.nextElementSibling?.classList.contains("dcx-pcont")||host.querySelector(`.dc-b.dcx-pcont[data-b="${be.dataset.b}"]`))){
+  if(be&&host&&key&&(be.classList.contains("dcx-pcont")||be.nextElementSibling?.classList.contains("dcx-pcont")||host.querySelector(`.dc-b.dcx-pcont[data-b="${be.dataset.b}"]`)||host.querySelector(`.dc-b[data-b="${be.dataset.b}"] tr[data-dxrow]`))){
     const eds=dcxEdParts(host,be.dataset.b!,key);if(eds.length>1){const m=eds[0].cloneNode(true) as HTMLElement;for(const e of eds.slice(1))dcxJoin(m,e.cloneNode(true) as HTMLElement);
       const w=dcxParts(host,be.dataset.b!)[0].cloneNode(false) as HTMLElement;w.appendChild(m);return _oe(m)}}
   return _oe(el)}}
@@ -2585,7 +2585,7 @@ function dcPgKids(pin: Element): DcPgEl[]{return [...pin.children].filter(x=>x.c
 function dcPgMerge(host: HTMLElement){if(typeof dcPgFitReset==="function")dcPgFitReset(host);dcxImgFitReset(host);
   host.querySelectorAll<HTMLInputElement>(".dc-page[data-part]").forEach(pg=>{const first=host.querySelector<HTMLInputElement>(`.dc-page[data-page="${pg.dataset.page}"]:not([data-part]) .dc-pin`);const pin=pg.querySelector<HTMLInputElement>(".dc-pin");
     if(first)[...pin!.children].forEach(x=>first.appendChild(x));const row=pg.parentElement?.classList.contains("dc-prow")?pg.parentElement:pg;row.remove()});
-  host.querySelectorAll<DcPgEl>(".dc-bc").forEach(c=>{const o=c._orig;if(c.classList.contains("dcx-pcont")){if(o&&o.isConnected){dcxJoinBlock(o,c);o.querySelectorAll("[data-ed]").forEach(e=>e.normalize())}c.remove();return}if(o&&o.isConnected){const tb=o.querySelector<HTMLInputElement>("tbody");if(tb)c.querySelectorAll<HTMLInputElement>("tbody>tr").forEach(tr=>tb.appendChild(tr))}c.remove()})}
+  host.querySelectorAll<DcPgEl>(".dc-bc").forEach(c=>{const o=c._orig;if(c.classList.contains("dcx-pcont")){if(o&&o.isConnected){dcxJoinBlock(o,c);o.querySelectorAll("[data-ed]").forEach(e=>e.normalize())}c.remove();return}if(o&&o.isConnected){const tb=o.querySelector<HTMLInputElement>("tbody");if(tb)c.querySelectorAll<HTMLInputElement>("tbody>tr").forEach(tr=>tb.appendChild(tr))}c.remove()});dcxRowJoin(host)}
 /* new continuation sheet right after `cur` */
 function dcPgNewPart(cur: HTMLElement,part: number){const row=cur.parentElement?.classList.contains("dc-prow")?cur.parentElement:null,src=row||cur;
   const cl=src.cloneNode(false) as HTMLElement;if(row){[...row.children].forEach(ch=>{if(ch===cur){const pg=cur.cloneNode(false) as HTMLElement;[...cur.children].forEach(x=>{if(x.classList.contains("dc-pin"))pg.appendChild(x.cloneNode(false));else pg.appendChild(x.cloneNode(true))});cl.appendChild(pg)}else cl.appendChild(ch.cloneNode(true))})}
@@ -2596,7 +2596,7 @@ function dcPgSplitTable(be: DcPgEl,lim: number){const rows=[...be.querySelectorA
   for(let i=0;i<rows.length;i++){if(rows[i].getBoundingClientRect().bottom<=lim-3)j=i;else break}
   if(j<0||j>=rows.length-1)return false;
   const c=be.cloneNode(true) as DcPgEl;[...c.children].forEach(x=>{if(!x.classList.contains("dc-tblw"))x.remove()});c.querySelectorAll<HTMLInputElement>("tbody>tr,.dc-tadd").forEach(x=>x.remove());c.querySelectorAll<HTMLInputElement>("[id]").forEach(x=>x.removeAttribute("id"));
-  c.classList.add("dc-bc");c.classList.remove("dc-sel");c.style.marginTop="";c._orig=be._orig||be;const tb=c.querySelector<HTMLInputElement>("tbody");rows.slice(j+1).forEach(tr=>tb!.appendChild(tr));be.after(c);return true}
+  c.classList.add("dc-bc");c.classList.remove("dc-sel");c.style.marginTop="";c._orig=be._orig||be;if(be.classList.contains("nohrep"))c.querySelectorAll("thead").forEach(x=>x.remove());const tb=c.querySelector<HTMLInputElement>("tbody");rows.slice(j+1).forEach(tr=>tb!.appendChild(tr));be.after(c);return true}
 function dcPgSplit(host: HTMLElement,g: ReturnType<typeof dcGeo>){
   for(const p0 of [...host.querySelectorAll<HTMLInputElement>(".dc-page:not([data-part])")]){let cur: HTMLElement=p0,part=0,guard=0;
     while(guard++<400){const pin=cur.querySelector<HTMLInputElement>(".dc-pin");if(!pin)break;const kids=dcPgKids(pin);if(!kids.length)break;
@@ -2903,7 +2903,7 @@ let dcFlowImgs=async function(d: DcDoc,host: HTMLElement){const out: Record<stri
 function dcFlow(d: DcDoc,imgs?: Record<string, DcFlowImg>): DcFlowItem[]{imgs=imgs||{};const L=d.lang||lang(),nums: Record<string, string>=d.set.num?dcNumbers(d):{},items: DcFlowItem[]=[];const T=(v: unknown)=>dcTx(v,L);const N=(b: DcBlock)=>nums[b.id]?nums[b.id]+" ":"";
   const P=(html: unknown,st?: string)=>dcParas(T(html),d,L).forEach(p=>items.push(p.list?{k:"li",ord:p.list==="ol",runs:p.runs}:{k:"p",st:st||"",runs:p.runs}));
   const IMG=(b: DcBlock,cap: string,dw?: number)=>{const im=imgs[b.id];if(im)items.push({k:"img",id:b.id,png:im.png,w:im.w,h:im.h,dw:dw||im.dw||Math.min(560,im.w),cap:cap||""})};
-  d.pages.forEach((p,pi)=>{if(pi>0)items.push({k:"pb",pi});p.blocks.forEach(b=>{if(!dcCondOk(b,d))return;switch(b.type){
+  d.pages.forEach((p,pi)=>{if(pi>0)items.push({k:"pb",pi});p.blocks.forEach(b=>{if(!dcCondOk(b,d))return;const i0=items.length;try{switch(b.type){
     case "hdr":items.push({k:"p",st:"small",runs:dcR(T(d.clinic),{b:1})});if(T(d.tag))items.push({k:"p",st:"small",runs:dcR(T(d.tag))});items.push({k:"title",text:T(b.title||d.title)});
       items.push({k:"p",st:"small",runs:[{t:T("dc_s_date")+" : ",b:1},{t:dcFmtDate(d.date,L)+"    "},{t:T("dc_s_prat")+" : ",b:1},{t:d.prat||""}]});items.push({k:"hr"});break;
     case "h":items.push({k:"h",lv:Math.min(3,b.lv||1),text:N(b)+T(b.text)});break;
@@ -2928,7 +2928,7 @@ function dcFlow(d: DcDoc,imgs?: Record<string, DcFlowImg>): DcFlowItem[]{imgs=im
       items.push({k:"p",runs:[{t:T("dc_qScore")+" : ",b:1},{t:s.cnt?nf(s.cnt===s.n?s.sum:s.basis??s.sum)+" / "+nf(s.max):"—"},{t:s.band?"  ·  "+t("dc_band_"+s.band.toLowerCase().replace(/\s+/g,"_")):""}]});
       if(s.flag)items.push({k:"p",st:"note",runs:dcR(t("dc_qFlag"))});break}
     case "vas":items.push({k:"h",lv:3,text:N(b)+T(b.title)});items.push({k:"p",runs:[{t:T(b.lblL)+"  ←  "},{t:b.val==null?"—":t("dc_vasMm",{n:nf(b.val)}),b:1},{t:"  →  "+T(b.lblR)}]});break;
-    default:{if(typeof dcFlowX==="function"&&dcFlowX(b,d,L,items,P,T,N))break;const s=dcBlockText(b,d);if(s)items.push({k:"p",runs:dcR(s)})}}})});
+    default:{if(typeof dcFlowX==="function"&&dcFlowX(b,d,L,items,P,T,N))break;const s=dcBlockText(b,d);if(s)items.push({k:"p",runs:dcR(s)})}}}finally{dcxFlowTag(items,i0,b)}})});
   /* table of contents → list of headings */
   const hs=items.filter(x=>x.k==="h"&&x.lv!<=2);const out: DcFlowItem[]=[];items.forEach(x=>{if(x.k==="toc"){out.push({k:"h",lv:2,text:T("dc_cToc")});hs.forEach(h=>out.push({k:"p",st:h.lv===2?"toc2":"toc1",runs:dcR(h.text)}))}else out.push(x)});
   return out}
@@ -2955,7 +2955,7 @@ async function dcMakeDOCX(d: DcDoc,flow: DcFlowItem[],o: {skipChartTables?: bool
   /* product phase 5: a table formula Word can compute is written as a live formula field (F9 in Word recalculates it), its current value shown */
   const cellF=(instr: string,txt: string,b?: boolean)=>`<w:p><w:pPr><w:spacing w:before="0" w:after="0"/>${bidi}</w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> ${instr.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")} </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r>${run({t:txt,b})}<w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>`;
   const body: string[]=[];let olId=null as number|null,prevLi=false;
-  for(const x of flow){if(x.k!=="li"){prevLi=false}
+  for(const x of flow){const b0=body.length;try{if(x.k!=="li"){prevLi=false}
     switch(x.k){
       case "title":body.push(para("Title",dcR(x.text)));break;
       case "h":body.push(para("Heading"+x.lv,dcR(x.text)));break;
@@ -2970,7 +2970,7 @@ async function dcMakeDOCX(d: DcDoc,flow: DcFlowItem[],o: {skipChartTables?: bool
         body.push(`<w:tbl><w:tblPr><w:tblStyle w:val="TableGrid"/><w:tblW w:w="${cw*n}" w:type="dxa"/>${rtl?'<w:bidiVisual/>':""}<w:tblLook w:val="04A0" w:firstRow="1" w:lastRow="0" w:firstColumn="0" w:lastColumn="0" w:noHBand="0" w:noVBand="1"/></w:tblPr><w:tblGrid>${tw.map(w=>`<w:gridCol w:w="${w}"/>`).join("")}</w:tblGrid>${x.head?`<w:tr><w:trPr><w:tblHeader/><w:cantSplit/></w:trPr>${rowX(x.head,-1,true,false)}</w:tr>`:""}${x.rows!.map((r,i)=>`<w:tr><w:trPr><w:cantSplit/></w:trPr>${rowX(r,i,false,x.key)}</w:tr>`).join("")}</w:tbl>`);body.push(para("",[] ,'<w:spacing w:after="60"/>'));break}
       case "img":{nimg++;const name=`image${nimg}.png`,id="rId"+(++rid);media.push({name:"word/media/"+name,data:x.png!});rels.push(`<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/${name}"/>`);
         const emu=pg.px2cm*360000,maxW=pg.cw/567*360000,cx=Math.round(Math.min(maxW,x.dw!*emu)),cy=Math.round(cx*x.h!/x.w!);
-        body.push(`<w:p><w:pPr><w:jc w:val="center"/><w:keepNext/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${nimg}" name="Image ${nimg}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="${nimg}" name="${name}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${id}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`);break}}}
+        body.push(`<w:p><w:pPr><w:jc w:val="center"/><w:keepNext/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${nimg}" name="Image ${nimg}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="${nimg}" name="${name}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${id}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`);break}}}finally{dcxDocxBrk(body,b0,x)}}
   const ftr=s.ftr!==false,[f1,f2,f3]=dcFootParts(L);
   const sect=sectX(secPi,true);
   const NS='xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"';
@@ -3014,7 +3014,7 @@ async function dcMakeODT(d: DcDoc,flow: DcFlowItem[]){const L=d.lang||lang(),rtl
   const tsn=(r: DcRun)=>{const k=(r.b?"b":"")+(r.i?"i":"")+(r.u?"u":"")+(r.s?"s":"")+(r.c?"c"+r.c:"")+(r.hl?"h":"");if(!k)return null;if(!tst.has(k))tst.set(k,{n:"T"+(tst.size+1),r});return tst.get(k)!.n};
   const span=(r: DcRun)=>{const tx=String(r.t).split("\n").map(x=>E(x)).join("<text:line-break/>");const n=tsn(r);let x=n?`<text:span text:style-name="${n}">${tx}</text:span>`:tx;if(r.a)x=`<text:a xlink:type="simple" xlink:href="${E(r.a)}">${x}</text:a>`;return x};
   const P=(st: string,runs: DcRun[])=>`<text:p text:style-name="${st}">${runs.map(span).join("")}</text:p>`;const out: string[]=[];let inList=null as string|null;const closeList=()=>{if(inList){out.push("</text:list>");inList=null}};
-  for(const x of flow){if(x.k!=="li")closeList();switch(x.k){
+  const bks=new Map<string,string>();for(const x of flow){const o0=out.length;try{if(x.k!=="li")closeList();switch(x.k){
     case "title":out.push(P("Title",dcR(x.text)));break;
     case "h":out.push(`<text:h text:style-name="Heading_20_${x.lv}" text:outline-level="${x.lv}">${E(x.text)}</text:h>`);break;
     case "p":out.push(P(({quote:"Quote",box:"Box",note:"Note",small:"Small",cap:"Caption",toc1:"Toc1",toc2:"Toc2"} as Dict)[x.st!]||"Standard",x.runs!));break;
@@ -3024,7 +3024,7 @@ async function dcMakeODT(d: DcDoc,flow: DcFlowItem[]){const L=d.lang||lang(),rtl
     case "table":{if(x.chart)break;const n=Math.max(1,...x.rows!.map(r=>r.length),x.head?x.head.length:0);ntbl++;
       const c=(txt: string,h: boolean,k?: boolean)=>`<table:table-cell table:style-name="${h?"CH":k?"CK":"C"}" office:value-type="string"><text:p text:style-name="${h||k?"TH":"TD"}">${E(txt)}</text:p></table:table-cell>`;
       out.push(`<table:table table:name="Table${ntbl}" table:style-name="Tbl"><table:table-column table:number-columns-repeated="${n}"/>${x.head?`<table:table-header-rows><table:table-row>${Array.from({length:n},(_,j)=>c(x.head![j]||"",true)).join("")}</table:table-row></table:table-header-rows>`:""}${x.rows!.map(r=>`<table:table-row>${Array.from({length:n},(_,j)=>c(r[j]??"",false,x.key&&j===0)).join("")}</table:table-row>`).join("")}</table:table>`);break}
-    case "img":{nimg++;const name=`Pictures/i${nimg}.png`;media.push({name,data:x.png!});const w=Math.min(cwc,x.dw!*px2cm),h=w*x.h!/x.w!;out.push(`<text:p text:style-name="Center"><draw:frame draw:name="img${nimg}" text:anchor-type="as-char" svg:width="${cm(w)}" svg:height="${cm(h)}" draw:z-index="0"><draw:image xlink:href="${name}" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"/></draw:frame></text:p>`);break}}}
+    case "img":{nimg++;const name=`Pictures/i${nimg}.png`;media.push({name,data:x.png!});const w=Math.min(cwc,x.dw!*px2cm),h=w*x.h!/x.w!;out.push(`<text:p text:style-name="Center"><draw:frame draw:name="img${nimg}" text:anchor-type="as-char" svg:width="${cm(w)}" svg:height="${cm(h)}" draw:z-index="0"><draw:image xlink:href="${name}" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"/></draw:frame></text:p>`);break}}}finally{dcxOdtBrk(out,o0,x,bks)}}
   closeList();
   const NS='xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0" xmlns:dc="http://purl.org/dc/elements/1.1/" office:version="1.3"';
   const X='<?xml version="1.0" encoding="UTF-8"?>';const wm=rtl?' style:writing-mode="rl-tb"':"";
@@ -3033,7 +3033,7 @@ async function dcMakeODT(d: DcDoc,flow: DcFlowItem[]){const L=d.lang||lang(),rtl
 <style:style style:name="Tbl" style:family="table"><style:table-properties style:width="${cm(cwc)}" table:align="margins" fo:margin-bottom="0.2cm"/></style:style>
 <style:style style:name="C" style:family="table-cell"><style:table-cell-properties fo:padding="0.08cm" fo:border="0.5pt solid #c9d2db"/></style:style>
 <style:style style:name="CH" style:family="table-cell"><style:table-cell-properties fo:padding="0.08cm" fo:border="0.5pt solid #c9d2db" fo:background-color="#eef2f6"/></style:style>
-<style:style style:name="CK" style:family="table-cell"><style:table-cell-properties fo:padding="0.08cm" fo:border="0.5pt solid #c9d2db" fo:background-color="#f7f9fb"/></style:style>${secs?masters.map((_,j)=>`<style:style style:name="PM${j}" style:family="paragraph" style:parent-style-name="Standard" style:master-page-name="${j===0?"Standard":"M"+j}"/>`).join(""):""}</office:automatic-styles>`;
+<style:style style:name="CK" style:family="table-cell"><style:table-cell-properties fo:padding="0.08cm" fo:border="0.5pt solid #c9d2db" fo:background-color="#f7f9fb"/></style:style>${secs?masters.map((_,j)=>`<style:style style:name="PM${j}" style:family="paragraph" style:parent-style-name="Standard" style:master-page-name="${j===0?"Standard":"M"+j}"/>`).join(""):""}${dcxOdtBrkStyles(bks)}</office:automatic-styles>`;
   const content=`${X}<office:document-content ${NS}><office:font-face-decls><style:font-face style:name="${E(font)}" svg:font-family="'${E(font)}'"/></office:font-face-decls>${auto}<office:body><office:text>${out.join("")}</office:text></office:body></office:document-content>`;
   const ps=(n: string,disp: string,par: string,pp: string,tp: string)=>`<style:style style:name="${n}" style:display-name="${disp}" style:family="paragraph" style:parent-style-name="${par}" style:class="text"><style:paragraph-properties${wm} ${pp}/><style:text-properties ${tp}/></style:style>`;
   const fs=s.fs||11,[f1,f2,f3]=dcFootParts(L);
@@ -3072,21 +3072,21 @@ function dcMakeRTF(d: DcDoc,flow: DcFlowItem[]){const L=d.lang||lang(),rtl=L==="
   const rd=rtl?"\\rtlpar":"\\ltrpar",rc=rtl?"\\rtlch":"\\ltrch";
   const runs=(rs: DcRun[])=>rs.map(r=>`{${rc}${r.b?"\\b":""}${r.i?"\\i":""}${r.u?"\\ul":""}${r.s?"\\strike":""}${r.c?"\\cf"+cidx(r.c):""} ${esc(r.t)}}`).join("");
   const par=(pre: string,rs: DcRun[])=>`\\pard\\plain${rd}\\sa120\\sl${Math.round((s.lh||1.5)*240)}\\slmult1\\fs${fs2}${pre} ${runs(rs)}\\par\n`;
-  const out: string[]=[];let n=0;
-  for(const x of flow){switch(x.k){
+  const out: string[]=[];let n=0;const secs=d.pages.some(p=>!!p.lay);
+  for(const x of flow){const o0=out.length;try{switch(x.k){
     case "title":out.push(par(`\\sb120\\sa200\\b\\fs${fs2*2}\\cf1`,dcR(x.text)));break;
     case "h":out.push(par(`\\sb${[280,220,180][x.lv!-1]}\\sa100\\keepn\\b\\fs${Math.round(fs2*[1.6,1.3,1.12][x.lv!-1])}\\cf1\\outlinelevel${x.lv!-1}`,dcR(x.text)));break;
     case "p":out.push(par(({quote:"\\li567\\i\\cf7\\brdrl\\brdrs\\brdrw30\\brdrcf6\\brsp120",box:"\\li120\\ri120\\cbpat5\\brdrl\\brdrs\\brdrw30\\brdrcf6\\brsp80",note:"\\li120\\cbpat8",small:"\\sa40\\cf2\\fs"+Math.round(fs2*.85),cap:"\\qc\\i\\cf2\\fs"+Math.round(fs2*.85),toc1:"\\sa40\\b",toc2:"\\sa40\\li284"} as Dict)[x.st!]||"",x.runs!));break;
     case "li":n=x.ord?n+1:0;out.push(par("\\fi-284\\li567\\sa60",[{t:x.ord?n+".\t":"•\t"},...x.runs!]));break;
     case "hr":out.push(`\\pard\\plain\\brdrb\\brdrs\\brdrw10\\brdrcf3\\sa160\\fs4\\par\n`);break;
-    case "pb":out.push("\\page\n");break;
+    case "pb":out.push(secs&&x.pi!=null?"\\sect"+dcxRtfSect(d,x.pi)+"\n":"\\page\n");break;/* per-page layout: one RTF section per layout */
     case "table":{if(x.chart)break;const k=Math.max(1,...x.rows!.map(r=>r.length),x.head?x.head.length:0),cw=Math.floor(pg.cw/k);
       const row=(r: string[],h: boolean)=>`\\trowd\\trgaph80\\trleft0${h?"\\trhdr":""}${rtl?"\\rtlrow":""}${Array.from({length:k},(_,j)=>`\\clbrdrt\\brdrs\\brdrw10\\brdrcf3\\clbrdrl\\brdrs\\brdrw10\\brdrcf3\\clbrdrb\\brdrs\\brdrw10\\brdrcf3\\clbrdrr\\brdrs\\brdrw10\\brdrcf3${h||(x.key&&j===0)?"\\clcbpat4":""}\\cellx${cw*(j+1)}`).join("")}\n${Array.from({length:k},(_,j)=>`\\pard\\plain\\intbl${rd}\\fs${Math.round(fs2*.95)}${h||(x.key&&j===0)?"\\b":""} ${esc(r[j]??"")}\\cell`).join("")}\\row\n`;
       if(x.head)out.push(row(x.head,true));x.rows!.forEach(r=>out.push(row(r,false)));out.push("\\pard\\plain\\sa60\\par\n");break}
     case "img":{const tw=Math.round(Math.min(pg.cw,x.dw!*pg.px2cm*567)),th=Math.round(tw*x.h!/x.w!);let hex="";const b=x.png;for(let i=0;i<b!.length;i++){hex+=(b![i]<16?"0":"")+b![i].toString(16);if(i%64===63)hex+="\n"}
-      out.push(`\\pard\\plain\\qc\\keepn{\\pict\\pngblip\\picw${x.w}\\pich${x.h}\\picwgoal${tw}\\pichgoal${th}\n${hex}}\\par\n`);break}}}
+      out.push(`\\pard\\plain\\qc\\keepn{\\pict\\pngblip\\picw${x.w}\\pich${x.h}\\picwgoal${tw}\\pichgoal${th}\n${hex}}\\par\n`);break}}}finally{dcxRtfBrk(out,o0,x)}}
   const [f1,f2,f3]=dcFootParts(L);
-  const head=`{\\rtf1\\ansi\\ansicpg1252\\deff0\\uc1{\\fonttbl{\\f0\\fswiss\\fcharset0 ${esc(s.font||"Arial")};}{\\f1\\fnil\\fcharset178 Arial;}}{\\colortbl;${cols.map(rgb).join("")}}{\\info{\\title ${esc(dcTx(d.title,L))}}{\\author ${esc(d.prat||"")}}}\n\\paperw${pg.w}\\paperh${pg.h}\\margl${pg.mx}\\margr${pg.mx}\\margt${pg.my}\\margb${pg.my+340}${s.or==="l"?"\\landscape":""}\\viewkind1${rtl?"\\rtldoc":""}\n`;
+  const head=`{\\rtf1\\ansi\\ansicpg1252\\deff0\\uc1{\\fonttbl{\\f0\\fswiss\\fcharset0 ${esc(s.font||"Arial")};}{\\f1\\fnil\\fcharset178 Arial;}}{\\colortbl;${cols.map(rgb).join("")}}{\\info{\\title ${esc(dcTx(d.title,L))}}{\\author ${esc(d.prat||"")}}}\n\\paperw${pg.w}\\paperh${pg.h}\\margl${pg.ml}\\margr${pg.mr}\\margt${pg.mt}\\margb${pg.mb+340}${s.or==="l"?"\\landscape":""}\\viewkind1${rtl?"\\rtldoc":""}${secs?dcxRtfSect(d,0):""}\n`;
   const foot=s.ftr!==false?`{\\footer\\pard\\plain${rd}\\qr\\fs16\\cf2 ${esc(dcTx(d.clinic,L)+" · "+dcTx(d.title,L)+"   ·   "+f1)}{\\field{\\*\\fldinst PAGE}{\\fldrslt 1}}${esc(f2)}{\\field{\\*\\fldinst NUMPAGES}{\\fldrslt 1}}${esc(f3)}\\par}\n`:"";
   return new Blob([head+foot+out.join("")+"}"],{type:"application/rtf"})}
 
@@ -3114,7 +3114,16 @@ figure{margin:.6em 0;text-align:center}figure img{max-width:100%;height:auto}hr{
 function dcMakeHTML(d: DcDoc,flow: DcFlowItem[]){const L=d.lang||lang();return `<!doctype html>\n<html lang="${L}" dir="${L==="ar"?"rtl":"ltr"}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${dcXE(dcTx(d.title,L))}</title><meta name="generator" content="Remotion Documents"><style>${dcFlowCSS(d)}</style></head><body>\n${dcFlowHTML(flow)}\n</body></html>`}
 function dcMakeDOC(d: DcDoc,flow: DcFlowItem[]){const L=d.lang||lang(),g=dcGeo(d),k=g.cm/g.w,land=d.set.or==="l";const [W0,H0]=(DC_PCM as Record<string, number[]>)[d.set.size]||DC_PCM.a4,W=W0,H=H0;
   return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40" lang="${L}" dir="${L==="ar"?"rtl":"ltr"}"><head><meta charset="utf-8"><title>${dcXE(dcTx(d.title,L))}</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]--><style>${dcFlowCSS(d).replace(/max-width:46em;margin:2.5em auto;padding:0 1.2em/,"")}
-@page Section1{size:${land?H:W}cm ${land?W:H}cm;${land?"mso-page-orientation:landscape;":""}margin:${(g.my*k).toFixed(2)}cm ${(g.mx*k).toFixed(2)}cm}div.Section1{page:Section1}</style></head><body><div class="Section1">${dcFlowHTML(flow,{pb:'<br clear="all" style="page-break-before:always">'})}</div></body></html>`}
+${dcxDocSections(d,flow,g,k,land,W,H)}</body></html>`}
+/** Word HTML (.doc): one Word section per page layout (an @page SectionN rule each, a section break between them); a
+ *  document with one layout keeps the single Section1. */
+function dcxDocSections(d: DcDoc,flow: DcFlowItem[],g: ReturnType<typeof dcGeo>,k: number,land: boolean,W: number,H: number){
+  const pbr='<br clear="all" style="page-break-before:always">';
+  if(!d.pages.some(p=>!!p.lay))return `@page Section1{size:${land?H:W}cm ${land?W:H}cm;${land?"mso-page-orientation:landscape;":""}margin:${dcxLayUsed(d)?`${(g.mt*k).toFixed(2)}cm ${(g.mr*k).toFixed(2)}cm ${(g.mb*k).toFixed(2)}cm ${(g.ml*k).toFixed(2)}cm`:`${(g.my*k).toFixed(2)}cm ${(g.mx*k).toFixed(2)}cm`}}div.Section1{page:Section1}</style></head><body><div class="Section1">${dcFlowHTML(flow,{pb:pbr})}</div>`;
+  const chunks: {pi: number;items: DcFlowItem[]}[]=[{pi:0,items:[]}];for(const x of flow){if(x.k==="pb"&&x.pi!=null)chunks.push({pi:x.pi,items:[]});else chunks[chunks.length-1].items.push(x)}
+  const css=chunks.map((c,i)=>{const G=dcGeo(d,c.pi),K=G.cm/G.w,[pw,ph]=dcPaperCm(d,c.pi);return `@page Section${i+1}{size:${pw}cm ${ph}cm;${G.land?"mso-page-orientation:landscape;":""}margin:${(G.mt*K).toFixed(2)}cm ${(G.mr*K).toFixed(2)}cm ${(G.mb*K).toFixed(2)}cm ${(G.ml*K).toFixed(2)}cm}div.Section${i+1}{page:Section${i+1}}`}).join("");
+  const brk='<br clear="all" style="page-break-before:always;mso-break-type:section-break">';
+  return `${css}</style></head><body>${chunks.map((c,i)=>`${i?brk:""}<div class="Section${i+1}">${dcFlowHTML(c.items,{pb:pbr})}</div>`).join("")}`}
 
 /* EPUB 3 */
 async function dcMakeEPUB(d: DcDoc,flow: DcFlowItem[]){const L=d.lang||lang(),E=dcXE,title=dcTx(d.title,L),id="urn:uuid:"+(crypto.randomUUID?crypto.randomUUID():d.id+"-"+Date.now());const media: DcZipF[]=[];let ni=0;
@@ -7686,18 +7695,10 @@ function dcxWordFormula(raw: string): string|null{const s=raw.trim();if(!s.start
 
 /* ---- line-level page breaks (PDF, print): a paragraph that does not fit is cut between two lines instead of moving whole to the next
  *      sheet — at least two lines stay on each side (no widows or orphans). Only in the export/print sheets, never in the editor. ---- */
-function dcxPgSplitPara(be: HTMLElement,lim: number){const tw=document.createTreeWalker(be,NodeFilter.SHOW_TEXT);const rg=document.createRange();
-  type Ch={n: Text;o: number;top: number;bottom: number};let first: Ch|null=null,prev: Ch|null=null,cut: Ch|null=null;const tops: number[]=[];
-  for(let n=tw.nextNode() as Text|null;n;n=tw.nextNode() as Text|null){const len=n.data.length;for(let o=0;o<len;o++){if(/\s/.test(n.data[o]))continue;rg.setStart(n,o);rg.setEnd(n,o+1);const r=rg.getBoundingClientRect();if(!r.height)continue;
-      const c={n,o,top:r.top,bottom:r.bottom};if(!first)first=c;if(!tops.length||r.top>tops[tops.length-1]+r.height*.5)tops.push(r.top);
-      if(r.bottom>lim&&!cut){cut=c;break}prev=c}if(cut)break}
-  if(!cut||!first||!prev)return false;
-  const lineTop=cut.top;const linesBefore=tops.filter(x=>x<lineTop-1).length;if(linesBefore<2)return false;
-  // move back to the first character of the cut line
-  let start: Ch=cut;{const tw2=document.createTreeWalker(be,NodeFilter.SHOW_TEXT);const all: Ch[]=[];for(let n=tw2.nextNode() as Text|null;n;n=tw2.nextNode() as Text|null){for(let o=0;o<n.data.length;o++){if(n===cut.n&&o===cut.o){all.push(cut);break}rg.setStart(n,o);rg.setEnd(n,o+1);const r=rg.getBoundingClientRect();if(r.height)all.push({n,o,top:r.top,bottom:r.bottom})}if(n===cut.n)break}
-    for(let i=all.length-1;i>=0&&Math.abs(all[i].top-lineTop)<2;i--)if(!/\s/.test(all[i].n.data[all[i].o]))start=all[i]}
-  // the rest must hold at least two lines too
-  const endR=be.getBoundingClientRect();const lh=Math.max(1,cut.bottom-cut.top);if(endR.bottom-lineTop<lh*1.8)return false;
+function dcxPgSplitPara(be: HTMLElement,lim: number){const mw=dcxMinLines(be);const C=dcxCutLine(be,lim);if(!C)return false;const {start,lineTop,lh}=C;
+  if(C.linesBefore<mw)return false;
+  // the rest must hold as many lines too
+  const endR=be.getBoundingClientRect();if(endR.bottom-lineTop<lh*(mw-.2))return false;
   const cutR=document.createRange();cutR.setStart(start.n,start.o);cutR.setEnd(be,be.childNodes.length);dcxCutClimb(cutR,be);
   const liCut=start.n.parentElement?.closest("li");const olBefore=liCut?.parentElement?.tagName==="OL"?liCut.parentElement as HTMLOListElement:null;let liN=0;if(olBefore&&liCut){liN=[...olBefore.children].indexOf(liCut)+(+(olBefore.getAttribute("start")||1))}
   let midLi=false;if(liCut){const r0=document.createRange();r0.setStart(liCut,0);r0.setEnd(start.n,start.o);midLi=r0.toString().trim().length>0}
@@ -8320,12 +8321,12 @@ function dcxPgSplitList(be: DcPgEl,lim: number): number{const ed=be.querySelecto
   const ls=[...ed.children].find(x=>/^(UL|OL)$/.test(x.tagName)&&x.getBoundingClientRect().top<lim&&x.getBoundingClientRect().bottom>lim);if(!ls)return 0;
   const items=[...ls.children].filter(x=>x.tagName==="LI");let j=-1;for(let i=0;i<items.length;i++){if(items[i].getBoundingClientRect().bottom<=lim-2)j=i;else break}
   const before=j+1,after=items.length-before;const r=document.createRange();
-  if(before>=2&&after>=2)r.setStartBefore(items[j+1]);
-  else if(before<2&&ls.previousElementSibling&&ls.getBoundingClientRect().top-ed.getBoundingClientRect().top>28)r.setStartBefore(ls);/* the list goes on the next sheet, the text above it stays */
+  const mw=dcxMinLines(be);if(before>=mw&&after>=mw)r.setStartBefore(items[j+1]);
+  else if(before<mw&&ls.previousElementSibling&&ls.getBoundingClientRect().top-ed.getBoundingClientRect().top>28)r.setStartBefore(ls);/* the list goes on the next sheet, the text above it stays */
   else return -1;
   r.setEnd(be,be.childNodes.length);const n0=ls.tagName==="OL"?(+(ls.getAttribute("start")||1))+before:0;
   const dep=dcxCutDepth(r,be);const frag=r.extractContents();dcxMarkSeam(frag,dep);const c=be.cloneNode(false) as DcPgEl;c.appendChild(frag);c._orig=be._orig||be;
-  c.querySelectorAll<HTMLElement>("[id]").forEach(x=>x.removeAttribute("id"));if(n0&&before>=2){const ol=c.querySelector("ol[data-dxh]");if(ol)ol.setAttribute("start",String(n0))}
+  c.querySelectorAll<HTMLElement>("[id]").forEach(x=>x.removeAttribute("id"));if(n0&&before>=mw){const ol=c.querySelector("ol[data-dxh]");if(ol)ol.setAttribute("start",String(n0))}
   c.classList.add("dc-bc","dcx-pcont");c.classList.remove("dc-sel");c.style.marginTop="0";be.after(c);return 1}
 /** An image block taller than the room left on a sheet it starts: the picture shrinks (aspect kept) so the block fits. */
 function dcxImgFit(be: HTMLElement,L: { lim: number; s: number }){const im=be.querySelector<HTMLImageElement>("img");if(!im)return false;const r=be.getBoundingClientRect(),ir=im.getBoundingClientRect();
@@ -8333,10 +8334,11 @@ function dcxImgFit(be: HTMLElement,L: { lim: number; s: number }){const im=be.qu
 function dcxImgFitReset(host: HTMLElement){host.querySelectorAll<HTMLElement>(".dcx-ifit").forEach(b=>{b.classList.remove("dcx-ifit");const im=b.querySelector<HTMLImageElement>("img");if(im){im.style.maxHeight="";im.style.width=im.dataset.w||"";im.style.maxWidth=""}})}
 /** Tries to cut the block that crosses the sheet bottom; true when something changed. */
 function dcxPgSplitAny(kb: DcPgEl,L: { lim: number; s: number },k: number,kids: DcPgEl[]){
-  if(kb.classList.contains("t-table"))return false;
+  if(kb.classList.contains("t-table"))return k===0?dcxPgSplitRow(kb,L.lim):false;
   if(kb.classList.contains("t-img")){if(k===0&&!kb.classList.contains("dcx-ifit")){const im=kb.querySelector<HTMLImageElement>("img");if(im&&im.dataset.w==null)im.dataset.w=im.style.width;return dcxImgFit(kb,L)}return false}
   const first=k===0;void kids;
   if(kb.classList.contains("t-p")){const lr=dcxPgSplitList(kb,L.lim);if(lr===1)return true;if(lr===-1&&!first)return false;return dcxPgSplitPara(kb,L.lim)}
+  if(/\bt-(quote|concl|longtext)\b/.test(kb.className))return dcxPgSplitPara(kb,L.lim);
   /* another block taller than what is left of a sheet it starts: cut between lines rather than overflow */
   if(first&&!kb.classList.contains("t-chart")&&kb.querySelector("[data-ed],blockquote,p,li,.dc-p,div"))return dcxPgSplitPara(kb,L.lim);
   return false}
@@ -8364,3 +8366,81 @@ function dcxJoinBlock(o: Element,c: Element){for(const n of [...c.childNodes]){i
 /** Whether the document uses anything beyond one symmetric layout (then sheets carry their own size and four margins; a
  *  document without it keeps the v94 markup exactly). */
 function dcxLayUsed(d: DcDoc){const s=d.set;return d.pages.some(p=>!!p.lay)||["mt","mb","ml","mr"].some(k=>s[k]!=null)}
+/** Carries a block's break rules onto the flow items it produced (Word / OpenDocument / RTF writers read them): page break
+ *  before on the first, keep lines together on all, keep with next on all but the last (and the last too when asked).
+ *  Headings already keep with what follows through their styles. */
+function dcxFlowTag(items: DcFlowItem[],i0: number,b: DcBlock){const n=items.length-i0;if(n<=0)return;const wo=b.wo!=null?+b.wo:undefined;
+  for(let i=i0;i<items.length;i++){const x=items[i];if(x.k==="pb")continue;const r: NonNullable<DcFlowItem["brk"]>={};if(i===i0&&b.pgb)r.pgb=true;if(b.keep)r.keep=true;
+    if((b.kn&&i===items.length-1)||(b.keep&&i<items.length-1))r.kn=true;if(wo!=null)r.wo=wo;if(b.type==="table"&&b.hrep===false)r.hrep=false;
+    if(Object.keys(r).length)x.brk=r}}
+/** Word: the block's break rules in the paragraph properties (schema order: pStyle, keepNext, keepLines, pageBreakBefore,
+ *  widowControl), and for a table whether its header row repeats on each page. */
+function dcxDocxBrk(body: string[],b0: number,x: DcFlowItem){const r=x.brk;if(!r)return;
+  for(let i=b0;i<body.length;i++){let h=body[i];
+    if(x.k==="table"){if(r.hrep===false)h=h.replace("<w:tblHeader/>","");if(r.keep)h=h.replace(/(<w:p><w:pPr>)/g,"$1<w:keepNext/>");body[i]=h;continue}
+    if(!h.startsWith("<w:p>"))continue;const add=(r.kn&&!/<w:keepNext\/>/.test(h)?"<w:keepNext/>":"")+(r.keep?"<w:keepLines/>":"")+(r.pgb&&i===b0?"<w:pageBreakBefore/>":"")+(r.wo!=null&&r.wo<2?'<w:widowControl w:val="0"/>':"");
+    if(!add)continue;if(/^<w:p><w:pPr>/.test(h))h=h.replace(/^<w:p><w:pPr>(<w:pStyle [^>]*\/>)?/,(m,st)=>"<w:p><w:pPr>"+(st||"")+add);else h=h.replace(/^<w:p>/,"<w:p><w:pPr>"+add+"</w:pPr>");body[i]=h}}
+/** OpenDocument: a block's break rules as an automatic paragraph style derived from the one it uses. */
+function dcxOdtBrk(out: string[],o0: number,x: DcFlowItem,bks: Map<string,string>){const r=x.brk;if(!r)return;
+  for(let i=o0;i<out.length;i++){const first=i===o0;const props=(r.kn?' fo:keep-with-next="always"':"")+(r.keep?' fo:keep-together="always"':"")+(r.pgb&&first?' fo:break-before="page"':"")+(r.wo!=null?` fo:widows="${Math.max(1,r.wo)}" fo:orphans="${Math.max(1,r.wo)}"`:"");
+    if(!props)continue;out[i]=out[i].replace(/<text:(p|h) text:style-name="([^"]+)"/,(m,tag,st)=>{if(/^PM\d|^PB$/.test(st))return m;const key=st+"|"+props;let n=bks.get(key);if(!n){n="BK"+(bks.size+1);bks.set(key,n)}return `<text:${tag} text:style-name="${n}"`})}}
+function dcxOdtBrkStyles(bks: Map<string,string>){return [...bks].map(([k,n])=>{const [st,props]=k.split("|");return `<style:style style:name="${n}" style:family="paragraph" style:parent-style-name="${st}"><style:paragraph-properties${props}/></style:style>`}).join("")}
+/** RTF: section properties of page `pi` (size, orientation, four margins), after \sect or at the start. */
+function dcxRtfSect(d: DcDoc,pi: number){const g=dcPageTw(d,pi);return `\\sectd\\sbkpage\\pgwsxn${g.w}\\pghsxn${g.h}\\marglsxn${g.ml}\\margrsxn${g.mr}\\margtsxn${g.mt}\\margbsxn${g.mb+340}${g.land?"\\lndscpsxn":""}`}
+/** RTF: the block's break rules on its paragraphs (\keepn, \keep, \pagebb, widow control) and table header rows. */
+function dcxRtfBrk(out: string[],o0: number,x: DcFlowItem){const r=x.brk;if(!r)return;
+  for(let i=o0;i<out.length;i++){let h=out[i];if(x.k==="table"){if(r.hrep===false)h=h.replace(/\\trhdr/g,"");if(r.keep)h=h.replace(/\\trowd/g,"\\trowd\\trkeep\\trkeepfollow");out[i]=h;continue}
+    if(!h.startsWith("\\pard\\plain"))continue;const add=(r.kn&&!/\\keepn/.test(h)?"\\keepn":"")+(r.keep?"\\keep":"")+(r.pgb&&i===o0?"\\pagebb":"")+(r.wo!=null?(r.wo<2?"\\nowidctlpar":"\\widctlpar"):"");
+    if(add)out[i]=h.replace(/^\\pard\\plain/,"\\pard\\plain"+add)}}
+/** Lines (or list items) that stay together on each side of a cut: the block's own setting, 2 by default. */
+function dcxMinLines(be: HTMLElement){const v=+(be.dataset.wo||0);return v>=1&&v<=6?v:2}
+type DcxCh={n: Text;o: number;top: number;bottom: number};
+/** Finds where `el` crosses `lim`: the first character of the first line that goes past it, with the line height and how many
+ *  lines come before. Text nodes wholly above the limit are skipped without measuring each character. */
+function dcxCutLine(el: HTMLElement,lim: number){const tw=document.createTreeWalker(el,NodeFilter.SHOW_TEXT);const rg=document.createRange();let firstTop: number|null=null;let cut: DcxCh|null=null;
+  for(let n=tw.nextNode() as Text|null;n;n=tw.nextNode() as Text|null){if(!n.data.trim())continue;rg.selectNodeContents(n);const nr=rg.getBoundingClientRect();if(!nr.height)continue;
+    if(nr.bottom<=lim){if(firstTop==null){const f=dcxCharRect(n,0,1);if(f)firstTop=f.top}continue}
+    for(let o=0;o<n.data.length;o++){if(/\s/.test(n.data[o]))continue;const r=dcxCharRect(n,o,1);if(!r)continue;if(firstTop==null)firstTop=r.top;if(r.bottom>lim){cut={n,o,top:r.top,bottom:r.bottom};break}}
+    if(cut)break}
+  if(!cut||firstTop==null)return null;const lh=Math.max(1,cut.bottom-cut.top);const lineTop=cut.top;
+  // back to the first character of that line (it may start in an earlier text node)
+  let start: DcxCh=cut;const back=document.createTreeWalker(el,NodeFilter.SHOW_TEXT);back.currentNode=cut.n;let n: Text|null=cut.n,o=cut.o-1;
+  for(let g=0;g<4000&&n;g++){if(o<0){n=back.previousNode() as Text|null;if(!n)break;o=n.data.length-1;continue}if(/\s/.test(n.data[o])){o--;continue}
+    const r=dcxCharRect(n,o,1);if(!r){o--;continue}if(Math.abs(r.top-lineTop)>=2&&r.bottom<=lineTop+1)break;start={n,o,top:r.top,bottom:r.bottom};o--}
+  return {start,lineTop,lh,linesBefore:Math.round((lineTop-firstTop)/lh)}}
+function dcxCharRect(n: Text,o: number,len: number){const r=document.createRange();r.setStart(n,o);r.setEnd(n,Math.min(n.data.length,o+len));const b=r.getBoundingClientRect();return b.height?b:null}
+/* ---- tables: a row taller than a whole sheet is cut inside its cells (each cell between two lines), the rest of the row and
+ *      the rows after go on the next sheet; joined back cell by cell. Rows with merged cells are not cut. ---- */
+function dcxPgSplitRow(be: DcPgEl,lim: number){const rows=[...be.querySelectorAll<HTMLTableRowElement>(":scope tbody>tr")];const i=rows.findIndex(r=>r.getBoundingClientRect().bottom>lim);if(i<0)return false;
+  const tr=rows[i];if(tr.getBoundingClientRect().top>lim-40)return false;if([...tr.cells].some(c=>c.rowSpan>1))return false;
+  const tr2=tr.cloneNode(false) as HTMLTableRowElement;tr2.setAttribute("data-dxrow","1");let any=false;
+  for(const td of [...tr.cells]){const td2=td.cloneNode(false) as HTMLElement;td2.removeAttribute("id");const C=dcxCutLine(td as HTMLElement,lim);
+    if(C&&C.linesBefore>=1){const r=document.createRange();r.setStart(C.start.n,C.start.o);r.setEnd(td,td.childNodes.length);dcxCutClimb(r,td);const dep=dcxCutDepth(r,td);const fr=r.extractContents();dcxMarkSeam(fr,dep);td2.appendChild(fr);any=true}
+    tr2.appendChild(td2)}
+  if(!any)return false;
+  const c=be.cloneNode(true) as DcPgEl;[...c.children].forEach(x=>{if(!x.classList.contains("dc-tblw"))x.remove()});c.querySelectorAll("tbody>tr,.dc-tadd").forEach(x=>x.remove());c.querySelectorAll("[id]").forEach(x=>x.removeAttribute("id"));
+  if(be.classList.contains("nohrep"))c.querySelectorAll("thead").forEach(x=>x.remove());
+  c.classList.add("dc-bc");c.classList.remove("dc-sel");c.style.marginTop="";c._orig=be._orig||be;const tb=c.querySelector("tbody")!;tb.appendChild(tr2);rows.slice(i+1).forEach(r=>tb.appendChild(r));be.after(c);return true}
+/** After the rows went back into their table: each cut row joins the row it was cut from. */
+function dcxRowJoin(host: ParentNode){host.querySelectorAll<HTMLTableRowElement>("tr[data-dxrow]").forEach(tr2=>{const tr=tr2.previousElementSibling;if(tr)for(const td2 of [...tr2.cells]){const td=tr.querySelector(`[data-tc="${(td2 as HTMLElement).dataset.tc}"]`);if(td){dcxJoin(td,td2);td.normalize()}}tr2.remove()})}
+/* ---- break options per block: lines kept together at a cut (paragraphs, quotes, lists), header row repeated (tables) ---- */
+{const _bh=dcBlockHTML;dcBlockHTML=function(b,ctx){let h=_bh(b,ctx);if(!h)return h;
+  if(b.wo!=null&&+b.wo>=1)h=h.replace(/^(<div class="dc-b[^"]*")/,`$1 data-wo="${+b.wo}"`);
+  if(b.type==="table"&&b.hrep===false)h=h.replace(/^<div class="dc-b /,'<div class="dc-b nohrep ');return h}}
+{const _pd=dcPropsDisp;dcPropsDisp=function(b){const h=_pd(b);const tip=`<p class="dc-mut sm">${t("dc_pg_tip")}</p>`;if(!h.includes(tip))return h;let add="";
+  if(/^(p|quote|concl|longtext)$/.test(b.type))add+=dcRow("dcx_brk_lines",dcSelH('data-bp="wo" data-bt="numn" data-dxwo',[["1",t("dcx_brk_l1")],["",t("dcx_brk_l2")],["3",t("dcx_brk_l3")],["4",t("dcx_brk_l4")]],b.wo==null?"":String(b.wo)));
+  if(b.type==="table")add+=dcTg('data-bp="hrep" data-bt="boolT"',b.hrep!==false,"dcx_brk_hrep");
+  return add?h.replace(tip,add+tip):h}}
+/* ---- moving through a block cut over two sheets: arrows, Backspace and Delete cross the cut ---- */
+function dcxEdGroup(el: HTMLElement){const be=el.closest<HTMLElement>(".dc-b");const host=be?.closest<HTMLElement>(".dc-pages");const key=el.dataset.ed;if(!be||!host||!key)return null;
+  const eds=dcxEdParts(host,be.dataset.b!,key);return eds.length>1?{eds,i:eds.indexOf(el)}:null}
+function dcxCaretIn(el: HTMLElement){const s=getSelection();if(!s||!s.rangeCount||!s.isCollapsed)return null;const r=s.getRangeAt(0);if(!el.contains(r.startContainer))return null;
+  const a=document.createRange();a.selectNodeContents(el);a.setEnd(r.startContainer,r.startOffset);const b=document.createRange();b.selectNodeContents(el);b.setStart(r.startContainer,r.startOffset);
+  const pre=a.toString().length;return {pre,len:(el.textContent||"").length,atStart:!a.toString().trim(),atEnd:!b.toString().trim()}}
+function dcxPutCaret(el: HTMLElement,atEnd: boolean){el.focus({preventScroll:false});const r=document.createRange();r.selectNodeContents(el);r.collapse(!atEnd);const s=getSelection()!;s.removeAllRanges();s.addRange(r)}
+onDoc("keydown",e=>{const k=e.key;if(!/^(ArrowDown|ArrowRight|ArrowUp|ArrowLeft|Backspace|Delete)$/.test(k)||e.altKey||e.metaKey||e.ctrlKey)return;
+  const el=(tgt(e) as HTMLElement).closest?.<HTMLElement>(".dc-cv [data-ed]");if(!el)return;const g=dcxEdGroup(el);if(!g||g.i<0)return;const c=dcxCaretIn(el);if(!c)return;
+  const fwd=k==="ArrowDown"||k==="ArrowRight"||k==="Delete";const nx=g.eds[g.i+(fwd?1:-1)];if(!nx)return;
+  if(k==="ArrowRight"||k==="Delete"){if(!c.atEnd)return}else if(k==="ArrowLeft"||k==="Backspace"){if(!c.atStart)return}
+  else{/* up / down: only when the browser cannot move (the caret is on the first / last line) */const before=c.pre;setTimeout(()=>{const c2=dcxCaretIn(el);if(c2&&c2.pre===before&&document.activeElement===el)dcxPutCaret(nx,!fwd)},0);return}
+  e.preventDefault();dcxPutCaret(nx,!fwd);if(k==="Backspace")document.execCommand("delete");else if(k==="Delete")document.execCommand("forwardDelete")},true);
