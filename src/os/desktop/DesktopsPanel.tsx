@@ -111,6 +111,9 @@ export function DesktopsPanel() {
   const [ren, setRen] = useState(-1);
   const [dctx, setDctx] = useState<number | null>(null);
   const [hud, setHud] = useState<Hud | null>(null);
+  /* like the source (L8432), hiding only removes "show": the last content stays in place while it fades */
+  const [hudLast, setHudLast] = useState<Hud | null>(null);
+  if (hud && hud !== hudLast) setHudLast(hud);
   const [glide, setGlide] = useState(false);
   const deskName = useCallback((i: number) => s.desks[i]?.n || t("desktopN", { n: nf(i + 1) }), [s.desks, t, nf]);
   useEffect(() => { hudSetter = setHud; return () => { hudSetter = null; }; }, []);
@@ -246,8 +249,8 @@ export function DesktopsPanel() {
         onRename={() => { setDctx(null); setRen(dctx); }} onNew={() => { setDctx(null); addDesk(false); }} onCloseDesk={() => closeDesk(dctx)} onWall={(k) => setDeskWall(dctx, k)} /> : null}
       {typeof document !== "undefined" ? createPortal(
         <div className={"dhud" + (hud ? " show" : "")} id="dHud" role="status" aria-live="polite">
-          {hud?.ws ? <><span className="dh-dots">{s.workspaces.map((_, i) => <i key={i} className={i === s.selWs ? "on" : ""}></i>)}</span><b>{s.workspaces[s.selWs].k ? t(s.workspaces[s.selWs].k!) : t("workspaceN", { n: nf(s.workspaces[s.selWs].n!) })}</b><small>{t("os_wsDesks", { n: nf(n), w: nf(OSW().filter((w) => w.ws === s.selWs).length) })}</small></>
-            : hud ? <><span className="dh-dots">{s.desks.map((_, i) => <HudDot key={i} on={i === s.cur} start={i === hud.from} />)}</span><b>{deskName(s.cur)}</b><small>{t("dskOf", { n: nf(s.cur + 1), m: nf(n) })}</small></> : null}
+          {hudLast?.ws ? <><span className="dh-dots">{s.workspaces.map((_, i) => <i key={i} className={i === s.selWs ? "on" : ""}></i>)}</span><b>{s.workspaces[s.selWs].k ? t(s.workspaces[s.selWs].k!) : t("workspaceN", { n: nf(s.workspaces[s.selWs].n!) })}</b><small>{t("os_wsDesks", { n: nf(n), w: nf(OSW().filter((w) => w.ws === s.selWs).length) })}</small></>
+            : hudLast ? <><span className="dh-dots">{s.desks.map((_, i) => <HudDot key={i} on={i === s.cur} start={i === hudLast.from} />)}</span><b>{deskName(s.cur)}</b><small>{t("dskOf", { n: nf(s.cur + 1), m: nf(n) })}</small></> : null}
         </div>, document.body) : null}
     </>
   );

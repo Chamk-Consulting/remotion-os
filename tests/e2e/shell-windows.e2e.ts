@@ -74,11 +74,12 @@ test("dock toggles: minimise the front window, restore, focus a back window; clo
   expect(r.react).toEqual(r.source);
 });
 
+/* v94 reference: its page reacts a little later than v71 did; 900 ms leaves the 460 ms size animation time to end in both */
 test("maximise / restore by button and title double-click; minimise button", async ({ browser, baseURL }) => {
   const r = await both(browser, baseURL, async (p) => {
     await p.click('#dock [data-t="terminal"]'); await p.waitForTimeout(200);
-    await wc(p, "terminal", "max").click(); await p.waitForTimeout(600); const mx = await wins(p);
-    await hdr(p, "terminal").dblclick({ position: { x: 300, y: 20 } }); await p.waitForTimeout(600); const rs = await wins(p);
+    await wc(p, "terminal", "max").click(); await p.waitForTimeout(900); const mx = await wins(p);
+    await hdr(p, "terminal").dblclick({ position: { x: 300, y: 20 } }); await p.waitForTimeout(900); const rs = await wins(p);
     await wc(p, "terminal", "min").click(); await p.waitForTimeout(300);
     return { mx, rs, min: [await wins(p), await dock(p)] };
   });
@@ -90,15 +91,15 @@ test("window menu: rows, halves, quarters, previous size; Win+arrows", async ({ 
     await p.click('#dock [data-t="terminal"]'); await p.waitForTimeout(200);
     await p.locator('.os-win[data-osw="terminal"] [data-wmenu]').click(); await p.locator('.os-menu[data-level="0"]').waitFor();
     const rows = await menuRows(p, 0); await sub(p, 0, "Move to desktop"); const desks = await menuRows(p, 1); await sub(p, 0, "Move to workspace"); const wss = await menuRows(p, 1);
-    await sub(p, 0, "Quarter"); const q = await menuRows(p, 1); await pick(p, 1, "Top left"); await p.waitForTimeout(600); const tl = await wins(p);
+    await sub(p, 0, "Quarter"); const q = await menuRows(p, 1); await pick(p, 1, "Top left"); await p.waitForTimeout(900); const tl = await wins(p);
     await hdr(p, "terminal").click({ button: "right", position: { x: 200, y: 20 } }); await p.locator('.os-menu[data-level="0"]').waitFor(); const rows2 = await menuRows(p, 0);
-    await pick(p, 0, "Previous size"); await p.waitForTimeout(600); const prev = await wins(p);
-    await p.keyboard.press("Meta+ArrowLeft"); await p.waitForTimeout(600); const left = await wins(p);
-    await p.keyboard.press("Meta+ArrowUp"); await p.waitForTimeout(600); const up = await wins(p);
-    await p.keyboard.press("Meta+ArrowDown"); await p.waitForTimeout(600); const down = await wins(p);
-    await p.keyboard.press("Meta+ArrowDown"); await p.waitForTimeout(600); const down2 = await wins(p);
-    await p.keyboard.press("Meta+ArrowUp"); await p.waitForTimeout(600); const maxed = await wins(p);
-    await p.keyboard.press("Meta+ArrowRight"); await p.waitForTimeout(600); const right = await wins(p);
+    await pick(p, 0, "Previous size"); await p.waitForTimeout(900); const prev = await wins(p);
+    await p.keyboard.press("Meta+ArrowLeft"); await p.waitForTimeout(900); const left = await wins(p);
+    await p.keyboard.press("Meta+ArrowUp"); await p.waitForTimeout(900); const up = await wins(p);
+    await p.keyboard.press("Meta+ArrowDown"); await p.waitForTimeout(900); const down = await wins(p);
+    await p.keyboard.press("Meta+ArrowDown"); await p.waitForTimeout(900); const down2 = await wins(p);
+    await p.keyboard.press("Meta+ArrowUp"); await p.waitForTimeout(900); const maxed = await wins(p);
+    await p.keyboard.press("Meta+ArrowRight"); await p.waitForTimeout(900); const right = await wins(p);
     return { rows, desks, wss, q, tl, rows2, prev, left, up, down, down2, maxed, right };
   });
   expect(r.react).toEqual(r.source);
@@ -112,7 +113,7 @@ test("drag: move, snap to the left edge with preview, drag out of a snap, edge a
     const h2 = (await hdr(p, "terminal").boundingBox())!;
     await p.mouse.move(h2.x + 250, h2.y + 20); await p.mouse.down(); await p.mouse.move(5, 400, { steps: 10 });
     const preview = await p.evaluate(() => { const v = document.querySelector<HTMLElement>(".os-snapv"); return v ? [v.className, v.style.left, v.style.top, v.style.width, v.style.height] : null; });
-    await p.mouse.up(); await p.waitForTimeout(600); const snapped = await wins(p);
+    await p.mouse.up(); await p.waitForTimeout(900); const snapped = await wins(p);
     const h3 = (await hdr(p, "terminal").boundingBox())!;
     await p.mouse.move(h3.x + 200, h3.y + 20); await p.mouse.down(); await p.mouse.move(h3.x + 400, h3.y + 200, { steps: 8 }); await p.mouse.up(); await p.waitForTimeout(300); const unsnapped = await wins(p);
     const e = (await p.locator('.os-win[data-osw="terminal"] .os-eh.e-e').boundingBox())!;
