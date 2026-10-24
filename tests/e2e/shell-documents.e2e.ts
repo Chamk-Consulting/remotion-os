@@ -85,9 +85,12 @@ const modal = (p: Page) => tree(p, `${W} .dc-mdl`);
 test("library: every view, template domains, search, sort, star, open a document back in the editor", async ({ browser, baseURL }) => {
   const r = await both(browser, baseURL, async (p) => {
     const out: unknown[] = []; await openDc(p);
-    for (const v of ["overview", "recent", "fav", "mine", "shared", "review", "pub", "clinical", "templates", "arch", "trash"]) { if (await tryClick(p, `[data-dgo="${v}"]`, 600)) out.push(v, await dc(p)); }
+    const ready = () => p.waitForFunction((W) => !document.querySelector(`${W} .dc-exld`), W, { timeout: 30000 }).catch(() => {});
+    for (const v of ["overview", "recent", "fav", "mine", "shared", "review", "pub", "clinical", "templates", "arch", "trash"]) { if (await tryClick(p, `[data-dgo="${v}"]`, 600)) { await ready(); out.push(v, await dc(p)); } }
     await tryClick(p, '[data-dgo="templates"]', 600);
-    for (const d of ["health", "physio", "psy", "rehab", "reports", "letters", "cr", "gen", "all"]) { if (await tryClick(p, `[data-dtpl="${d}"]`, 400)) out.push(d, await main(p)); }
+    /* template previews (Word forms) render asynchronously: compare them once both sides have finished loading */
+    const loaded = () => p.waitForFunction((W) => !document.querySelector(`${W} .dc-exld`), W, { timeout: 30000 }).catch(() => {});
+    for (const d of ["health", "physio", "psy", "rehab", "reports", "letters", "cr", "gen", "all"]) { if (await tryClick(p, `[data-dtpl="${d}"]`, 400)) { await loaded(); out.push(d, await main(p)); } }
     await tryClick(p, '[data-dgo="overview"]', 600);
     const q = p.locator(`${W} input[type="search"]`).first(); if (await q.count()) { await q.fill("bilan"); await p.waitForTimeout(500); out.push(await main(p)); await q.fill(""); await p.waitForTimeout(400); }
     if (await tryClick(p, "[data-open]", 900)) out.push(await dc(p));
