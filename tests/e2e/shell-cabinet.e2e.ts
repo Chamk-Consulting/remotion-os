@@ -10,7 +10,7 @@ import { serveGoogleFontsLocally } from "../helpers/fonts";
 // Long dual-run journeys (two full builds per test).
 test.describe.configure({ timeout: 240000 });
 
-const SRC = "file://" + path.resolve("../source/Remotion_Desktop.html");
+const SRC = "file://" + path.resolve("../source-v94/Remotion_Desktop_v94.html") /* S2: v94 is the reference */;
 /** Cabinet is about the day's flow: the clock is fixed mid-morning (11:30 in Paris) so there are visits to receive. */
 const NOW = new Date("2026-10-14T10:30:00+01:00");
 async function open(page: Page, url: string) {

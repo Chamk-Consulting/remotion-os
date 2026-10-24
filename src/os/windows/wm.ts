@@ -36,6 +36,8 @@ export type Win = {
   ws: number; did: string; all: boolean;
   /** `.os-off` (hidden on another desktop/workspace) — explicit because the slide animation toggles it late, like the source. */
   off: boolean; hidden: boolean; anim: boolean; moving: boolean; sizing: boolean;
+  /** Classes set by the transitions engine (anim-hold, xp-mv…): kept across re-renders of the frame. */
+  xcls?: string;
   /** Button labels and section aria-label as the source leaves them (osRelabel shifts them by one, D-B22 reproduced). */
   lab: { wmenu: string; min: string; max: string; close: string; aria: string | "follow" };
   closing?: boolean;
@@ -62,6 +64,14 @@ const DOCK_KEY: Record<string, string> = { apps: "launchpad" };
 
 export const osVis = (w: Win) => { const st = useShell.getState(); return w.ws === st.selWs && (w.all || w.did === osDid(st.cur)); };
 
+/** Adds / removes an engine class on a window frame now and keeps it when React re-renders the frame. */
+export function winClass(key: string, cls: string, on: boolean) {
+  const w = useWm.getState().wins[key]; if (!w) return; const set = new Set((w.xcls || "").split(" ").filter(Boolean));
+  if (on) set.add(cls); else set.delete(cls); winEls.get(key)?.classList.toggle(cls, on); patch(key, { xcls: [...set].join(" ") });
+}
+/** v83 hook: the window manager's own open / close / minimise / restore animations run inside `wmFrame.run(key, …)` so the
+ *  transitions engine can retime only those (speed, calm style); `after` follows maximise / snap / unsnap. */
+export const wmFrame: { run: <T>(key: string, f: () => T) => T; after: (op: string, key: string) => void } = { run: (_k, f) => f(), after: () => {} };
 /* ---------------- open / focus / close ---------------- */
 export function osWinOpen(key: string, o: WinOpts): Win {
   const ex = live(key);
@@ -93,7 +103,7 @@ export function osClose(key: string) {
   const end = () => { winEls.delete(key); useStack.getState().drop("os:" + key); useWm.setState((s) => { const { [key]: _gone, ...rest } = s.wins; void _gone; return { wins: rest, order: s.order.filter((k) => k !== key), rev: s.rev + 1 }; }); };
   const el = winEls.get(key);
   if (reducedMotion() || !el) { end(); return; }
-  el.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "scale(.94) translateY(10px)" }], { duration: 220, easing: "cubic-bezier(.4,0,1,1)" }).finished.then(end);
+  wmFrame.run(key, () => el.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "scale(.94) translateY(10px)" }], { duration: 220, easing: "cubic-bezier(.4,0,1,1)" })).finished.then(end);
 }
 export function osMin(key: string) {
   if (useWm.getState().osa.key === key) appModeHooks.exit(true);
@@ -101,13 +111,13 @@ export function osMin(key: string) {
   patch(key, { min: true }); const b = osDockBtn(key), el = winEls.get(key);
   if (reducedMotion() || !b || !el) { patch(key, { hidden: true }); return; }
   const r = el.getBoundingClientRect(), f = b.getBoundingClientRect();
-  el.animate([{ transform: "none", opacity: 1 }, { transform: `${towards(r, f)} scale(.08)`, opacity: .2 }], { duration: 420, easing: "cubic-bezier(.55,0,.4,1)" }).finished.then(() => { if (live(key)?.min) patch(key, { hidden: true }); });
+  wmFrame.run(key, () => el.animate([{ transform: "none", opacity: 1 }, { transform: `${towards(r, f)} scale(.08)`, opacity: .2 }], { duration: 420, easing: "cubic-bezier(.55,0,.4,1)" })).finished.then(() => { if (live(key)?.min) patch(key, { hidden: true }); });
 }
 export function osRestore(key: string) {
   const w = live(key); if (!w || !w.min) return;
   patch(key, { min: false, hidden: false }); osFocus(key);
   const b = osDockBtn(key), el = winEls.get(key);
-  if (!reducedMotion() && b && el) requestAnimationFrame(() => { const r = el.getBoundingClientRect(), f = b.getBoundingClientRect(); el.animate([{ transform: `${towards(r, f)} scale(.08)`, opacity: .2 }, { transform: "none", opacity: 1 }], { duration: 460, easing: "cubic-bezier(.2,1.05,.3,1)" }); });
+  if (!reducedMotion() && b && el) requestAnimationFrame(() => { const r = el.getBoundingClientRect(), f = b.getBoundingClientRect(); wmFrame.run(key, () => el.animate([{ transform: `${towards(r, f)} scale(.08)`, opacity: .2 }, { transform: "none", opacity: 1 }], { duration: 460, easing: "cubic-bezier(.2,1.05,.3,1)" })); });
 }
 const styleRect = (el: HTMLElement): StyleRect => ({ l: el.style.left, t: el.style.top, w: el.style.width, h: el.style.height });
 const applyRect = (el: HTMLElement, r: StyleRect) => Object.assign(el.style, { left: r.l, top: r.t, width: r.w, height: r.h });
@@ -120,7 +130,7 @@ export function osMax(key: string) {
     Object.assign(el.style, { left: "8px", top: "64px", width: innerWidth - 16 + "px", height: Math.max(300, (dock.top > 200 ? dock.top : innerHeight) - 74) + "px" });
     lab.max = tt("fmRestore"); patch(key, { max: true, prev, lab });
   } else { if (w.prev) applyRect(el, w.prev); lab.max = tt("fmMax"); patch(key, { max: false, lab }); }
-  animFor(key, 460, () => live(key)?.o.onResize?.());
+  animFor(key, 460, () => live(key)?.o.onResize?.()); wmFrame.after("max", key);
 }
 
 /* ---------------- snapping (L20914–L20915) ---------------- */
@@ -129,12 +139,12 @@ export function osSnap(key: string, z: Zone) {
   if (w.max) { osMax(key); w = live(key)!; }
   const snapPrev = w.snap ? w.snapPrev : styleRect(el); const r = osSnapRect(z);
   Object.assign(el.style, { left: r.l + "px", top: r.t + "px", width: r.w + "px", height: r.h + "px" });
-  patch(key, { snap: z, snapAttr: z, snapPrev }); animFor(key, 460, () => { live(key)?.o.onResize?.(); bump(); });
+  patch(key, { snap: z, snapAttr: z, snapPrev }); animFor(key, 460, () => { live(key)?.o.onResize?.(); bump(); }); wmFrame.after("snap", key);
 }
 export function osUnsnap(key: string) {
   const w = live(key); const el = winEls.get(key); if (!w || !w.snap || !el) return;
   const p = w.snapPrev; patch(key, { snap: null, snapAttr: null });
-  if (p) { applyRect(el, p); animFor(key, 460, () => live(key)?.o.onResize?.()); }
+  if (p) { applyRect(el, p); animFor(key, 460, () => live(key)?.o.onResize?.()); } wmFrame.after("unsnap", key);
 }
 /** Resize keeps snapped windows in their zone (L20978). */
 export function reSnapAll() { if (innerWidth <= 860) return; for (const w of OSW()) if (w.snap) { const el = winEls.get(w.key); if (el) { const r = osSnapRect(w.snap); Object.assign(el.style, { left: r.l + "px", top: r.t + "px", width: r.w + "px", height: r.h + "px" }); } } }
@@ -157,20 +167,23 @@ export function osDeskApply() {
     return { wins, rev: s.rev + 1 };
   });
 }
-let tok = 0;
+/** OSX.tok: one token for every desktop / workspace switch (a newer switch stops the timers of an older one). */
+export const osxTok = { n: 0 };
 /** osSlideWins: windows travel with their desktop during the Spaces slide. Called after `cur` changed. */
 export function osSlideWins(fromId: string, toId: string, dir: number) {
   const st = useShell.getState(); const ws = OSW().filter((w) => w.ws === st.selWs && !w.all && !w.min);
   const outs = ws.filter((w) => w.did === fromId), ins = ws.filter((w) => w.did === toId);
   if (reducedMotion()) { osDeskApply(); return; }
-  const d = dir * (document.documentElement.dir === "rtl" ? -1 : 1), W = innerWidth, D = 820, E = "cubic-bezier(.72,0,.24,1)", tk = ++tok;
+  const d = dir * (document.documentElement.dir === "rtl" ? -1 : 1), W = innerWidth, D = 820, E = "cubic-bezier(.72,0,.24,1)", tk = ++osxTok.n;
   outs.forEach((w) => { const el = winEls.get(w.key); if (!el) return; el.getAnimations().forEach((a) => a.cancel()); el.animate([{ transform: "none", opacity: 1 }, { transform: `translateX(${-d * W * .5}px) scale(.94)`, opacity: .9, offset: .5 }, { transform: `translateX(${-d * W}px) scale(1)`, opacity: .8 }], { duration: D, easing: E }).finished.then(() => { const x = live(w.key); if (x) patch(w.key, { off: !osVis(x) }); }).catch(() => {}); });
   ins.forEach((w) => { patch(w.key, { off: false }); const el = winEls.get(w.key); if (!el) return; el.getAnimations().forEach((a) => a.cancel()); el.animate([{ transform: `translateX(${d * W}px) scale(1)`, opacity: .8 }, { transform: `translateX(${d * W * .5}px) scale(.94)`, opacity: .9, offset: .5 }, { transform: "none", opacity: 1 }], { duration: D, easing: E }); });
-  setTimeout(() => { if (tok === tk) osDeskApply(); }, D + 40);
+  setTimeout(() => { if (osxTok.n === tk) osDeskApply(); }, D + 40);
 }
+/** Hook point for the transitions engine (v76: windows follow the chosen effect). */
+export const winFx: { slideWins: (fromId: string, toId: string, dir: number) => void } = { slideWins: (a, b, d) => osSlideWins(a, b, d) };
 /** Hooks the desktops panel calls (the v55 wrappers of gotoDesk / closeDesk / addDesk). */
 export const deskHooks = {
-  afterGoto(fromId: string, toId: string, dir: number) { osWsSave(); osSlideWins(fromId, toId, dir); },
+  afterGoto(fromId: string, toId: string, dir: number) { osWsSave(); winFx.slideWins(fromId, toId, dir); },
   afterClose() { setTimeout(() => { osDeskApply(); osWsSave(); }, 450); },
   afterAdd() { useShell.getState().desks.forEach((_, k) => osDid(k)); osWsSave(); },
 };

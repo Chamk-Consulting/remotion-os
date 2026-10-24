@@ -39,7 +39,7 @@ function CalendarBody() {
 if (typeof window !== "undefined" && healthNative()) {
   clInstallIntegrations();
   registerNativeApp("calendar", {
-    beforeOpen: () => { clSt(); CL.ui.mode = clSt().prefs.mode || "week"; rmCatchUp(); },
+    beforeOpen: () => { clSt(); CL.ui.mode = innerWidth < 720 && !clSt().prefs.modeSet ? "day" : (clSt().prefs.mode || "week") /* v94: a readable day view on phones unless a view was chosen */; rmCatchUp(); },
     body: () => <CalendarBody />,
     onClose: () => { if (clTick) clearInterval(clTick); clTick = null; },
     onResize: () => { clSize(); clInk(false); },

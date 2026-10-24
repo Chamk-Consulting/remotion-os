@@ -21,7 +21,7 @@ export function Glyph({ it, size = 52, sm, xs, mini, xsAll }: { it: Item; size?:
         <svg viewBox="0 0 64 52" width={size + 4} height={Math.round((size + 4) * 52 / 64)} aria-hidden="true">
           <path d="M4 9a5 5 0 0 1 5-5h15l6 6h25a5 5 0 0 1 5 5v4H4z" fill={y ? "#e9a21a" : "#3e86e8"} />
           <rect x="4" y="15" width="56" height="34" rx="5" fill={y ? "url(#dkfy)" : "url(#dkfg)"} />
-          <defs><linearGradient id={y ? "dkfy" : "dkfg"} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={y ? "#ffd668" : "#74b4ff"} /><stop offset="1" stopColor={y ? "#f6b62c" : "#4d94f5"} /></linearGradient></defs>
+          {/* v91: the gradients live once in a shared hidden <svg id="trGradDefs"> (no duplicate ids) */}
           <path d="M12 22h40" stroke={y ? "rgba(255,255,255,.4)" : "rgba(255,255,255,.35)"} strokeWidth="2" strokeLinecap="round" />
         </svg>
         {n ? <i className="cnt">{nf(n)}</i> : null}

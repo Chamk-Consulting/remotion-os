@@ -15,7 +15,7 @@ export function Toast() {
   useEffect(() => {
     const el = ref.current; if (!toast || !el) return;
     el.classList.add("show"); if (toast.undo) el.classList.add("act"); else el.classList.remove("act");
-    const id = setTimeout(() => el.classList.remove("show", "act"), toast.undo ? 4500 : 1600);
+    const id = setTimeout(() => el.classList.remove("show", "act"), toast.ms ?? (toast.undo ? 4500 : 1600));
     return () => clearTimeout(id);
   }, [toast]);
   useEffect(() => {
@@ -24,7 +24,7 @@ export function Toast() {
   }, [t]);
   return (
     <div className="toast" id="toast" role="status" ref={ref}>
-      {toast?.msg}{toast?.undo ? <button type="button" onClick={() => { toast.undo!(); ref.current?.classList.remove("show", "act"); }}>{t("undo")}</button> : null}
+      {toast?.msg}{toast?.undo ? <button type="button" onClick={(e) => { if (toast.act) e.stopPropagation(); toast.undo!(); ref.current?.classList.remove("show", "act"); }}>{toast.act ?? t("undo")}</button> : null}
     </div>
   );
 }

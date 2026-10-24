@@ -23,6 +23,10 @@ const DKI = icons.DKI as Record<string, string>;
 const PLUS22 = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>';
 const CHEV_DOWN = (icons.OSI as Record<string, string>).chev.replace("m9 6 6 6-6 6", "m6 9 6 6 6-6");
 
+/** Hook point for the transitions engine (v74: slideSpace is routed through trDesk). */
+/** v82: the gestures setting vetoes the trackpad swipe for one wheel event (off, or content that scrolls sideways). */
+export const wheelFx = { veto: false };
+export const deskFx: { slide: (dir: number) => void; beforeGoto: (() => void)[]; afterGoto: ((was: unknown) => void)[] } = { slide: (dir) => slideSpaceClassic(dir), beforeGoto: [], afterGoto: [] };
 /* ---------- desktop switching (gotoDesk / slideSpace / showDeskHud / dkSwitch) ---------- */
 let deskAnims: Animation[] = [];
 type Hud = { from: number; ws?: boolean };
@@ -40,6 +44,10 @@ export function dkSwitch(delay: number) {
 }
 /** slideSpace (L7811): wallpaper + content slide like macOS Spaces; fade under reduced motion. Call after `cur` changed. */
 function slideSpace(dir: number) {
+  return deskFx.slide(dir);
+}
+/** The original slide (v74 keeps it as "classic"); the transitions engine replaces `deskFx.slide`. */
+export function slideSpaceClassic(dir: number) {
   const apply = () => useShell.setState({ wallDesk: useShell.getState().cur });
   try { dkSwitch(reducedMotion() ? 0 : 360); } catch {}
   deskAnims.forEach((a) => { try { a.finish(); } catch {} }); deskAnims = []; document.getElementById("wallOld")?.remove();
@@ -85,6 +93,11 @@ function gotoDesk0(i: number, closeAfter?: boolean) {
 }
 /** gotoDesk with the v55 wrapper (L20862): open windows travel with their desktop. */
 export function gotoDesk(i: number, closeAfter?: boolean) {
+  deskFx.beforeGoto.forEach((f) => f()); /* v84 / v89 wrappers (overview, pending workspace swap) */
+  const r = gotoDesk1(i, closeAfter);
+  return r;
+}
+function gotoDesk1(i: number, closeAfter?: boolean) {
   const st = useShell.getState(); const dc = st.desks.length; const n = ((i % dc) + dc) % dc;
   if (n === st.cur || !dc) return gotoDesk0(i, closeAfter);
   const from = st.cur, fromId = osDid(from), toId = osDid(n);
@@ -176,7 +189,7 @@ export function DesktopsPanel() {
     const h = (e: WheelEvent) => {
       if (Math.abs(e.deltaX) <= Math.abs(e.deltaY) * 1.3 || e.ctrlKey) return;
       const tg = e.target as Element; if (!tg.closest?.(".shell") || tg.closest(".desks,.pop,.menu,.dock,.rail,input,textarea,select,[class*=scroll]") || document.body.classList.contains("locked")) return;
-      const st = useShell.getState(); if (st.desksOpen || Date.now() < lock) return;
+      const st = useShell.getState(); if (wheelFx.veto || st.desksOpen || Date.now() < lock) return;
       acc += e.deltaX; clearTimeout(idle); idle = setTimeout(() => (acc = 0), 260);
       if (Math.abs(acc) > 150) { const rtl = document.documentElement.dir === "rtl"; gotoDesk(st.cur + ((acc > 0) !== rtl ? 1 : -1)); acc = 0; lock = Date.now() + 850; }
     };

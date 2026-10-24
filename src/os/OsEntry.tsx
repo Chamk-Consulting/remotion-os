@@ -5,6 +5,13 @@ import { resolveApp, type AppKey } from "@/apps/registry";
 import { LegacyBridge } from "./LegacyBridge";
 import { I18nProvider } from "@/lib/i18n/I18nProvider";
 import { OsShell } from "./shell/OsShell";
+import { installDataSafety } from "@/lib/storage/safety";
+import { installDataLinks } from "@/apps/health/datalinks";
+import { installTransitions } from "@/os/transitions/transitions";
+import { installSwitcher } from "@/os/transitions/switcher";
+import { installOverview } from "@/os/transitions/overview";
+import { installGestures } from "@/os/transitions/gestures";
+import { installA11y } from "@/os/a11y/a11y";
 
 const noop = () => () => {};
 /** Client-only value: the OS needs window/localStorage (ADR-02); the server renders nothing. */
@@ -27,5 +34,6 @@ export function OsEntry({ appKey }: { appKey?: AppKey }) {
   const q = new URLSearchParams(location.search).get("shell");
   const legacy = q === "legacy" || (q !== "react" && process.env.NEXT_PUBLIC_OS_SHELL === "legacy");
   if (legacy) return <LegacyBridge app={appKey ? resolveApp(appKey) : null} />;
+  installDataSafety(); installDataLinks(); installTransitions(); installSwitcher(); installOverview(); installGestures(); installA11y(); /* v93 data safety (catch-up S3), before any app reads its store */
   return <I18nProvider><OsShell bootApp={appKey} /></I18nProvider>;
 }

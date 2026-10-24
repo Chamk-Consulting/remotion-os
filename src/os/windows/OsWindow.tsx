@@ -10,7 +10,7 @@ import { SvgString } from "@/os/shell/svg";
 import icons from "@/os/shell/data/icons.json";
 import { towards, zoneAt, type Zone } from "./geometry";
 import { bgClickGuard } from "./stack";
-import { clearSnap, markMinis, osClose, osFocus, osMax, osMin, osSnap, setMoving, useWm, winEls, type Win } from "./wm";
+import { clearSnap, markMinis, osClose, osFocus, osMax, osMin, osSnap, setMoving, useWm, winEls, wmFrame, type Win } from "./wm";
 import { osWinMenu } from "./winMenu";
 import { snapPreview } from "./snapPreview";
 import { SoloBar } from "./appmode";
@@ -29,7 +29,7 @@ export function OsWindow({ w, z, focus }: { w: Win; z: number; focus: boolean })
 
   useLayoutEffect(() => {
     const el = ref.current!; winEls.set(key, el);
-    if (!reducedMotion()) { const r = el.getBoundingClientRect(); const tf = w.from ? `${towards(r, w.from)} scale(.12)` : "translateY(16px) scale(.95)"; el.animate([{ opacity: 0, transform: tf }, { opacity: 1, transform: "none" }], { duration: 520, easing: "cubic-bezier(.2,1.05,.3,1)" }); }
+    if (!reducedMotion()) { const r = el.getBoundingClientRect(); const tf = w.from ? `${towards(r, w.from)} scale(.12)` : "translateY(16px) scale(.95)"; wmFrame.run(key, () => el.animate([{ opacity: 0, transform: tf }, { opacity: 1, transform: "none" }], { duration: 520, easing: "cubic-bezier(.2,1.05,.3,1)" })); }
     markMinis();
     // Window identity is fixed for its lifetime; run once on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -94,7 +94,7 @@ export function OsWindow({ w, z, focus }: { w: Win; z: number; focus: boolean })
   };
   const onSecUp = () => { if (!es.current) return; es.current = null; setMoving(key, false, false); o.onResize?.(); markMinis(); };
 
-  const cls = ["os-win", o.cls || "", focus ? "focus" : "", w.max ? "max" : "", w.anim ? "anim" : "", w.moving ? "moving" : "", w.sizing ? "sizing" : "", w.off ? "os-off" : "", w.solo ? "os-solo" : ""].filter(Boolean).join(" ");
+  const cls = ["os-win", o.cls || "", focus ? "focus" : "", w.max ? "max" : "", w.anim ? "anim" : "", w.moving ? "moving" : "", w.sizing ? "sizing" : "", w.off ? "os-off" : "", w.solo ? "os-solo" : "", w.xcls || ""].filter(Boolean).join(" ");
   return (
     <section ref={ref} className={cls} data-osw={key} role="dialog" aria-label={w.lab.aria === "follow" ? title : w.lab.aria} data-osd="1" data-snap={w.snapAttr ?? undefined} hidden={w.hidden}
       style={{ ...init, zIndex: z }} onPointerDownCapture={onCapDown} onClickCapture={(e) => guard.click(e)} onPointerUpCapture={() => guard.up()} onPointerMove={onSecMove} onPointerUp={onSecUp} onPointerCancel={onSecUp}>

@@ -16,6 +16,7 @@ import { osActions } from "@/os/actions";
 import { CAT_IC, MI, PI, SC_CATS, SI, allRows, norm } from "./catalogue";
 import { Hl, Kbds, scApi } from "./ShortcutsPanel";
 import { ACTIONS, runRow } from "./actions";
+import { paletteExtras } from "./paletteExtra";
 
 type Item = { g: string; label: string; icon: React.ReactNode; combo?: string; run: () => void };
 
@@ -74,7 +75,11 @@ export function Palette() {
     const items: Item[] = typeof document === "undefined" ? [] : [...document.querySelectorAll<HTMLElement>(".notes li b, .tasks label span")].map((el) => ({ g: "searchItems", label: el.textContent || "", icon: <span className="pi"><SvgString html={el.closest(".notes") ? PI.note : PI.task} /></span>,
       run: () => { useShell.setState({ widgetsHidden: false }); const li = el.closest("li")!; li.scrollIntoView({ block: "nearest", behavior: "smooth" }); li.animate([{ background: "var(--green-soft)" }, { background: "transparent" }], { duration: 1400, easing: "ease-out" }); } }));
     if (!nq) return [...actions.slice(0, 4).map((x) => ({ ...x, g: "searchSuggested" })), ...apps.slice(0, 5).map((x) => ({ ...x, g: "searchSuggested" }))];
-    return [...apps.filter((x) => has(x.label)).slice(0, 6), ...actions.filter((x) => has(x.label)).slice(0, 5), ...scs.filter((x) => has(x.label)).slice(0, 6), ...items.filter((x) => has(x.label)).slice(0, 5)];
+    const extra: Item[] = paletteExtras(q).map((x) => ({ g: x.g, label: x.label, icon: <span className="pi" style={x.iconBg ? { background: x.iconBg } : undefined}><SvgString html={x.iconHtml} /></span>, combo: x.combo, run: x.run }));
+    const all = [...extra, ...apps.filter((x) => has(x.label)).slice(0, 6), ...actions.filter((x) => has(x.label)).slice(0, 5), ...scs.filter((x) => has(x.label)).slice(0, 6), ...items.filter((x) => has(x.label)).slice(0, 5)];
+    /* v75: during a transition the frozen copies of the desktop (.tr-face) hold the same notes / tasks: never listed twice */
+    if (!document.querySelector(".tr-face")) return all;
+    const seenIt = new Set<string>(); return all.filter((x) => { if (x.g !== "searchItems") return true; if (seenIt.has(x.label)) return false; seenIt.add(x.label); return true; });
   };
   const cur = ever ? data() : [];
   const run = (i: number) => { const x = cur[i]; if (!x) return; closeSearch(); setTimeout(() => x.run(), 60); };

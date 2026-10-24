@@ -29,6 +29,8 @@ type Drag =
   | { mode: "move"; x0: number; y0: number; id: string; started: boolean; pid: number; els?: { el: HTMLElement; it: Item; p: { x: number; y: number } }[]; tg?: Target | null };
 type Target = { kind: "trash"; el: HTMLElement } | { kind: "folder"; el: HTMLElement; it: Item } | null;
 
+/** v82 touch gestures: the desktop drag in progress (an icon move that started blocks a swipe; a band is cancelled by it). */
+export const dkDragApi: { get: () => { mode: string; started?: boolean } | null; cancelBand: () => void } = { get: () => null, cancelBand: () => {} };
 export function DesktopLayer() {
   const { t, nf, loc } = useI18n();
   const dkName = useDkName();
@@ -39,6 +41,10 @@ export function DesktopLayer() {
   const geo = useRef<Geo | null>(null);
   const drag = useRef<Drag | null>(null);
   const [band, setBand] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  useEffect(() => {
+    dkDragApi.get = () => drag.current;
+    dkDragApi.cancelBand = () => { const d = drag.current; if (d?.mode !== "band") return; setBand(null); useShell.getState().setSel([...d.base]); drag.current = null; };
+  }, []);
   const [hint, setHint] = useState<[number, number] | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [geoState, setGeo] = useState<Geo | null>(null);

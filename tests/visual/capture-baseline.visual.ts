@@ -7,7 +7,7 @@ import path from "node:path";
 import { serveGoogleFontsLocally } from "../helpers/fonts";
 import { SCENES, VIEWPORTS, FIXED_NOW, seed, shellRoot } from "../helpers/scenes";
 
-const SRC = "file://" + path.resolve("../source/Remotion_Desktop.html");
+const SRC = "file://" + path.resolve("../source-v94/Remotion_Desktop_v94.html") /* S2: v94 is the reference */;
 test.skip(!process.env.CAPTURE, "baseline capture only with CAPTURE=1");
 for (const s of SCENES) {
   test(`baseline ${s.name}`, async ({ browser }) => {

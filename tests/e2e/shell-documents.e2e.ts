@@ -5,7 +5,7 @@ import { serveGoogleFontsLocally } from "../helpers/fonts";
 
 /** The Documents flows (template gallery, exact Word forms, exports) are long: a larger budget per test. */
 test.describe.configure({ timeout: 300_000 });
-const SRC = "file://" + path.resolve("../source/Remotion_Desktop.html");
+const SRC = "file://" + path.resolve("../source-v94/Remotion_Desktop_v94.html") /* S2: v94 is the reference */;
 const NOW = new Date("2026-10-14T19:08:00+01:00");
 async function open(page: Page, url: string) {
   await serveGoogleFontsLocally(page); await page.route(/cdnjs/, (r) => r.abort());

@@ -16,7 +16,7 @@ import { serveGoogleFontsLocally } from "../helpers/fonts";
 
 test.describe.configure({ timeout: 300_000 });
 
-const SRC = "file://" + path.resolve("../source/Remotion_Desktop.html");
+const SRC = "file://" + path.resolve("../source-v94/Remotion_Desktop_v94.html") /* S2: v94 is the reference */;
 /** Mid-morning in Paris, so there are visits to receive and appointments later today and tomorrow. */
 const NOW = new Date("2026-10-14T10:30:00+01:00");
 const BUILDS = { source: { main: SRC, pop: (app: string) => `${SRC}#app=${app}` }, react: { main: "/?shell=react", pop: (app: string) => `/apps/${app}` } };

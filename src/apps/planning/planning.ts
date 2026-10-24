@@ -16,6 +16,7 @@
  * Simulated as in the source (S class): every appointment and waiting-list entry is synthetic; external calendars and
  * video links are shown as not connected.
  */
+import { a11yFocusables } from "@/os/a11y/a11y";
 import { L4 as L4core } from "@/lib/i18n/core";
 import { isLang, type Lang } from "@/lib/i18n/langs";
 import { useShell } from "@/os/state/shell";
@@ -30,6 +31,7 @@ import { CL, CL_ACTIVE, CL_CANCEL, CL_EXK, CL_KEY, CL_MOVABLE, CL_ORG_TZ, CL_ROL
   type ClAppt, type ClSlot, type ClExc, type ClRes, type ClConf } from "@/apps/calendar/calendar";
 import { CB_KEY, CB_READY, CbErr, cbCheckInDlg, cbDrawer, cbErr, cbGo, cbReady, cbSt, cbStage, cbTaskSave, cbTaskStatus, cbVisit } from "@/apps/cabinet/cabinet";
 import { RM_SH_KEY, rmOn, rmCatchUp, rmShSt, rmPrac, rmPracName, rmPracs, rmSpecName, rmEsts, rmEstName, rmNotify, rmShSave, type RmEv } from "@/apps/health/rm";
+import { secCsv } from "@/lib/security";
 
 
 /* ---------- typed model ---------- */
@@ -275,7 +277,15 @@ const plFld=(id: string,l: string,ctl: string,o: { full?: boolean | number; req?
 
 /* ---------- appointment drawer ---------- */
 const PL_HACT: Dict={create:"Créé|Created|Erstellt|أنشئ",move:"Déplacé|Moved|Verschoben|نُقل",edit:"Modifié|Edited|Bearbeitet|عُدّل",link:"Rattaché au dossier|Linked to record|Verknüpft|رُبط بالملف",book:"Réservé|Booked|Gebucht|حُجز"};
-function plDrawer(id: string | null){const R=plRoot();PL.ui.drawer=id;if(!R)return;const d=R.querySelector<HTMLInputElement>(".pl-drw"),s=R.querySelector<HTMLInputElement>(".hr-scrim");if(!id){d!.classList.remove("open","wide");d!.setAttribute("aria-hidden","true");s!.classList.remove("on");PL.ui.panel=null;R.querySelectorAll<HTMLInputElement>(".pl-ev.sel").forEach(e=>e.classList.remove("sel"));return}
+/** v94 accessibility (catch-up S7, L29440–L29446): the appointment drawer is a dialog; focus goes in and comes back. */
+let plA11yPrev: HTMLElement | null = null;
+function plDrawer(id: string | null){const was=PL.ui.drawer;
+  if(id&&!was){const a=document.activeElement as HTMLElement|null;plA11yPrev=a&&a!==document.body?a:null}
+  const r=plDrawer0(id);try{const d2=(plRoot()||document).querySelector<HTMLElement>(".pl-drw");if(d2){d2.setAttribute("role","dialog");
+    const h=d2.querySelector("h2,h3,header b");d2.setAttribute("aria-label",(h&&h.textContent!.trim())||L4("Rendez-vous|Appointment|Termin|موعد"));
+    if(id&&!was)setTimeout(()=>{if(!d2.contains(document.activeElement)){const f=a11yFocusables(d2)[0];if(f)f.focus({preventScroll:true})}},120);
+    if(!id&&was){const p=plA11yPrev;plA11yPrev=null;if(p&&p.isConnected)setTimeout(()=>{try{p.focus({preventScroll:true})}catch{/* gone */}},60)}}}catch{/* no drawer */}return r}
+function plDrawer0(id: string | null){const R=plRoot();PL.ui.drawer=id;if(!R)return;const d=R.querySelector<HTMLInputElement>(".pl-drw"),s=R.querySelector<HTMLInputElement>(".hr-scrim");if(!id){d!.classList.remove("open","wide");d!.setAttribute("aria-hidden","true");s!.classList.remove("on");PL.ui.panel=null;R.querySelectorAll<HTMLInputElement>(".pl-ev.sel").forEach(e=>e.classList.remove("sel"));return}
   PL.ui.panel=null;d!.classList.remove("wide");plDrawerPaint();d!.classList.add("open");d!.setAttribute("aria-hidden","false");s!.classList.add("on");R.querySelectorAll<HTMLInputElement>(".pl-ev.sel").forEach(e=>e.classList.remove("sel"));R.querySelector<HTMLInputElement>(`.pl-ev[data-plev="${CSS.escape(id)}"]`)?.classList.add("sel");setTimeout(()=>d!.querySelector<HTMLInputElement>("[data-pldx]")?.focus(),60)}
 function plActs(a: ClAppt){const al=clAllowed(a);const out: string[]=[];const B=(attr: string,ic: string,l: string,cls?: string)=>`<button type="button" class="pl-btn sm${cls?" "+cls:""}" ${attr}>${hri(ic,14)}<span>${hrE(L4(l))}</span></button>`;
   if(al.includes("confirmed")&&["pending","requested"].includes(a.status))out.push(B(`data-plst="${hrE(a.id)}|confirmed"`,"check","Confirmer|Confirm|Bestätigen|تأكيد","pri"));
@@ -485,7 +495,7 @@ function plKebab(x: number,y: number){const P=plSt().prefs;const set=(k: string,
   {l:L4("Rôle (démo) : |Role (demo): |Rolle (Demo): |الدور: ")+L4(CL_ROLES[clRole()].n),sub:Object.entries(CL_ROLES).map(([k,v])=>({l:L4(v.n),check:clRole()===k,run:()=>{clSt().role=k;clLog("role.switch","",k);clSave();plRender(true);plToast(L4(v.n))}}))},
   {l:L4("Praticien·ne simulé·e : |Simulated practitioner: |Simulierte(r) Behandler(in): |الممارس المحاكى: ")+rmPracName(clMe()),sub:rmPracs().map(p=>({l:rmPracName(p),check:clMe()===p.id,run:()=>{clSt().me=p.id;clSave();plRender(false)}}))}])}
 function plIcs(){try{const ds=plDays();const txt=clIcsExport({from:clZms(ds[0],"00:00",CL_ORG_TZ),to:clZms(clAddD(ds[ds.length-1],1),"00:00",CL_ORG_TZ),scope:"busy"});clSave();clDownload("planning-"+ds[0]+".ics",new Blob([txt],{type:"text/calendar;charset=utf-8"}));plToast(L4("Fichier .ics téléchargé (créneaux occupés uniquement)|.ics downloaded (busy slots only)|.ics heruntergeladen|تم التنزيل"))}catch(e){plToast(plErr(e),null,"err")}}
-function plCsv(){try{clNeed("export");const r=PL.ui.lr||"week";const T=plToday();const rg={today:[T,T],week:[plWeekStart(T),clAddD(plWeekStart(T),6)],next:[T,clAddD(T,29)],past:[clAddD(T,-30),clAddD(T,-1)],pending:[T,clAddD(T,89)]}[r];const its=plItems(plDayMs(rg![0])[0],plDayMs(rg![1])[1]);const q=(x: unknown)=>{const s=String(x??"");return /[",;\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
+function plCsv(){try{clNeed("export");const r=PL.ui.lr||"week";const T=plToday();const rg={today:[T,T],week:[plWeekStart(T),clAddD(plWeekStart(T),6)],next:[T,clAddD(T,29)],past:[clAddD(T,-30),clAddD(T,-1)],pending:[T,clAddD(T,89)]}[r];const its=plItems(plDayMs(rg![0])[0],plDayMs(rg![1])[1]);const q=(x: unknown)=>{const s=secCsv(x);return /[",;\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
   const L=["# Remotion OS — Calendar & Planning — données de démonstration (synthetic)","date;debut;fin;type;praticien;salle;statut"].concat(its.map(a=>[clDateOf(Date.parse(a.start),CL_ORG_TZ),plT(a.start),plT(a.end),clSvcName(a.svc),rmPracName(a.pr),a.room?clRes(a.room)?.n||"":"",a.status].map(q).join(";")));clDownload("rendez-vous-"+rg![0]+".csv",new Blob(["﻿"+L.join("\n")],{type:"text/csv;charset=utf-8"}));plToast(L4("CSV téléchargé (sans nom de patient)|CSV downloaded (no patient names)|CSV heruntergeladen|تم تنزيل CSV"))}catch(e){plToast(plErr(e),null,"err")}}
 function plSearchDrop(R: HTMLElement){const box=R.querySelector<HTMLInputElement>("[data-plsres]");if(!box)return;const q=PL.ui.q.trim().toLowerCase();if(q.length<2){box.hidden=true;return}const now=plNow();const l=clItems(now-30*864e5,now+90*864e5).filter(a=>plCanSee(a)&&(plName(a)+" "+clSvcName(a.svc)+" "+rmPracName(a.pr)).toLowerCase().includes(q)).sort((a,b)=>Math.abs(Date.parse(a.start)-now)-Math.abs(Date.parse(b.start)-now)).slice(0,7);
   box.innerHTML=l.length?l.map(a=>`<button type="button" data-plev="${hrE(a.id)}" data-pljump="1" style="--ec:${plColor(a)}"><i></i><span><b>${hrE(plName(a))}</b><small>${hrE(plDT(Date.parse(a.start),{weekday:"short",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}))} · ${hrE(clSvcName(a.svc))} · ${hrE(rmPracName(a.pr))}</small></span></button>`).join(""):`<p>${hrE(L4("Aucun rendez-vous trouvé (−30 / +90 jours)|No appointment found (−30 / +90 days)|Kein Termin gefunden|لا مواعيد"))}</p>`;box.hidden=false}
@@ -585,4 +595,4 @@ addEventListener("storage",e=>{if([CL_KEY,PL_KEY,typeof CB_KEY!=="undefined"?CB_
 function plTick(){const R=plRoot();if(!R)return;if(PL.ui.stale&&!R.querySelector<HTMLInputElement>(".hr-dlg")&&PL.ui.panel!=="new"&&!plDrag)plExternal();const n=R.querySelector<HTMLInputElement>(".pl-now");if(n){const P=plSt().prefs;const now=plNow();n.style.top=(now-clZms(plToday(),P.dayStart,CL_ORG_TZ))/36e5*plHH()+"px";n.querySelector<HTMLInputElement>("b")!.textContent=plT(now)}}
 
 /* ---------- used by the React window wiring (PlanningApp.tsx) and the tests ---------- */
-export { PL, PL_KEY, PL_P, plSt, plSave, plReload, plRender, plRefresh, plRoot, plSize, plInk, plTick, plExternal, plSegPill };
+export { PL, PL_KEY, PL_P, plSt, plSave, plReload, plRender, plRefresh, plRoot, plSize, plInk, plTick, plExternal, plSegPill, plDrawer, plNewPanel };

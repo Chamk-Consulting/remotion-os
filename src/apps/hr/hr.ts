@@ -21,6 +21,8 @@ import { osMenu, type MenuItem } from "@/os/menu/OsMenu";
 import { unzip } from "@/lib/zip";
 import { dcSaveFile } from "@/lib/download";
 import registry from "@/apps/registry.data.json";
+import { secCsv } from "@/lib/security";
+import { orgToday } from "@/lib/storage/orgday";
 
 /* ---------- typed model ---------- */
 export type HrHist = { d: string; t: string };
@@ -80,7 +82,7 @@ const HR: HrApp = {st:null,ui:{view:"employees",arg:null,stack:[],flt:{},sort:"n
 class HrErr extends Error{k: string; x?: string; constructor(k: string,x?: string){super(k);this.k=k;this.x=x}}
 const hrClone=<T,>(o: T): T=>JSON.parse(JSON.stringify(o));
 const hrIso=(d: Date)=>{const z=(n: number)=>String(n).padStart(2,"0");return d.getFullYear()+"-"+z(d.getMonth()+1)+"-"+z(d.getDate())};
-const hrToday=()=>HR.today||hrIso(new Date());
+const hrToday=()=>HR.today||orgToday();/* v93 */
 const hrD=(s: string)=>{const [y,m,d]=String(s).split("-").map(Number);return new Date(y,m-1,d,12)};
 const hrAdd=(s: string,n: number)=>{const d=hrD(s);d.setDate(d.getDate()+n);return hrIso(d)};
 const hrDays=(a: string,b: string)=>Math.round((+hrD(b)-+hrD(a))/864e5);
@@ -199,7 +201,7 @@ function hrReset(){HR.st=hrSeed();HR.loadErr=false;hrSave(true)}
 function hrParseCsv(text: string){text=String(text).replace(/^﻿/,"");const first=text.split(/\r?\n/)[0]||"";const sep=(first.match(/;/g)||[]).length>=(first.match(/,/g)||[]).length?";":",";const rows=[];let row=[],cell="",q=false;
   for(let i=0;i<text.length;i++){const c=text[i];if(q){if(c==='"'){if(text[i+1]==='"'){cell+='"';i++}else q=false}else cell+=c}else if(c==='"')q=true;else if(c===sep){row.push(cell);cell=""}else if(c==="\n"||c==="\r"){if(c==="\r"&&text[i+1]==="\n")i++;row.push(cell);rows.push(row);row=[];cell=""}else cell+=c}
   if(cell||row.length){row.push(cell);rows.push(row)}return rows.filter(r=>r.some(c=>String(c).trim()))}
-const hrCsv=(h: unknown[],rows: unknown[][])=>[h,...rows].map(r=>r.map(c=>{const s=String(c??"");return /[",;\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}).join(";")).join("\r\n");
+const hrCsv=(h: unknown[],rows: unknown[][])=>[h,...rows].map(r=>r.map(c=>{const s=secCsv(c);return /[",;\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}).join(";")).join("\r\n");
 /* ---------- XLSX read (first sheet) using the OS zip reader ---------- */
 async function hrReadXlsx(buf: ArrayBuffer){if(typeof unzip!=="function")throw new HrErr("hr_eXlsx");const z=await unzip(buf);const dp=new DOMParser();const ss: string[]=[];const sx=await z.text("xl/sharedStrings.xml");
   if(sx){const d=dp.parseFromString(sx,"application/xml");[...d.getElementsByTagName("si")].forEach(si=>ss.push([...si.getElementsByTagName("t")].map(t=>t.textContent).join("")))}
@@ -262,7 +264,7 @@ function hrNavHTML(){const it=(id: string)=>{const d=HR_P[id];if(!d||!hrPageOk(d
   const groups=HR_G.map(([g,n])=>{const ids=Object.values(HR_P).filter(d=>d.g===g&&!d.hidden).map(d=>d.id);if(!ids.some(id=>hrPageOk(HR_P[id])))return "";if(!n)return `<div class="hr-nsolo">${ids.map(it).join("")}</div>`;const open=HR.ui.open[g]!==false;return `<div class="hr-ns${open?" open":""}"><button type="button" class="hr-nh" data-hrtog="${g}" aria-expanded="${open}"><span>${hrE(L4(n))}</span>${hri("down",13)}</button><div class="hr-nb"${open?"":" hidden"}>${ids.map(it).join("")}</div></div>`}).join("");
   return `<nav class="hr-nav" aria-label="${hrE(hrW("app"))}"><div class="hr-brand"><span class="gl" style="background:${DK_APPS.hrPeople[0]}">${DK_APPS.hrPeople[1]}</span><div><b>${hrE(hrW("app"))}</b><small>${hrE(HR.st!.org)}</small></div><button type="button" class="hr-ib hr-navx" data-hrnav aria-label="${hrE(hrW("close"))}">${hri("x")}</button></div><div class="hr-nl"><span class="hr-ink" aria-hidden="true"></span>${groups}</div>
    <div class="hr-navf"><span class="hr-syn" title="${hrE(hrW("synTip"))}">${hri("info",13)}${hrE(hrW("synthetic"))}</span></div></nav>`}
-function hrBarHTML(){const r=HR_ROLES[hrRole()];return `<div class="hr-bar"><button type="button" class="hr-ib hr-menu" data-hrnav aria-label="Menu">${hri("menu")}</button>${HR.ui.stack.length?`<button type="button" class="hr-ib" data-hrback aria-label="${hrE(hrW("prev"))}">${hri("back")}</button>`:""}<nav class="hr-crumb" aria-label="breadcrumb">${hrCrumb().map((c,i,a)=>i<a.length-1?`<button type="button" data-hrgo="${c[1]}">${hrE(c[0])}</button>${hri("chev",12)}`:`<b aria-current="page">${hrE(c[0])}</b>`).join("")}</nav><span class="sp"></span>
+function hrBarHTML(){const r=HR_ROLES[hrRole()];return `<div class="hr-bar"><button type="button" class="hr-ib hr-menu" data-hrnav aria-label="${hrE(L4("Menu|Menu|Menü|القائمة"))}">${hri("menu")}</button>${HR.ui.stack.length?`<button type="button" class="hr-ib" data-hrback aria-label="${hrE(hrW("prev"))}">${hri("back")}</button>`:""}<nav class="hr-crumb" aria-label="breadcrumb">${hrCrumb().map((c,i,a)=>i<a.length-1?`<button type="button" data-hrgo="${c[1]}">${hrE(c[0])}</button>${hri("chev",12)}`:`<b aria-current="page">${hrE(c[0])}</b>`).join("")}</nav><span class="sp"></span>
   <button type="button" class="hr-role" data-hrrole aria-haspopup="menu" title="${hrE(hrW("role"))}">${hri("shield",14)}<span>${hrE(L4(r.n))}</span>${hri("down",12)}</button></div>`}
 function hrCrumb(){const d=HR_P[HR.ui.view]||{};const g=HR_G.find(x=>x[0]===d.g);const out=[[hrW("app"),"dash"]];if(g&&g[1])out.push([L4(g[1]),Object.values(HR_P).find(p=>p.g===d.g&&hrPageOk(p))?.id||"dash"]);if(HR.ui.view==="profile"){out.push([L4(HR_P.employees.n),"employees"]);const e=hrEmp(HR.ui.arg);out.push([e?hrName(e):"—",""])}else out.push([L4(d.n||""),""]);return out}
 function hrPageHTML(){const d=HR_P[HR.ui.view];if(!d)return "";if(!hrPageOk(d))return hrEmpty("lock",hrW("denied"));try{return d.page(HR.ui.arg)}catch(e){console.error(e);return hrErrorState(e)}}

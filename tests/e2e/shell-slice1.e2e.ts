@@ -6,7 +6,7 @@ import { test, expect, type Page } from "@playwright/test";
 import path from "node:path";
 import { serveGoogleFontsLocally } from "../helpers/fonts";
 
-const SRC = "file://" + path.resolve("../source/Remotion_Desktop.html");
+const SRC = "file://" + path.resolve("../source-v94/Remotion_Desktop_v94.html") /* S2: v94 is the reference */;
 const targets = { source: SRC, react: "/?shell=react" } as const;
 async function open(page: Page, url: string) {
   await serveGoogleFontsLocally(page); await page.route(/cdnjs/, (r) => r.abort());

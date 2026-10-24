@@ -79,6 +79,7 @@ export const APP_SEEDS: { flag: string; app: string; install: "undef0" | "falsy"
   { flag: "remotion-dk-pa1", app: "patients", install: "falsy", wrap: true },
   { flag: "remotion-dk-cb1", app: "cabinet", install: "falsy", wrap: true },
   { flag: "remotion-dk-pl1", app: "planning", install: "falsy", wrap: true },
+  { flag: "remotion-dk-dp1", app: "dossier", install: "falsy", wrap: true }, // v72 (catch-up S5)
 ];
 export function seedApp(desks: Desk[], al: AppStore, s: (typeof APP_SEEDS)[number], flags: Flags) {
   if (flags.has(s.flag)) return { desks: false, apps: false };

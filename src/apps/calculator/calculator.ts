@@ -24,6 +24,7 @@ import { isLang, type Lang } from "@/lib/i18n/langs";
 import { lkRM } from "@/os/lock/lock";
 import { useShell } from "@/os/state/shell";
 import { dcSaveFile } from "@/lib/download";
+import { secCsv } from "@/lib/security";
 
 /* ---------- typed model ---------- */
 /** A quantity in an expression: value in the category's base unit, category, display unit. */
@@ -580,7 +581,7 @@ function caResHTML(r: CaRes){const lab=(x: string)=>caE(L4(x));
   const as=r.assume&&r.assume.length?`<div class="ca-blk"><h4>${caW("assume")}</h4><ul>${r.assume.map(a=>`<li>${lab(a)}</li>`).join("")}</ul></div>`:"";
   const wa=r.warn&&r.warn.length?r.warn.map(a=>`<div class="ca-note warn">${cai("warn",15)}<span>${lab(a)}</span></div>`).join(""):"";
   return `${main}${r.svg?`<div class="ca-fig">${r.svg}</div>`:""}${rows}${wa}${tb}${fm}${me}${as}${r.extra||""}`}
-const caCsv=(t: CaTable)=>[t.h.map(h=>L4(h)),...t.r].map(r=>r.map(c=>{const s=String(c??"");return /[",;\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}).join(";")).join("\r\n");
+const caCsv=(t: CaTable)=>[t.h.map(h=>L4(h)),...t.r].map(r=>r.map(c=>{const s=secCsv(c);return /[",;\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}).join(";")).join("\r\n");
 async function caDownload(name: string,text: string,type?: string){const blob=new Blob(["﻿"+text],{type:type||"text/csv;charset=utf-8"});if(typeof dcSaveFile==="function"){try{await dcSaveFile(name,blob);return}catch(e){}}const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
 function caToast(msg: string){const R=caRoot();const el: HTMLElementX | null | undefined=R?.querySelector<HTMLInputElement>(".ca-toast");if(!el){toast?.(msg);return}el.textContent=msg;el.classList.add("on");clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove("on"),1800)}
 async function caCopy(text: string,btn?: HTMLElement | null){try{await navigator.clipboard.writeText(text)}catch(e){const ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();try{document.execCommand("copy")}catch(_){}ta.remove()}

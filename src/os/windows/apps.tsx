@@ -38,11 +38,12 @@ export const APP_WINDOWS: Record<string, Spec> = {
   calendar: S({ title: l4("Gestion Calendrier|Calendar management|Kalenderverwaltung|إدارة التقويم"), icon: () => <span className="gl app gmini cl-wicon"><SvgString html={CAL_IC} /></span>, cls: "hr-win cl-win", minW: 340, minH: 420, relabelAria: true, dockBtn: true, touch: "always", geo: () => big(1640, 440) }),
   cabinet: S({ title: l4("Gestion Cabinet|Practice management|Praxisverwaltung|إدارة العيادة"), icon: () => mini("cabinet"), cls: "hr-win cb-win", minW: 340, minH: 420, relabelAria: true, dockBtn: true, touch: "always", geo: () => big(1640, 440) }),
   planning: S({ title: l4("Calendrier & Planification|Calendar & Planning|Kalender & Planung|التقويم والتخطيط"), icon: () => mini("planning"), cls: "hr-win pl-win", minW: 340, minH: 420, relabelAria: true, dockBtn: true, touch: "always", geo: () => big(1680, 440) }),
+  dossier: S({ title: l4("Dossier Patient|Patient Record|Patientenakte|ملف المريض"), icon: () => mini("dossier"), cls: "hr-win dp-win", minW: 340, minH: 420, relabelAria: true, dockBtn: true, touch: "always", geo: () => big(1680, 440) }),
 };
 /** Apps that add their own dock button while running (xxDockBtn). */
 export const DYNAMIC_DOCK = Object.keys(APP_WINDOWS).filter((k) => APP_WINDOWS[k].dockBtn);
 /** Source OS_OPEN keys → window key (the L11857 chain, now from the registry; unknown keys are not handled: D-B06 fix). */
-export const OPEN_KEY: Record<string, string> = { files: "files", explorer: "files", launchpad: "apps", apps: "apps", terminal: "terminal", forms: "forms", documents: "documents", docs: "documents", calcsci: "calcsci", calculator: "calcsci", billing: "billing", hrPeople: "hrPeople", patients: "patients", calendar: "calendar", cabinet: "cabinet", planning: "planning" };
+export const OPEN_KEY: Record<string, string> = { files: "files", explorer: "files", launchpad: "apps", apps: "apps", terminal: "terminal", forms: "forms", documents: "documents", docs: "documents", calcsci: "calcsci", calculator: "calcsci", billing: "billing", hrPeople: "hrPeople", patients: "patients", calendar: "calendar", cabinet: "cabinet", planning: "planning", dossier: "dossier" };
 
 /** Apps ported natively (Phase C) register their window body here; the others keep the legacy bridge body. */
 type NativeApp = { body: () => React.ReactNode; beforeOpen?: () => void; onClose?: () => void; onResize?: () => void };

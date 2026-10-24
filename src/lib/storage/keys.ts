@@ -24,6 +24,8 @@ export const STORAGE_KEYS = {
   bus: "remotion-bus", shared: "remotion-shared", patients: "remotion-patients", dkPa: "remotion-dk-pa1",
   calendar: "remotion-calendar", cabinet: "remotion-cabinet", dkCb: "remotion-dk-cb1", planning: "remotion-planning", dkPl: "remotion-dk-pl1",
 } as const;
+/** Keys added by Remotion OS v72–v94 (catch-up slices): Dossier Patient, its desktop seed, transition settings, data-safety backups ("<key>::secours"). */
+export const V94_STORAGE_KEYS = { dossier: "remotion-dossier", dkDp: "remotion-dk-dp1", transitions: "remotion-transitions", backupSuffix: "::secours", backupInfo: "::secours-info" } as const;
 export const INDEXED_DB = { name: "remotion-docs-live", version: 1, store: "b" } as const;
 /**
  * Keys and databases added by the Documents product work (after parity, so outside the 40 source keys above).

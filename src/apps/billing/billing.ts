@@ -20,6 +20,9 @@ import { osMenu as osMenuCore, type MenuItem } from "@/os/menu/OsMenu";
 import { dcSaveFile } from "@/lib/download";
 import { feLoad, feS, feWalk } from "@/apps/forms/store";
 import registry from "@/apps/registry.data.json";
+import { secCsv } from "@/lib/security";
+import { sdRawGet, sdSeen, sdValid, sdOnReload } from "@/lib/storage/safety";
+import { orgToday } from "@/lib/storage/orgday";
 
 /* ---------- typed model ---------- */
 type Bag = Record<string, unknown>;
@@ -162,7 +165,7 @@ function biM(v: number | null | undefined,cur?: string | null,o: { plain?: boole
 const biCur=()=>BI.st?.set?.cur||"EUR";
 /* ---------- dates (ISO yyyy-mm-dd, local) ---------- */
 const biIso=(d: Date)=>{const z=(n: number)=>String(n).padStart(2,"0");return d.getFullYear()+"-"+z(d.getMonth()+1)+"-"+z(d.getDate())};
-const biToday=()=>BI.today||biIso(new Date());
+const biToday=()=>BI.today||orgToday();/* v93: the organisation’s day, as in Calendar */
 const biD=(s: string)=>{const [y,m,d]=String(s).split("-").map(Number);return new Date(y,m-1,d,12)};
 const biAddDays=(s: string,n: number)=>{const d=biD(s);d.setDate(d.getDate()+n);return biIso(d)};
 const biAddMonths=(s: string,n: number)=>{const d=biD(s);const day=d.getDate();d.setDate(1);d.setMonth(d.getMonth()+n);const last=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();d.setDate(Math.min(day,last));return biIso(d)};
@@ -213,7 +216,8 @@ function biPartyCredit(pid: string){const S=BI.st;let c=0;S!.payments.forEach(p=
 /* ---------- numbering (gap-free, chronological) ---------- */
 const BI_SEQ_DEF: Record<string, BiSeq>={inv:{p:"F",pad:5,reset:"year"},cn:{p:"AV",pad:5,reset:"year"},qt:{p:"D",pad:5,reset:"year"},pay:{p:"P",pad:5,reset:"year"},rf:{p:"R",pad:5,reset:"year"}};
 function biFmtNo(kind: string,y: string,n: number){const s=BI.st!.seqs[kind]||BI_SEQ_DEF[kind];return `${s.p}-${s.reset==="year"?y+"-":""}${String(n).padStart(s.pad,"0")}`}
-function biNextNo(kind: string,date: string){const S=BI.st;const s=S!.seqs[kind]=S!.seqs[kind]||biClone(BI_SEQ_DEF[kind]);s.c=s.c||{};const y=s.reset==="year"?String(date||biToday()).slice(0,4):"all";
+function biNextNo(kind: string,date: string){/* v93: counters never go below what is saved (two tabs never issue the same number) */try{const raw=sdRawGet(BI_KEY);const o=raw&&JSON.parse(raw);const so=o&&o.seqs&&o.seqs[kind];const s0=BI.st&&BI.st.seqs[kind];if(so&&so.c&&s0){s0.c=s0.c||{};for(const y in so.c)if((so.c[y]|0)>(s0.c[y]|0)){s0.c[y]=so.c[y];if(so.last&&so.last[y]){s0.last=s0.last||{};if(!s0.last[y]||so.last[y]>s0.last[y])s0.last[y]=so.last[y]}}}}catch(e){}
+  const S=BI.st;const s=S!.seqs[kind]=S!.seqs[kind]||biClone(BI_SEQ_DEF[kind]);s.c=s.c||{};const y=s.reset==="year"?String(date||biToday()).slice(0,4):"all";
   /* chronology: a number may not be issued with a date earlier than the last one in the same series */
   if((kind==="inv"||kind==="cn")&&s.last&&s.last[y]&&date<s.last[y])throw new BiErr("bi_eChrono",biFmtDate(s.last[y]));const n=(s.c[y]||0)+1;s.c[y]=n;s.last=s.last||{};s.last[y]=date;return biFmtNo(kind,y==="all"?"":y,n)}
 const biPeekNo=(kind: string,date?: string)=>{const s=BI.st!.seqs[kind]||BI_SEQ_DEF[kind];const y=s.reset==="year"?String(date||biToday()).slice(0,4):"all";return biFmtNo(kind,y==="all"?"":y,((s.c||{})[y]||0)+1)};
@@ -228,7 +232,9 @@ const BI_ROLES: Record<string, { n: string; p: string[] }>={
  reception:{n:"Accueil / secrétariat|Front desk|Empfang|الاستقبال",p:["inv.view","inv.draft","qt.edit","pay.view","pay.record","cat.view"]}};
 const biRole=()=>BI.st?.role||"orgadmin";
 const biCan=(p: string)=>(BI_ROLES[biRole()]||BI_ROLES.reception).p.includes(p);
-function biNeed(p: string){if(!biCan(p))throw new BiErr("bi_eDenied")}
+function biNeed(p: string){if(!biCan(p))throw new BiErr("bi_eDenied");
+  /* v93: fresh data before every billing operation when another tab saved; this tab's unsaved change is written first (the other version is backed up) */
+  try{const raw=sdRawGet(BI_KEY);const seen=sdSeen(BI_KEY);if(BI.st&&raw!=null&&seen!==undefined&&raw!==seen&&sdValid(BI_KEY,raw)===true){if(BI_PEND)biSave(true);else{BI.st=null;biSt()}}}catch(e){}}
 /* the practitioner the "practitioner" role acts as */
 const biMe=()=>BI.st!.mePrac||BI.st!.pracs[0]?.id;
 
@@ -367,7 +373,8 @@ function biAllocate(f: string,t: string,basis: string){const S=BI.st;const facts
 function biLegalVer(){const S=BI.st;S!.legalVers=S!.legalVers||{};const j=JSON.stringify(S!.legal);let id=Object.keys(S!.legalVers).find(k=>JSON.stringify(S!.legalVers[k])===j);if(!id){id="lv"+(Object.keys(S!.legalVers).length+1);S!.legalVers[id]=JSON.parse(j)}return id}
 const biSnapLegal=(snap: BiSnapT)=>(BI.st!.legalVers||{})[snap.legal]||BI.st!.legal;
 /* ---------- store ---------- */
-function biSave(now?: boolean){clearTimeout(BI.t);const go=()=>{try{localStorage.setItem(BI_KEY,JSON.stringify(BI.st))}catch(e){console.warn("billing save",e)}};if(now)go();else BI.t=setTimeout(go,200)}
+let BI_PEND=false;/* v93: a change waits to be written (debounced save) */
+function biSave(now?: boolean){clearTimeout(BI.t);if(!now)BI_PEND=true;const go=()=>{try{localStorage.setItem(BI_KEY,JSON.stringify(BI.st));BI_PEND=false}catch(e){console.warn("billing save",e)}};if(now)go();else BI.t=setTimeout(go,200)}
 function biSt(): BiState{if(BI.st)return BI.st;let s=null;try{s=JSON.parse(localStorage.getItem(BI_KEY)||"null")}catch(e){}if(!s||s.v!==1)s=biSeed();BI.st=s;return s}
 function biReset(){BI.st=biSeed();biSave(true)}
 /* ===== v61 · Facturation & Revenus — synthetic demonstration data (every person, price and organisation here is fictitious) ===== */
@@ -581,7 +588,7 @@ function biDialog(title: string,body: string,o: DlgOpts={}){const R=biRoot();if(
 function biConfirm(msg: string,fn: () => void,o: { title?: string; danger?: boolean; okLabel?: string }={}){biDialog(o.title||biW("ok"),`<p class="bi-cmsg">${biE(msg)}</p>`,{onOk:()=>{fn();return true},danger:o.danger,okLabel:o.okLabel})}
 function biPrompt(title: string,val: string,fn: (v: string) => void){biDialog(title,`<input class="bi-in" data-pv value="${biE(val||"")}" maxlength="120" autofocus>`,{onOk:m=>{fn(m.querySelector<HTMLInputElement>("[data-pv]")!.value.trim())}})}
 async function biDownload(name: string,text: string,type?: string){const blob=new Blob(["﻿"+text],{type:type||"text/csv;charset=utf-8"});if(typeof dcSaveFile==="function"){try{await dcSaveFile(name,blob);return}catch(e){}}const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
-const biCsv=(h: unknown[],rows: unknown[][])=>[h,...rows].map(r=>r.map(c=>{const s=String(c??"");return /[",;\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}).join(";")).join("\r\n");
+const biCsv=(h: unknown[],rows: unknown[][])=>[h,...rows].map(r=>r.map(c=>{const s=secCsv(c);return /[",;\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}).join(";")).join("\r\n");
 
 /* ---------- options for selects ---------- */
 const biOpts=(arr: (string | number)[][],val: unknown,o: { any?: string }={})=>(o.any?`<option value="">${biE(o.any)}</option>`:"")+arr.map(([v,l])=>`<option value="${biE(v)}"${String(val??"")===String(v)?" selected":""}>${biE(l)}</option>`).join("");

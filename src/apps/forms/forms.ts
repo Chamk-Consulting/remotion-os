@@ -43,6 +43,7 @@ import { ghost as dkGhost } from "@/os/desktop/ghost";
 import { aiGetSample } from "@/os/ai/ai";
 import { BASE_ACCOUNTS } from "@/os/shell/data/account";
 import registry from "@/apps/registry.data.json";
+import { secWrapPdf, secCsv } from "@/lib/security";
 
 /* ---------- typed model ---------- */
 type Dict = Record<string, string>;
@@ -418,7 +419,7 @@ let feCtl=function(f: FeField,L: string,P: FeP | null){
     case "slider":{const mn=+(f.min??0),mx=+(f.max??100),cur=v!=null&&v!==""?+v:null,p=cur==null?50:Math.round((cur-mn)/((mx-mn)||1)*100),u=f.unit?" "+tx(f.unit):"";return `<div class="fe-sld${cur==null?" empty":""}" style="--p:${p}%">${live?`<input type="range" ${k} min="${mn}" max="${mx}" step="${f.step||1}" value="${cur??Math.round((mn+mx)/2)}"${dis} aria-label="${tx(fv(f.label,L))}">`:`<span class="trk"><i></i><b></b></span>`}<output>${cur==null?"—":nf(cur)+u}</output></div><div class="fe-sclb"><span>${nf(mn)}${u}</span><span>${nf(mx)}${u}</span></div>`}
     case "table":return feTableHTML(f,L,P,live,v,dis);
     case "chart":{let vv=live?P.vals:null;if(!live&&f.csrc?.startsWith("tbl:")){const tb=feFind(f.csrc.slice(4))?.f;if(tb&&Array.isArray(tb.tdef)&&tb.tdef.some(r=>r&&Object.values(r).some(Boolean)))vv={[tb.id]:tb.tdef}}return `<div class="fe-chart" data-chart="${f.id}">${feChartHTML(f,L,vv)}</div>`}
-    case "info":{const ic={info:FEI.info,warn:FEI.warn,ok:FEI.check}[f.tone||"info"];return `<div class="fe-info ${f.tone||"info"}"><span class="ic">${ic}</span><div><b dir="auto">${tx(fv(f.label,L))}</b>${f.desc?`<p dir="auto">${tx(fv(f.desc,L))}</p>`:""}</div></div>`}
+    case "info":{const tn=["info","warn","ok"].includes(String(f.tone))?String(f.tone) as "info"|"warn"|"ok":"info";/* v92 */const ic={info:FEI.info,warn:FEI.warn,ok:FEI.check}[tn];return `<div class="fe-info ${tn}"><span class="ic">${ic}</span><div><b dir="auto">${tx(fv(f.label,L))}</b>${f.desc?`<p dir="auto">${tx(fv(f.desc,L))}</p>`:""}</div></div>`}
     case "divider":return `<div class="fe-div${fv(f.label,L)?"":" bare"}"><span dir="auto">${tx(fv(f.label,L))}</span></div>`;
     case "hidden":return `<div class="fe-in hiddenf">${FEI.hidden}<span>${tx(feTx("fe_hiddenV",L))}</span></div>`;
   }
@@ -474,7 +475,7 @@ function feTrTarget(){return feCL()==="en"?"fr":"en"}
 function feAiBarHTML(){const tl=feTrTarget();return `<div class="fe-aibar"><form class="fe-aiask${FE.ask?" on":""}" data-aiask><span class="ic">${FEI.spark}</span><input type="text" placeholder="${t("fe_aiPh")}" aria-label="${t("fe_ai")}" data-aiin dir="auto"><button type="submit" class="fe-btn pri sm">${t("fe_aiSend")}</button></form><div class="fe-aichips"><button type="button" class="fe-aib" data-ai="ask" aria-expanded="${FE.ask}">${FEI.spark}<b>${t("fe_ai")}</b></button><button type="button" class="fe-chip" data-ai="sec">${FEI.plus}${t("fe_aiAddSec")}</button><button type="button" class="fe-chip" data-ai="req">${FEI.asterisk}${t("fe_aiReq")}</button><span class="fe-chip split"><button type="button" data-ai="tr">${FEI.globe}${t("fe_aiTr",{x:t("fe_L"+tl)})}</button><button type="button" data-ai="trm" aria-label="${t("fe_moreLangs")}" title="${t("fe_moreLangs")}">${FEI.chev}</button></span><button type="button" class="fe-chip" data-ai="logic">${FEI.branch}${t("fe_aiLogic")}</button></div></div>`}
 
 /* ---------- properties panel ---------- */
-const feRow=(lk: string,ctl: string,extra="")=>`<div class="fe-row${extra}"><span class="fe-lab">${t(lk)}</span>${ctl}</div>`;
+const feRow=(lk: string,ctl: string,extra="")=>{const L=t(lk);/* v94: the control gets the row label as its name */const c=String(ctl).replace(/<(input|select|textarea)\b([^>]*)>/,(m,tg,at)=>/aria-label(ledby)?=/.test(at)?m:`<${tg} aria-label="${FEE(String(L).replace(/<[^>]*>/g,""))}"${at}>`);return `<div class="fe-row${extra}"><span class="fe-lab">${L}</span>${c}</div>`};
 const feTg=(attr: string,on: unknown,lk: string,dis?: unknown)=>`<div class="fe-tgr"><span>${t(lk)}</span><button type="button" role="switch" aria-checked="${!!on}" class="fe-tg" ${attr} aria-label="${t(lk)}"${dis?" disabled":""}><i></i></button></div>`;
 const feDt=(k: string,lk: string,body: string,badge="")=>{FE.dto=FE.dto||{valid:true};return `<details class="fe-dt" data-dt="${k}"${FE.dto[k]?" open":""}><summary><span>${t(lk)}</span>${badge}<span class="ch">${FEI.chev}</span></summary><div class="fe-dtb">${body}</div></details>`};
 let feSrcCands=function(f: FeField | null){const r: FeField[]=[];feEach(x=>{if(x!==f&&["select","multi","text","email","number","date","phone","history","yesno","rating","slider"].includes(x.type))r.push(x)});return r}
@@ -526,7 +527,7 @@ function feWidthHTML(f: FeField){
   return `<div class="fe-row"><span class="fe-lab">${t("fe_width")}</span><div class="fe-devs fe-lyd" role="radiogroup" aria-label="${t("fe_wDev")}">${[["desktop","fe_dDesk"],["tablet","fe_dTab"],["mobile","fe_dMob"]].map(([d,l])=>`<button type="button" role="radio" aria-checked="${FE.dev===d}" data-dev="${d}" title="${t(l)}" aria-label="${t(l)}">${FEI[d]}</button>`).join("")}</div><div class="fe-widths" role="radiogroup" aria-label="${t("fe_width")}">${[0,...FE_SP].map(n=>`<button type="button" role="radio" aria-checked="${cur===n}" data-pspan="${n}" title="${n?FE_FR[n]:t("fe_wAuto")+" · "+FE_FR[feAutoSp(f,cols,k)]}"><i class="${n?"":"auto"}" style="--w:${(n||60)/60*100}%"></i><span>${n?FE_FR[n]:t("fe_wAuto")}</span></button>`).join("")}</div><div class="fe-wsum">${[["d","desktop"],["t","tablet"],["m","mobile"]].map(([kk,d])=>`<span class="${kk===k?"on":""}">${FEI[d]}<b>${FE_FR[feSp(f,cols,kk)]}</b>${f.sp?.[kk]?"":"<small>·auto</small>"}</span>`).join("")}</div><p class="fe-mut">${t("fe_wHint")}</p></div>`;
 }
 function feSrcLayout(f: FeField){let h="";
-  h+=feDt("src","fe_source",`<div class="fe-selw"><select class="fe-inp" data-p="src">${[["manual","fe_srcManual"],["patient","fe_srcPatient"],["dir","fe_srcDir"]].map(([k,l])=>`<option value="${k}" ${(f.src||"manual")===k?"selected":""}>${t(l)}</option>`).join("")}</select>${FEI.chev}</div><p class="fe-mut">${t("fe_srcHint")}</p>`);
+  h+=feDt("src","fe_source",`<div class="fe-selw"><select class="fe-inp" data-p="src" aria-label="${FEE(t("fe_source"))}">${[["manual","fe_srcManual"],["patient","fe_srcPatient"],["dir","fe_srcDir"]].map(([k,l])=>`<option value="${k}" ${(f.src||"manual")===k?"selected":""}>${t(l)}</option>`).join("")}</select>${FEI.chev}</div><p class="fe-mut">${t("fe_srcHint")}</p>`);
   h+=feDt("layout","fe_layout",feWidthHTML(f)+(f.type==="select"?feRow("fe_display",`<div class="fe-seg sm">${[["radio","fe_dRadio"],["list","fe_dList"]].map(([w,l])=>`<button type="button" aria-pressed="${(f.disp||"list")===w}" data-pdisp="${w}">${t(l)}</button>`).join("")}</div>`):""));
   return h;
 }
@@ -636,7 +637,7 @@ let feValStr=function(f: FeField,v: FeAnsR,L: string){
   if(f.type==="meds")return v.filter(r=>r.n).map(r=>r.n+(r.d?" ("+r.d+")":"")).join(", ")||null;
   if(f.type==="matrix"){const R=(f.rows||[]).map(x=>fv(x,L)),C=(f.cols||[]).map(x=>fv(x,L));return Object.keys(v).map(r=>R[r as unknown as number]+" : "+C[v[r] as unknown as number]).join(" · ")||null}
   if(typeof v==="object"){const s=Object.values(v).filter(Boolean).join(" · ");return s||null}
-  if(f.type==="date"){try{return new Date(v+"T12:00").toLocaleDateString(L==="ar"?"ar":L)}catch(e){return v}}
+  if(f.type==="date"){try{return new Date(v+"T12:00").toLocaleDateString(L==="ar"?"ar-TN-u-nu-latn":L)}catch(e){return v}}
   return String(v);
 }
 let fePvFld=function(f: FeField,L: string,P: FeP,cols: number): string{
@@ -1269,7 +1270,7 @@ let feWire=function(R: HTMLElement){
     if(b=c("[data-libadd]")){const ty=b.dataset.libadd;FE.view="editor";FE.tab="editor";feRender(true);feAddField(ty!);return}
     if(b=c("[data-sf]")){FE.sf=b.dataset.sf;feRender();return}
     if(b=c("[data-sub]")){feSubOpen(b.dataset.sub!,"ans");return}
-    if(c("[data-csv]")){const rows=[["patient","form","date","status"],...feS!.subs.map(s=>[s.who,feEntry(s.form)?feName(feEntry(s.form)!):"",new Date(s.at).toISOString(),s.st])];feDownload("soumissions.csv",rows.map(r=>r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(",")).join("\n"),"text/csv");return}
+    if(c("[data-csv]")){const rows=[["patient","form","date","status"],...feS!.subs.map(s=>[s.who,feEntry(s.form)?feName(feEntry(s.form)!):"",new Date(s.at).toISOString(),s.st])];feDownload("soumissions.csv",rows.map(r=>r.map(x=>`"${secCsv(x).replace(/"/g,'""')}"`).join(",")).join("\n"),"text/csv");return}
     if(c("[data-emptytrash]")){const del=feS!.forms.filter(f=>f.del);feS!.forms=feS!.forms.filter(f=>!f.del);del.forEach(f=>delete feS!.docs[f.id]);if(!feEntry(feS!.cur))feS!.cur=feS!.forms[0]?.id;feSave();feRender(true);feToast(t("fe_trashEmptied"));return}
     if(b=c("[data-set]")){const k=b.dataset.set;feS!.set[k!]=!feS!.set[k!];b.setAttribute("aria-checked",feS!.set[k!] as string);feSave();return}
     if(c("[data-reset]")){const old=JSON.stringify(feS);feS=feFresh();FE.undo=[];FE.redo=[];FE.sel=null;FE.page=0;feSave();feRender(true);feToast(t("fe_resetDone"),()=>{feS=JSON.parse(old);feSave();feRender(true)});return}
@@ -1903,7 +1904,7 @@ function feImportParse(){const I=FE.imp,src=I!.src.trim();I!.warn=[];I!.rows=nul
   I!.rows=body.map((r,n)=>{const label=(r[iL]||"").trim();const opts=iO>=0?(r[iO]||"").split(/[|;]/).map(x=>x.trim()).filter(Boolean):[];let ty=iT>=0?(r[iT]||"").trim():"";if(ty&&!FE_T[ty]){I!.warn.push(t("fe_impUnknown",{x:ty,y:label}));ty=""}return {page:+(r[iP]||1)||1,section:iS>=0?r[iS]:"",label,type:ty||feGuessType(label,opts.length,false),opts,req:iR>=0&&/^(1|oui|yes|ja|x|true|vrai)$/i.test((r[iR]||"").trim()),on:!!label}}).filter(r=>r.label);
   feImportRender();
 }
-function feLoadScript(src: string){return new Promise<void>((res,rej)=>{if(document.querySelector<HTMLInputElement>(`script[src="${src}"]`)){res();return}const s=document.createElement("script");s.src=src;s.onload=res as () => void;s.onerror=()=>rej(new Error("load"));document.head.appendChild(s)})}
+function feLoadScript(src: string){/* v92: pdf.js is always used without eval (CVE-2024-4367) */const done=()=>{if(/pdf(\.min)?\.js$/.test(src))secWrapPdf()};return new Promise<void>((res,rej)=>{if(document.querySelector<HTMLInputElement>(`script[src="${src}"]`)){done();res();return}const s=document.createElement("script");s.src=src;s.onload=()=>{done();res()};s.onerror=()=>rej(new Error("load"));document.head.appendChild(s)})}
 async function feDocText(file: File){
   if(/\.pdf$/i.test(file.name)||file.type==="application/pdf"){await feLoadScript("/vendor/pdfjs-3.11.174/pdf.min.js");const lib=(window as unknown as FeWinLibs).pdfjsLib;lib.GlobalWorkerOptions.workerSrc="/vendor/pdfjs-3.11.174/pdf.worker.min.js";const pdf=await lib.getDocument({data:await file.arrayBuffer()}).promise;const out=[];for(let p=1;p<=Math.min(pdf.numPages,30);p++){const pg=await pdf.getPage(p),tc=await pg.getTextContent();let line="",lastY: number|null=null;tc.items.forEach(it=>{const y=Math.round(it.transform[5]);if(lastY!==null&&Math.abs(y-lastY)>3){out.push(line);line=""}line+=(line&&!line.endsWith(" ")?" ":"")+it.str;lastY=y});if(line)out.push(line);out.push("")}return {text:out.join("\n"),pages:pdf.numPages}}
   if(/\.docx$/i.test(file.name)){await feLoadScript("/vendor/mammoth-1.6.0/mammoth.browser.min.js");const r=await (window as unknown as FeWinLibs).mammoth.extractRawText({arrayBuffer:await file.arrayBuffer()});return {text:r.value,pages:null}}
@@ -1988,7 +1989,7 @@ function feQAnalyticsHTML(){const d=feDoc(),L=feCL(),subs=feS!.subs.filter(s=>s.
     const keys=["nps","clinical"].includes(f.type)?[...Array(11).keys()].map(String):f.type==="sat"?["0","1","2","3","4"]:f.type==="rating"?[...Array(f.stars||5).keys()].map(i=>String(i+1)):(f.opts||[]).map((_,i)=>String(i));
     const lab=(k: string)=>f.opts?fv(f.opts[+k],L):f.type==="sat"?`${+k+1}/5`:k;const mx=Math.max(1,...keys.map(k=>counts[k]||0));
     return `<section class="fe-card"><h5>${FEI[FE_T[f.pre||f.type]?.[0]]||FEI.analytics}<span dir="auto">${FEE(fv(f.label,L))}</span><span class="fe-tag">${t("fe_nResp",{n:nf(n)})}</span></h5><div class="fe-qa">${keys.map(k=>`<div class="r"><span dir="auto">${FEE(lab(k))}</span><div class="bar"><i style="--w:${(counts[k]||0)/mx*100}%"></i></div><b>${nf(counts[k]||0)}</b></div>`).join("")}</div></section>`};
-  FE.pv.vals=keep;return `<h4 class="fe-gh">${t("fe_qaTitle",{x:fv(d!.title,L)})}</h4><p class="fe-mut">${FEI.info}${t("fe_qaSub",{n:nf(subs.length)})}</p><div class="fe-cards2">${qs.slice(0,12).map(card).join("")||`<p class="fe-mut">${t("fe_qaNone")}</p>`}</div>`}
+  FE.pv.vals=keep;return `<h4 class="fe-gh">${t("fe_qaTitle",{x:FEE(fv(d!.title,L))})}</h4><p class="fe-mut">${FEI.info}${t("fe_qaSub",{n:nf(subs.length)})}</p><div class="fe-cards2">${qs.slice(0,12).map(card).join("")||`<p class="fe-mut">${t("fe_qaNone")}</p>`}</div>`}
 
 /* ---------- autofill with provenance ---------- */
 const FE_PROFILE: Dict={nom:"Martin",prenom:"Camille",date_naissance:"1988-03-12",sexe:"0",telephone:"6 12 34 56 78",email:"camille.martin@exemple.fr",adresse:"12 rue des Lilas",code_postal:"75011",ville:"Paris",pays:"0",langue_preferee:"0",allergies:"Pénicilline",organisme:"Mutuelle Exemple"};

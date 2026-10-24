@@ -3,7 +3,7 @@ import { test, expect, type Page, type Browser } from "@playwright/test";
 import path from "node:path";
 import { serveGoogleFontsLocally } from "../helpers/fonts";
 
-const SRC = "file://" + path.resolve("../source/Remotion_Desktop.html");
+const SRC = "file://" + path.resolve("../source-v94/Remotion_Desktop_v94.html") /* S2: v94 is the reference */;
 const NOW = new Date("2026-10-14T19:08:00+01:00");
 async function open(page: Page, url: string) {
   await serveGoogleFontsLocally(page); await page.route(/cdnjs/, (r) => r.abort());

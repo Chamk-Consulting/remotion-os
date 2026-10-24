@@ -14,9 +14,11 @@ import { Kbds, scApi } from "@/os/shortcuts/ShortcutsPanel";
 import { ACTIONS, setSysMenu } from "@/os/shortcuts/actions";
 import { setThemeModeFull, switchLang } from "./shellActions";
 import { SvgString } from "./svg";
+import { renderTrView, TR_MENU_IC } from "@/os/transitions/transitions";
 
 const PLUS = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
-const VIEWS = ["main", "appearance", "language", "workspaces", "desktops", "ai", "info", "news"];
+/* "transitions" (v74) is filled by the transitions engine (an imperative page, like the HTML file's renderSysView). */
+const VIEWS = ["main", "appearance", "language", "workspaces", "desktops", "ai", "info", "news", "transitions"];
 const anchor = () => { const b = document.getElementById("sysBtn") as HTMLElement | null; return b && b.offsetParent ? b : document.querySelector(".who")!; };
 
 export function SysMenu() {
@@ -36,6 +38,7 @@ export function SysMenu() {
   if (prevOpen !== s.sysOpen) { setPrevOpen(s.sysOpen); if (s.sysOpen) { setHl(true); setSnap(take()); } }
   useLayoutEffect(() => {
     if (!s.sysOpen) return;
+    renderTrView();
     showView(vp.current, "main", 0, true); placeMenu(ref.current!, anchor(), (w) => w - 70);
     const v = s.sysView?.v;
     // Timers are not cancelled on close, like the source (L8758–L8761).
@@ -79,7 +82,7 @@ export function SysMenu() {
       </>;
       case "appearance": return <>{back(t("appearance"))}
         <div className="kv"><span>{t("theme")}</span><div className="seg" role="radiogroup"><span className="thumb-ind" style={{ transform: `translateX(${mi * 100 * rtlS}%)` }}></span>{modes.map((m, j) => <button key={m} role="radio" aria-checked={m === s.themeMode} data-ptheme={m}>{t(["themeL", "themeD", "themeA"][j])}</button>)}</div></div>
-        {sw(!s.widgetsHidden, "widgets", "showWidgets")}{sw(!s.iconsHidden, "icons", "showIcons")}{sw(!s.navHidden, "navbar", "showNavbar")}</>;
+        {sw(!s.widgetsHidden, "widgets", "showWidgets")}{sw(!s.iconsHidden, "icons", "showIcons")}{sw(!s.navHidden, "navbar", "showNavbar")}<div className="kbm-sep"></div>{item(TR_MENU_IC, t("trTitle"), { "data-go": "transitions" }, go)}</>;
       case "language": return <>{back(t("language"))}{(Object.entries(LANGS) as [Lang, (typeof LANGS)[Lang]][]).map(([k, L]) => <Fragment key={k}>{opt("data-lang-set", k, k === snap.lang, <span lang={k}>{L.name}</span>, <span className="val">{k.toUpperCase()}</span>)}</Fragment>)}</>;
       case "workspaces": return <>{back(t("workspaces"))}{snap.workspaces.map((w, i) => <Fragment key={i}>{opt("data-ws-set", i, i === snap.selWs, wsName(w))}</Fragment>)}<div className="kbm-sep"></div>{item(PLUS, t("addWorkspace"), { "data-act": "wsNew" })}</>;
       case "desktops": return <>{back(t("desktops"))}{snap.desks.map((n, i) => <Fragment key={i}>{opt("data-desk-set", i, i === snap.cur, n || t("desktopN", { n: nf(i + 1) }))}</Fragment>)}<div className="kbm-sep"></div>{item(PLUS, t("addDesktop"), { "data-act": "dNew" })}{item(CAT_IC.grid, t("overview"), { "data-act": "dOverview" }, <Kbds combo="Ctrl+Win+Tab" />)}</>;

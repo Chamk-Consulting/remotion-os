@@ -8,7 +8,7 @@ import raw from "./registry.data.json";
 type Glyph = { bg: string; svg: string };
 export type AppKey =
   | "apps" | "files" | "terminal" | "forms" | "documents" | "calcsci" | "billing"
-  | "hrPeople" | "patients" | "calendar" | "cabinet" | "planning";
+  | "hrPeople" | "patients" | "calendar" | "cabinet" | "planning" | "dossier";
 
 export interface AppManifest {
   key: AppKey;
@@ -49,6 +49,7 @@ export const APPS: readonly AppManifest[] = [
   def("calendar", "calendar", [], "calendar"),
   def("cabinet", "cabinet", [], "cabinet"),
   def("planning", "planning", [], "planning"),
+  def("dossier", "dossier", [], "dossier"), // v72–v73 (catch-up S5)
 ];
 
 const byKey = new Map<string, AppManifest>();

@@ -34,6 +34,7 @@ import "@/apps/patients/PatientsApp";
 import "@/apps/calendar/CalendarApp";
 import "@/apps/cabinet/CabinetApp";
 import "@/apps/planning/PlanningApp";
+import "@/apps/dossier/DossierApp";
 import "@/apps/launcher/Launcher";
 import "@/apps/files/FilesApp";
 import "@/apps/terminal/Terminal";

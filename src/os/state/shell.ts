@@ -43,7 +43,8 @@ type ShellState = {
   sysOpen: boolean; sysView: { v: string; n: number } | null; palOpen: boolean; scOpen: boolean; navHidden: boolean;
   /** `.shell.boot` entrance animation (source boot(), L9901). */ booting: boolean;
   iconsHidden: boolean; widgetsHidden: boolean;
-  toast: { msg: string; n: number; undo?: () => void } | null;
+  /** `act` / `ms`: a toast with its own action button and duration (v81 slow-device notice). */
+  toast: { msg: string; n: number; undo?: () => void; act?: string; ms?: number } | null;
   /* desktop layer (B-08) */
   trash: TrashItem[]; dkView: DkView; fs: FsData; apps: AppStore; sel: Set<string>; rev: number;
   /** Desktop whose icons the layer currently shows; lags `cur` by the slide delay like the source's dkSwitch (L11328). */
@@ -66,7 +67,7 @@ type ShellState = {
   setWs: (open: boolean) => void; setLangMenu: (open: boolean) => void; setDesksOpen: (open: boolean) => void;
   selectWs: (i: number) => void; addWs: () => Workspace;
   closeAll: () => void;
-  showToast: (msg: string, undo?: () => void) => void; hideToast: () => void;
+  showToast: (msg: string, undo?: () => void, o?: { act?: string; ms?: number }) => void; hideToast: () => void;
   saveDesks: () => void;
 };
 
@@ -131,7 +132,7 @@ export const useShell = create<ShellState>((set, get) => ({
   // Source closeAll (L7972): ws, lang, desks, kb menu, sys menu, palette, notification centre, account menu.
   // (kb menu, notification centre and account menu join as they are ported: closeAllHooks.)
   closeAll: () => { set({ wsOpen: false, langOpen: false, desksOpen: false, sysOpen: false, palOpen: false }); closeAllHooks.forEach((f) => f()); },
-  showToast: (msg, undo) => set({ toast: { msg, n: (get().toast?.n ?? 0) + 1, undo } }),
+  showToast: (msg, undo, o) => set({ toast: { msg, n: (get().toast?.n ?? 0) + 1, undo, ...o } }),
   hideToast: () => set({ toast: null }),
   saveDesks: () => { const { desks, cur } = get(); writeJSON(STORAGE_KEYS.desks, { l: desks, c: cur }); },
 }));
@@ -142,7 +143,10 @@ export const newDeskId = () => "d" + Math.random().toString(36).slice(2, 8);
 /** osDid (L20845): a desktop's stable id, created on first use. */
 export function osDid(i: number) { const d = useShell.getState().desks[i]; if (!d) return ""; if (!d._id) d._id = newDeskId(); return d._id; }
 /** osWsSave (L20849). */
+/** v89b hook: every save of the current workspace first finishes a pending workspace swap (set by the transitions engine). */
+export const wsSaveFx: { before: () => void } = { before: () => {} };
 export function osWsSave() {
+  wsSaveFx.before();
   const st = useShell.getState(); st.wsStore[st.selWs] = { l: st.desks, c: st.cur };
   writeJSON(STORAGE_KEYS.wsDesks, { sel: st.selWs, st: st.wsStore, n: st.workspaces.length });
 }
