@@ -320,7 +320,7 @@ type DcWItem = { k: string; html?: string; text?: string; lv?: number; color?: s
 /** ODT reader styles. */
 type DcORp = { b?: boolean; i?: boolean; u?: boolean; s?: boolean; color?: string | null; size?: string | null; font?: string | null; bg?: string | null; va?: string | null; [k: string]: unknown };
 type DcOPp = { al?: string | null; bg?: string | null; pb?: boolean | null; bd?: boolean | null; [k: string]: unknown };
-type DcOSt = { parent: string | null; display: string; outline: number; r: DcORp; p: DcOPp };
+type DcOSt = { parent: string | null; display: string; outline: number; r: DcORp; p: DcOPp; master?: string | null };
 
 /* agent 04 (stage6 L3660–L4263): RTF reader, PPTX/XLSX/CSV/PDF readers, import dialog, charts, signing */
 type DcRtfSt = { b: number; i: number; u: number; s: number; cf: number; cb: number; fs: number; f: number | null; al: string; uc: number; sup: number; sub: number; skip?: number };
@@ -842,10 +842,10 @@ let dcBlockHTML=function(b: DcBlock,ctx: { d: DcDoc; L: string; ed: boolean; num
   return `<div class="dc-b t-${b.type}${b.var?" v-"+b.var:""}${ctx.sel===b.id?" dc-sel":""}${ok?"":" hid"}${b.ai?" dc-aiB":""}" data-b="${b.id}" style="--w:${b.w||100}${b.mt?`;margin-top:${b.mt}px`:""}">${dcBlockInner(b,ctx)}${!ok?`<span class="dc-hidb" contenteditable="false">${DCI.eyeoff}${t("dc_hiddenCond")}</span>`:""}${b.ai?`<span class="dc-aib" contenteditable="false">${DCI.spark}${t("dc_aiDraft")}</span>`:""}${cm&&ctx.ed?`<button type="button" class="dc-cmk" data-cmk="${b.id}" contenteditable="false" aria-label="${t("dc_comments")}">${DCI.comment}<b>${nf(cm)}</b></button>`:""}</div>`}
 let dcCtx=function(o: Partial<DcCtx>={}){const d=o.d||dcDoc();const cm: Record<string, number>={};(d.cmts||[]).forEach(c=>{if(!c.res&&c.b)cm[c.b]=(cm[c.b]||0)+1});return Object.assign({d,L:d.lang||lang(),ed:DC.vm!=="read",nums:d.set.num?dcNumbers(d):{},sel:DC.sel,cm},o)}
 let dcPageHTML=function(p: DcPage,pi: number,ctx: { d: DcDoc; L: string; ed: boolean; nums: Dict; sel: string|null|undefined; cm: Record<string,number>; }&Partial<DcCtx>){const d=ctx.d,g=dcGeo(d,pi),s=d.set,N=d.pages.length,dir=(d.lang||lang())==="ar"?"rtl":"ltr";
-  return `<div class="dc-page" data-page="${pi}"${dcxLayUsed(d)?` data-psz="${g.size}" data-por="${g.or}" data-lay="1"`:""} dir="${dir}" lang="${dcHtmlE(secLang(d.lang||lang()))}" style="${dcHtmlE(`--pw:${g.w};--ph:${g.h};--mx:${g.mx}px;--my:${g.my}px;${dcxLayUsed(d)?`--mt:${g.mt}px;--mb:${g.mb}px;--ml:${g.ml}px;--mr:${g.mr}px;`:""}--dfs:${dcPt(s.fs)}px;--dlh:${s.lh};--dff:'${secFont(s.font)||"Inter"}',${s.font==="Georgia"||s.font==="Times New Roman"?"serif":"system-ui,sans-serif"};--dc-pacc:${secColor(s.acc)||"#18a058"};--dc-hc:${s.hcol==="acc"?(secColor(s.acc)||"#18a058"):"#1d3557"}`)}">
+  return `<div class="dc-page" data-page="${pi}"${dcxLayUsed(d)?` data-psz="${g.size}" data-por="${g.or}" data-lay="1"`:""}${d.pages[pi]?.pf!=null?' data-pf="1"':""}${d.pages[pi]?.pn!=null?` data-pn="${+d.pages[pi].pn!}"`:""} dir="${dir}" lang="${dcHtmlE(secLang(d.lang||lang()))}" style="${dcHtmlE(`--pw:${g.w};--ph:${g.h};--mx:${g.mx}px;--my:${g.my}px;${dcxLayUsed(d)?`--mt:${g.mt}px;--mb:${g.mb}px;--ml:${g.ml}px;--mr:${g.mr}px;`:""}--dfs:${dcPt(s.fs)}px;--dlh:${s.lh};--dff:'${secFont(s.font)||"Inter"}',${s.font==="Georgia"||s.font==="Times New Roman"?"serif":"system-ui,sans-serif"};--dc-pacc:${secColor(s.acc)||"#18a058"};--dc-hc:${s.hcol==="acc"?(secColor(s.acc)||"#18a058"):"#1d3557"}`)}">
     ${s.wm?`<div class="dc-wm" aria-hidden="true">${dcE(t(s.wm==="conf"?"dc_wmConf":"dc_wmDraft"))}</div>`:""}
     <div class="dc-pin">${p.blocks.map(b=>dcBlockHTML(b,ctx)).join("")}${ctx.ed&&!p.blocks.length?`<p class="dc-pempty">${t("dc_pageEmpty")}</p>`:""}</div>
-    ${s.ftr!==false?`<footer class="dc-pf"><span>${dcE(dcTx(d.clinic,ctx.L))} · ${dcE(dcTx(d.title,ctx.L))}</span><span>${dcE(dcTv("dc_pageNofM",{n:nf(pi+1),m:nf(N)},ctx.L))}</span></footer>`:""}
+    ${s.ftr!==false?`<footer class="dc-pf"><span>${dcE(dcxFootText(d,pi,ctx.L))}</span><span>${dcE(dcTv("dc_pageNofM",{n:nf(pi+1),m:nf(N)},ctx.L))}</span></footer>`:""}
   </div>`}
 
 /* ---------- shell ---------- */
@@ -1049,7 +1049,7 @@ let dcOnEdit=function(el: HTMLElement){const be=el.closest<HTMLInputElement>(".d
   let v=el.hasAttribute("data-rich")?dcClean(el.innerHTML):el.innerText.replace(/\n+$/,"");if(el.hasAttribute("data-rich")&&/^(<br>|\s)*$/.test(v))v="";
   if(p!.startsWith("@"))d[p!.slice(1)]=v;else{dcSetPath(r.b,p!,v);if(p!.startsWith("pairs.")&&p!.endsWith(".1"))el.classList.remove("dyn");if(r.b.ai)delete r.b.ai}
   d.upd=Date.now();dcSave();dcThumbsSoon(900);clearTimeout(DC.wt);DC.wt=setTimeout(()=>{dcStatusSync();if(p==="text"||p==="title"){if(DC.lp==="plan")dcRefresh("left");dcRoot()?.querySelectorAll<HTMLInputElement>(".t-toc").forEach(x=>dcRefreshBlock(x.dataset.b!));if(p==="title"&&r.b.type==="hdr"){}}},500);
-  if(p!.startsWith("@")){const R=dcRoot();R!.querySelectorAll<HTMLInputElement>(".dc-pf span:first-child").forEach(s=>s.textContent=dcTx(d.clinic)+" · "+dcTx(d.title))}}
+  if(p!.startsWith("@")){const R=dcRoot();R!.querySelectorAll<HTMLInputElement>(".dc-page:not([data-pf]) .dc-pf span:first-child").forEach(s=>s.textContent=dcTx(d.clinic)+" · "+dcTx(d.title))}}
 /* a block cut over two sheets (smart page breaks) is saved whole: the edited part is joined with the others first */
 {const _oe=dcOnEdit;dcOnEdit=function(el){const be=el.closest<HTMLElement>(".dc-b");const host=be?.closest(".dc-pages");const key=el.dataset.ed;
   if(be&&host&&key&&(be.classList.contains("dcx-pcont")||be.nextElementSibling?.classList.contains("dcx-pcont")||host.querySelector(`.dc-b.dcx-pcont[data-b="${be.dataset.b}"]`)||host.querySelector(`.dc-b[data-b="${be.dataset.b}"] tr[data-dxrow]`))){
@@ -2941,12 +2941,13 @@ function dcPageTw(d: DcDoc,pi?: number|null){const g=dcGeo(d,pi),px2cm=g.cm/g.w;
 function dcFootParts(L: string){const s=dcTv("dc_pageNofM",{n:"\u0001",m:"\u0002"},L);const a=s.split("\u0001"),b=(a[1]||"").split("\u0002");return [a[0],b[0]||"/",b[1]||""]}
 
 /* DOCX */
-async function dcMakeDOCX(d: DcDoc,flow: DcFlowItem[],o: {skipChartTables?: boolean; [k: string]: unknown}={}){const L=d.lang||lang(),rtl=L==="ar",s=d.set;let pg=dcPageTw(d,0);const secs=d.pages.some(p=>!!p.lay);let secPi=0;const E=dcXE,font=s.font||"Calibri",hc=dcHex(s.hcol==="acc"?s.acc:"#1d3557")||"1D3557",acc=dcHex(s.acc)||"2F6BF0";
+async function dcMakeDOCX(d: DcDoc,flow: DcFlowItem[],o: {skipChartTables?: boolean; [k: string]: unknown}={}){const L=d.lang||lang(),rtl=L==="ar",s=d.set;let pg=dcPageTw(d,0);const secs=dcxSecsUsed(d);let secPi=0;const E=dcXE,font=s.font||"Calibri",hc=dcHex(s.hcol==="acc"?s.acc:"#1d3557")||"1D3557",acc=dcHex(s.acc)||"2F6BF0";
   const rels: string[]=[],media: DcZipF[]=[];let rid=10,nimg=0;const nums: number[]=[];
   const bidi=rtl?"<w:bidi/>":"";
   /* section properties of document page `pi` (its paper, orientation and four margins); a section that is not the last one starts
      the next on a new page */
-  const sectX=(pi: number,last: boolean)=>{const q=dcPageTw(d,secs?pi:null);return `<w:sectPr>${s.ftr!==false?'<w:footerReference w:type="default" r:id="rIdF"/>':""}${last?"":'<w:type w:val="nextPage"/>'}<w:pgSz w:w="${q.w}" w:h="${q.h}"${q.land?' w:orient="landscape"':""}/><w:pgMar w:top="${q.mt}" w:right="${q.mr}" w:bottom="${q.mb+340}" w:left="${q.ml}" w:header="400" w:footer="340" w:gutter="0"/>${rtl?"<w:bidi/>":""}</w:sectPr>`};
+  const ftrs: string[]=[];const ftrId=(pi: number)=>{const own=secs?d.pages[pi]?.pf:null;if(own==null||own==="")return "rIdF";let j=ftrs.indexOf(String(own));if(j<0){ftrs.push(String(own));j=ftrs.length-1}return "rIdF"+(j+2)};
+  const sectX=(pi: number,last: boolean)=>{const q=dcPageTw(d,secs?pi:null);const pn=secs?d.pages[pi]?.pn:null;return `<w:sectPr>${s.ftr!==false?`<w:footerReference w:type="default" r:id="${ftrId(pi)}"/>`:""}${last?"":'<w:type w:val="nextPage"/>'}<w:pgSz w:w="${q.w}" w:h="${q.h}"${q.land?' w:orient="landscape"':""}/><w:pgMar w:top="${q.mt}" w:right="${q.mr}" w:bottom="${q.mb+340}" w:left="${q.ml}" w:header="400" w:footer="340" w:gutter="0"/>${pn!=null?`<w:pgNumType w:start="${+pn}"/>`:""}${rtl?"<w:bidi/>":""}</w:sectPr>`};
   const run=(r: DcRun)=>{const c=r.c;const pr=`${r.b?"<w:b/><w:bCs/>":""}${r.i?"<w:i/><w:iCs/>":""}${r.u?'<w:u w:val="single"/>':""}${r.s?"<w:strike/>":""}${c?`<w:color w:val="${c}"/>`:""}${r.hl?'<w:highlight w:val="yellow"/>':""}${rtl?"<w:rtl/>":""}`;
     const parts=String(r.t).split("\n").map(x=>`<w:t xml:space="preserve">${E(x)}</w:t>`).join("<w:br/>");const x=`<w:r>${pr?`<w:rPr>${pr}</w:rPr>`:""}${parts}</w:r>`;
     if(r.a&&/^(https?:|mailto:)/i.test(r.a)){const id="rId"+(++rid);rels.push(`<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${E(r.a)}" TargetMode="External"/>`);return `<w:hyperlink r:id="${id}">${x}</w:hyperlink>`}return x};
@@ -2992,23 +2993,23 @@ ${pst("ListParagraph","List Paragraph",'<w:spacing w:after="60"/><w:ind w:left="
 ${pst("Footer","footer",'<w:spacing w:after="0"/>',`<w:color w:val="8A96A3"/><w:sz w:val="16"/><w:szCs w:val="16"/>`)}
 <w:style w:type="table" w:styleId="TableGrid"><w:name w:val="Table Grid"/><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:tblPr><w:tblBorders>${["top","left","bottom","right","insideH","insideV"].map(b=>`<w:${b} w:val="single" w:sz="4" w:space="0" w:color="C9D2DB"/>`).join("")}</w:tblBorders><w:tblCellMar><w:top w:w="40" w:type="dxa"/><w:left w:w="90" w:type="dxa"/><w:bottom w:w="40" w:type="dxa"/><w:right w:w="90" w:type="dxa"/></w:tblCellMar></w:tblPr></w:style></w:styles>`;
   const numbering=`${X}<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:abstractNum w:abstractNumId="0"><w:multiLevelType w:val="singleLevel"/><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlText w:val="•"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="567" w:hanging="284"/></w:pPr></w:lvl></w:abstractNum><w:abstractNum w:abstractNumId="1"><w:multiLevelType w:val="singleLevel"/><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="567" w:hanging="284"/></w:pPr></w:lvl></w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>${nums.map((_,i)=>`<w:num w:numId="${i+2}"><w:abstractNumId w:val="1"/><w:lvlOverride w:ilvl="0"><w:startOverride w:val="1"/></w:lvlOverride></w:num>`).join("")}</w:numbering>`;
-  const foot=`${X}<w:ftr ${NS}><w:p><w:pPr><w:pStyle w:val="Footer"/><w:pBdr><w:top w:val="single" w:sz="4" w:space="4" w:color="E3E8EE"/></w:pBdr><w:tabs><w:tab w:val="right" w:pos="${pg.cw}"/></w:tabs>${bidi}</w:pPr>${run({t:dcTx(d.clinic,L)+" · "+dcTx(d.title,L)})}<w:r><w:tab/></w:r>${run({t:f1})}<w:fldSimple w:instr=" PAGE "><w:r><w:t>1</w:t></w:r></w:fldSimple>${run({t:f2})}<w:fldSimple w:instr=" NUMPAGES "><w:r><w:t>1</w:t></w:r></w:fldSimple>${f3?run({t:f3}):""}</w:p></w:ftr>`;
+  const footX=(tx: string)=>`${X}<w:ftr ${NS}><w:p><w:pPr><w:pStyle w:val="Footer"/><w:pBdr><w:top w:val="single" w:sz="4" w:space="4" w:color="E3E8EE"/></w:pBdr><w:tabs><w:tab w:val="right" w:pos="${pg.cw}"/></w:tabs>${bidi}</w:pPr>${run({t:tx})}<w:r><w:tab/></w:r>${run({t:f1})}<w:fldSimple w:instr=" PAGE "><w:r><w:t>1</w:t></w:r></w:fldSimple>${run({t:f2})}<w:fldSimple w:instr=" NUMPAGES "><w:r><w:t>1</w:t></w:r></w:fldSimple>${f3?run({t:f3}):""}</w:p></w:ftr>`;const foot=footX(dcTx(d.clinic,L)+" · "+dcTx(d.title,L));
   const R=(x: string)=>`${X}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${x}</Relationships>`,T="http://schemas.openxmlformats.org/officeDocument/2006/relationships/";
   const now=new Date().toISOString().replace(/\.\d+Z$/,"Z");
   const files=[
-    {name:"[Content_Types].xml",data:`${X}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>${ftr?'<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>':""}<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>`},
+    {name:"[Content_Types].xml",data:`${X}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>${ftr?['<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>',...ftrs.map((_,j)=>`<Override PartName="/word/footer${j+2}.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>`)].join(""):""}<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>`},
     {name:"_rels/.rels",data:R(`<Relationship Id="rId1" Type="${T}officeDocument" Target="word/document.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>`)},
     {name:"docProps/core.xml",data:`${X}<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>${E(dcTx(d.title,L))}</dc:title><dc:creator>${E(d.prat||"")}</dc:creator><dc:language>${lng}</dc:language><dcterms:created xsi:type="dcterms:W3CDTF">${now}</dcterms:created><dcterms:modified xsi:type="dcterms:W3CDTF">${now}</dcterms:modified></cp:coreProperties>`},
     {name:"word/document.xml",data:doc},{name:"word/styles.xml",data:styles},{name:"word/numbering.xml",data:numbering},
-    {name:"word/_rels/document.xml.rels",data:R(`<Relationship Id="rId1" Type="${T}styles" Target="styles.xml"/><Relationship Id="rId2" Type="${T}numbering" Target="numbering.xml"/>${ftr?`<Relationship Id="rIdF" Type="${T}footer" Target="footer1.xml"/>`:""}${rels.join("")}`)},
-    ...(ftr?[{name:"word/footer1.xml",data:foot}]:[]),...media];
+    {name:"word/_rels/document.xml.rels",data:R(`<Relationship Id="rId1" Type="${T}styles" Target="styles.xml"/><Relationship Id="rId2" Type="${T}numbering" Target="numbering.xml"/>${ftr?`<Relationship Id="rIdF" Type="${T}footer" Target="footer1.xml"/>${ftrs.map((_,j)=>`<Relationship Id="rIdF${j+2}" Type="${T}footer" Target="footer${j+2}.xml"/>`).join("")}`:""}${rels.join("")}`)},
+    ...(ftr?[{name:"word/footer1.xml",data:foot},...ftrs.map((tx,j)=>({name:`word/footer${j+2}.xml`,data:footX(tx)}))]:[]),...media];
   return RDX.makeZip(files,"application/vnd.openxmlformats-officedocument.wordprocessingml.document")}
 
 /* ODT */
 async function dcMakeODT(d: DcDoc,flow: DcFlowItem[]){const L=d.lang||lang(),rtl=L==="ar",s=d.set,g=dcGeo(d),E=dcXE,px2cm=g.cm/g.w,cm=(v: number)=>(Math.round(v*1000)/1000)+"cm",font=s.font||"Liberation Sans",hc="#"+(dcHex(s.hcol==="acc"?s.acc:"#1d3557")||"1D3557"),acc="#"+(dcHex(s.acc)||"2F6BF0");
   const land=s.or==="l",[PWc,PHc]=dcPaperCm(d),mx=g.mx*px2cm,my=g.my*px2cm,cwc=PWc-2*mx;
   /* per-page layout: one ODF master page per layout used by a document page (sections); the first one is "Standard" */
-  const secs=d.pages.some(p=>!!p.lay),masters: string[]=[],lkey=(i: number)=>{const Q=dcLayOf(d,i);return [Q.size,Q.or,Q.mt,Q.mb,Q.ml,Q.mr].join("_")},mIdx=(i: number)=>{const k=lkey(i);let j=masters.indexOf(k);if(j<0){masters.push(k);j=masters.length-1}return j},mPi: number[]=[];
+  const secs=dcxSecsUsed(d),masters: string[]=[],lkey=(i: number)=>{const Q=dcLayOf(d,i);return [Q.size,Q.or,Q.mt,Q.mb,Q.ml,Q.mr,d.pages[i]?.pf??""].join("_")},mIdx=(i: number)=>{const k=lkey(i);let j=masters.indexOf(k);if(j<0){masters.push(k);j=masters.length-1}return j},mPi: number[]=[];const pns: [string,number,number][]=[];
   if(secs){mIdx(0);mPi[0]=0}
   const tst=new Map<string, {n: string; r: DcRun}>(),media: DcZipF[]=[];let nimg=0,ntbl=0;
   const tsn=(r: DcRun)=>{const k=(r.b?"b":"")+(r.i?"i":"")+(r.u?"u":"")+(r.s?"s":"")+(r.c?"c"+r.c:"")+(r.hl?"h":"");if(!k)return null;if(!tst.has(k))tst.set(k,{n:"T"+(tst.size+1),r});return tst.get(k)!.n};
@@ -3020,7 +3021,7 @@ async function dcMakeODT(d: DcDoc,flow: DcFlowItem[]){const L=d.lang||lang(),rtl
     case "p":out.push(P(({quote:"Quote",box:"Box",note:"Note",small:"Small",cap:"Caption",toc1:"Toc1",toc2:"Toc2"} as Dict)[x.st!]||"Standard",x.runs!));break;
     case "li":{const ls=x.ord?"LN":"LB";if(inList!==ls){closeList();out.push(`<text:list text:style-name="${ls}">`);inList=ls}out.push(`<text:list-item>${P("List",x.runs!)}</text:list-item>`);break}
     case "hr":out.push(`<text:p text:style-name="Rule"/>`);break;
-    case "pb":if(secs&&x.pi!=null){const j=mIdx(x.pi);if(mPi[j]==null)mPi[j]=x.pi;out.push(`<text:p text:style-name="PM${j}"/>`)}else out.push(`<text:p text:style-name="PB"/>`);break;
+    case "pb":if(secs&&x.pi!=null){const j=mIdx(x.pi);if(mPi[j]==null)mPi[j]=x.pi;const pn=d.pages[x.pi]?.pn;if(pn!=null){const nm=`PN${j}_${+pn}`;if(!pns.some(q=>q[0]===nm))pns.push([nm,j,+pn]);out.push(`<text:p text:style-name="${nm}"/>`)}else out.push(`<text:p text:style-name="PM${j}"/>`)}else out.push(`<text:p text:style-name="PB"/>`);break;
     case "table":{if(x.chart)break;const n=Math.max(1,...x.rows!.map(r=>r.length),x.head?x.head.length:0);ntbl++;
       const c=(txt: string,h: boolean,k?: boolean)=>`<table:table-cell table:style-name="${h?"CH":k?"CK":"C"}" office:value-type="string"><text:p text:style-name="${h||k?"TH":"TD"}">${E(txt)}</text:p></table:table-cell>`;
       out.push(`<table:table table:name="Table${ntbl}" table:style-name="Tbl"><table:table-column table:number-columns-repeated="${n}"/>${x.head?`<table:table-header-rows><table:table-row>${Array.from({length:n},(_,j)=>c(x.head![j]||"",true)).join("")}</table:table-row></table:table-header-rows>`:""}${x.rows!.map(r=>`<table:table-row>${Array.from({length:n},(_,j)=>c(r[j]??"",false,x.key&&j===0)).join("")}</table:table-row>`).join("")}</table:table>`);break}
@@ -3033,7 +3034,7 @@ async function dcMakeODT(d: DcDoc,flow: DcFlowItem[]){const L=d.lang||lang(),rtl
 <style:style style:name="Tbl" style:family="table"><style:table-properties style:width="${cm(cwc)}" table:align="margins" fo:margin-bottom="0.2cm"/></style:style>
 <style:style style:name="C" style:family="table-cell"><style:table-cell-properties fo:padding="0.08cm" fo:border="0.5pt solid #c9d2db"/></style:style>
 <style:style style:name="CH" style:family="table-cell"><style:table-cell-properties fo:padding="0.08cm" fo:border="0.5pt solid #c9d2db" fo:background-color="#eef2f6"/></style:style>
-<style:style style:name="CK" style:family="table-cell"><style:table-cell-properties fo:padding="0.08cm" fo:border="0.5pt solid #c9d2db" fo:background-color="#f7f9fb"/></style:style>${secs?masters.map((_,j)=>`<style:style style:name="PM${j}" style:family="paragraph" style:parent-style-name="Standard" style:master-page-name="${j===0?"Standard":"M"+j}"/>`).join(""):""}${dcxOdtBrkStyles(bks)}</office:automatic-styles>`;
+<style:style style:name="CK" style:family="table-cell"><style:table-cell-properties fo:padding="0.08cm" fo:border="0.5pt solid #c9d2db" fo:background-color="#f7f9fb"/></style:style>${secs?masters.map((_,j)=>`<style:style style:name="PM${j}" style:family="paragraph" style:parent-style-name="Standard" style:master-page-name="${j===0?"Standard":"M"+j}"/>`).join("")+pns.map(([nm,j,n])=>`<style:style style:name="${nm}" style:family="paragraph" style:parent-style-name="Standard" style:master-page-name="${j===0?"Standard":"M"+j}"><style:paragraph-properties style:page-number="${n}"/></style:style>`).join(""):""}${dcxOdtBrkStyles(bks)}</office:automatic-styles>`;
   const content=`${X}<office:document-content ${NS}><office:font-face-decls><style:font-face style:name="${E(font)}" svg:font-family="'${E(font)}'"/></office:font-face-decls>${auto}<office:body><office:text>${out.join("")}</office:text></office:body></office:document-content>`;
   const ps=(n: string,disp: string,par: string,pp: string,tp: string)=>`<style:style style:name="${n}" style:display-name="${disp}" style:family="paragraph" style:parent-style-name="${par}" style:class="text"><style:paragraph-properties${wm} ${pp}/><style:text-properties ${tp}/></style:style>`;
   const fs=s.fs||11,[f1,f2,f3]=dcFootParts(L);
@@ -3061,7 +3062,9 @@ ${ps("TH","Table Heading","Standard",'fo:margin-bottom="0cm"','fo:font-weight="b
   function odtSecStyles(st: string){const pl=(j: number)=>{const i=mPi[j]??0,g2=dcGeo(d,i),k2=g2.cm/g2.w,[W,H]=dcPaperCm(d,i);return `<style:page-layout style:name="pm${j+1}"><style:page-layout-properties fo:page-width="${cm(W)}" fo:page-height="${cm(H)}" style:print-orientation="${g2.land?"landscape":"portrait"}" fo:margin-top="${cm(g2.mt*k2)}" fo:margin-bottom="${cm(Math.max(.5,g2.mb*k2-.6))}" fo:margin-left="${cm(g2.ml*k2)}" fo:margin-right="${cm(g2.mr*k2)}"${wm}/><style:footer-style><style:header-footer-properties fo:min-height="0.5cm" fo:margin-top="0.3cm"/></style:footer-style></style:page-layout>`};
     st=st.replace(/<style:page-layout style:name="pm1">[\s\S]*?<\/style:page-layout>/,masters.map((_,j)=>pl(j)).join(""));
     const m=/<style:master-page style:name="Standard" style:page-layout-name="pm1">([\s\S]*?)<\/style:master-page>/.exec(st);const inner=m?m[1]:"";
-    return st.replace("</office:master-styles>",masters.slice(1).map((_,j)=>`<style:master-page style:name="M${j+1}" style:page-layout-name="pm${j+2}">${inner}</style:master-page>`).join("")+"</office:master-styles>")}
+    const dft=E(dcTx(d.clinic,L)+" · "+dcTx(d.title,L));const innerOf=(j: number)=>{const own=d.pages[mPi[j]??0]?.pf;return own!=null&&own!==""?inner.replace(dft,E(String(own))):inner};
+    st=st.replace(/(<style:master-page style:name="Standard" style:page-layout-name="pm1">)[\s\S]*?(<\/style:master-page>)/,(_m,a,b)=>a+innerOf(0)+b);
+    return st.replace("</office:master-styles>",masters.slice(1).map((_,j)=>`<style:master-page style:name="M${j+1}" style:page-layout-name="pm${j+2}">${innerOf(j+1)}</style:master-page>`).join("")+"</office:master-styles>")}
   return RDX.makeZip([{name:"mimetype",data:"application/vnd.oasis.opendocument.text",store:true},{name:"META-INF/manifest.xml",data:man},{name:"content.xml",data:content},{name:"styles.xml",data:secs?odtSecStyles(styles):styles},{name:"meta.xml",data:meta},...media],"application/vnd.oasis.opendocument.text")}
 
 /* RTF */
@@ -3072,14 +3075,14 @@ function dcMakeRTF(d: DcDoc,flow: DcFlowItem[]){const L=d.lang||lang(),rtl=L==="
   const rd=rtl?"\\rtlpar":"\\ltrpar",rc=rtl?"\\rtlch":"\\ltrch";
   const runs=(rs: DcRun[])=>rs.map(r=>`{${rc}${r.b?"\\b":""}${r.i?"\\i":""}${r.u?"\\ul":""}${r.s?"\\strike":""}${r.c?"\\cf"+cidx(r.c):""} ${esc(r.t)}}`).join("");
   const par=(pre: string,rs: DcRun[])=>`\\pard\\plain${rd}\\sa120\\sl${Math.round((s.lh||1.5)*240)}\\slmult1\\fs${fs2}${pre} ${runs(rs)}\\par\n`;
-  const out: string[]=[];let n=0;const secs=d.pages.some(p=>!!p.lay);
+  const out: string[]=[];let n=0;const secs=dcxSecsUsed(d);
   for(const x of flow){const o0=out.length;try{switch(x.k){
     case "title":out.push(par(`\\sb120\\sa200\\b\\fs${fs2*2}\\cf1`,dcR(x.text)));break;
     case "h":out.push(par(`\\sb${[280,220,180][x.lv!-1]}\\sa100\\keepn\\b\\fs${Math.round(fs2*[1.6,1.3,1.12][x.lv!-1])}\\cf1\\outlinelevel${x.lv!-1}`,dcR(x.text)));break;
     case "p":out.push(par(({quote:"\\li567\\i\\cf7\\brdrl\\brdrs\\brdrw30\\brdrcf6\\brsp120",box:"\\li120\\ri120\\cbpat5\\brdrl\\brdrs\\brdrw30\\brdrcf6\\brsp80",note:"\\li120\\cbpat8",small:"\\sa40\\cf2\\fs"+Math.round(fs2*.85),cap:"\\qc\\i\\cf2\\fs"+Math.round(fs2*.85),toc1:"\\sa40\\b",toc2:"\\sa40\\li284"} as Dict)[x.st!]||"",x.runs!));break;
     case "li":n=x.ord?n+1:0;out.push(par("\\fi-284\\li567\\sa60",[{t:x.ord?n+".\t":"•\t"},...x.runs!]));break;
     case "hr":out.push(`\\pard\\plain\\brdrb\\brdrs\\brdrw10\\brdrcf3\\sa160\\fs4\\par\n`);break;
-    case "pb":out.push(secs&&x.pi!=null?"\\sect"+dcxRtfSect(d,x.pi)+"\n":"\\page\n");break;/* per-page layout: one RTF section per layout */
+    case "pb":out.push(secs&&x.pi!=null?"\\sect"+dcxRtfSect(d,x.pi)+"\n\u0000F"+x.pi+"\u0000":"\\page\n");break;/* per-page layout: one RTF section per layout */
     case "table":{if(x.chart)break;const k=Math.max(1,...x.rows!.map(r=>r.length),x.head?x.head.length:0),cw=Math.floor(pg.cw/k);
       const row=(r: string[],h: boolean)=>`\\trowd\\trgaph80\\trleft0${h?"\\trhdr":""}${rtl?"\\rtlrow":""}${Array.from({length:k},(_,j)=>`\\clbrdrt\\brdrs\\brdrw10\\brdrcf3\\clbrdrl\\brdrs\\brdrw10\\brdrcf3\\clbrdrb\\brdrs\\brdrw10\\brdrcf3\\clbrdrr\\brdrs\\brdrw10\\brdrcf3${h||(x.key&&j===0)?"\\clcbpat4":""}\\cellx${cw*(j+1)}`).join("")}\n${Array.from({length:k},(_,j)=>`\\pard\\plain\\intbl${rd}\\fs${Math.round(fs2*.95)}${h||(x.key&&j===0)?"\\b":""} ${esc(r[j]??"")}\\cell`).join("")}\\row\n`;
       if(x.head)out.push(row(x.head,true));x.rows!.forEach(r=>out.push(row(r,false)));out.push("\\pard\\plain\\sa60\\par\n");break}
@@ -3087,7 +3090,8 @@ function dcMakeRTF(d: DcDoc,flow: DcFlowItem[]){const L=d.lang||lang(),rtl=L==="
       out.push(`\\pard\\plain\\qc\\keepn{\\pict\\pngblip\\picw${x.w}\\pich${x.h}\\picwgoal${tw}\\pichgoal${th}\n${hex}}\\par\n`);break}}}finally{dcxRtfBrk(out,o0,x)}}
   const [f1,f2,f3]=dcFootParts(L);
   const head=`{\\rtf1\\ansi\\ansicpg1252\\deff0\\uc1{\\fonttbl{\\f0\\fswiss\\fcharset0 ${esc(s.font||"Arial")};}{\\f1\\fnil\\fcharset178 Arial;}}{\\colortbl;${cols.map(rgb).join("")}}{\\info{\\title ${esc(dcTx(d.title,L))}}{\\author ${esc(d.prat||"")}}}\n\\paperw${pg.w}\\paperh${pg.h}\\margl${pg.ml}\\margr${pg.mr}\\margt${pg.mt}\\margb${pg.mb+340}${s.or==="l"?"\\landscape":""}\\viewkind1${rtl?"\\rtldoc":""}${secs?dcxRtfSect(d,0):""}\n`;
-  const foot=s.ftr!==false?`{\\footer\\pard\\plain${rd}\\qr\\fs16\\cf2 ${esc(dcTx(d.clinic,L)+" · "+dcTx(d.title,L)+"   ·   "+f1)}{\\field{\\*\\fldinst PAGE}{\\fldrslt 1}}${esc(f2)}{\\field{\\*\\fldinst NUMPAGES}{\\fldrslt 1}}${esc(f3)}\\par}\n`:"";
+  const footX=(tx: string)=>s.ftr!==false?`{\\footer\\pard\\plain${rd}\\qr\\fs16\\cf2 ${esc(tx+"   ·   "+f1)}{\\field{\\*\\fldinst PAGE}{\\fldrslt 1}}${esc(f2)}{\\field{\\*\\fldinst NUMPAGES}{\\fldrslt 1}}${esc(f3)}\\par}\n`:"";
+  const foot=footX(dcxFootText(d,0,L));for(let i=0;i<out.length;i++)out[i]=out[i].replace(/\u0000F(\d+)\u0000/,(_m,pi)=>footX(dcxFootText(d,+pi,L)));
   return new Blob([head+foot+out.join("")+"}"],{type:"application/rtf"})}
 
 /* HTML (standalone, print-ready) and Word 97-2003 (.doc, HTML-based) */
@@ -3119,7 +3123,7 @@ ${dcxDocSections(d,flow,g,k,land,W,H)}</body></html>`}
  *  document with one layout keeps the single Section1. */
 function dcxDocSections(d: DcDoc,flow: DcFlowItem[],g: ReturnType<typeof dcGeo>,k: number,land: boolean,W: number,H: number){
   const pbr='<br clear="all" style="page-break-before:always">';
-  if(!d.pages.some(p=>!!p.lay))return `@page Section1{size:${land?H:W}cm ${land?W:H}cm;${land?"mso-page-orientation:landscape;":""}margin:${dcxLayUsed(d)?`${(g.mt*k).toFixed(2)}cm ${(g.mr*k).toFixed(2)}cm ${(g.mb*k).toFixed(2)}cm ${(g.ml*k).toFixed(2)}cm`:`${(g.my*k).toFixed(2)}cm ${(g.mx*k).toFixed(2)}cm`}}div.Section1{page:Section1}</style></head><body><div class="Section1">${dcFlowHTML(flow,{pb:pbr})}</div>`;
+  if(!dcxSecsUsed(d))return `@page Section1{size:${land?H:W}cm ${land?W:H}cm;${land?"mso-page-orientation:landscape;":""}margin:${dcxLayUsed(d)?`${(g.mt*k).toFixed(2)}cm ${(g.mr*k).toFixed(2)}cm ${(g.mb*k).toFixed(2)}cm ${(g.ml*k).toFixed(2)}cm`:`${(g.my*k).toFixed(2)}cm ${(g.mx*k).toFixed(2)}cm`}}div.Section1{page:Section1}</style></head><body><div class="Section1">${dcFlowHTML(flow,{pb:pbr})}</div>`;
   const chunks: {pi: number;items: DcFlowItem[]}[]=[{pi:0,items:[]}];for(const x of flow){if(x.k==="pb"&&x.pi!=null)chunks.push({pi:x.pi,items:[]});else chunks[chunks.length-1].items.push(x)}
   const css=chunks.map((c,i)=>{const G=dcGeo(d,c.pi),K=G.cm/G.w,[pw,ph]=dcPaperCm(d,c.pi);return `@page Section${i+1}{size:${pw}cm ${ph}cm;${G.land?"mso-page-orientation:landscape;":""}margin:${(G.mt*K).toFixed(2)}cm ${(G.mr*K).toFixed(2)}cm ${(G.mb*K).toFixed(2)}cm ${(G.ml*K).toFixed(2)}cm}div.Section${i+1}{page:Section${i+1}}`}).join("");
   const brk='<br clear="all" style="page-break-before:always;mso-break-type:section-break">';
@@ -3887,7 +3891,8 @@ async function dcReadDocx(file: File,o?: Bag){const z=await RD.unzip(await file.
     const sh=dcKid(el,"shd");const sf=sh&&dcAttr(sh,"fill");if(sf&&sf!=="auto"&&!/^0+$/.test(sf)&&sf.toUpperCase()!=="FFFFFF")p.shd="#"+sf;
     const f=dcKid(el,"rFonts");if(f){const a=dcAttr(f,"ascii")||dcAttr(f,"hAnsi"),th=dcAttr(f,"asciiTheme")||dcAttr(f,"hAnsiTheme");p.font=secFont(a||(th?(/major/i.test(th)?theme.major:theme.minor):null))||p.font}
     const va=dcWv(dcKid(el,"vertAlign"));if(va)p.va=va;const rs=dcWv(dcKid(el,"rStyle"));if(rs)p.rStyle=rs;const lg=dcKid(el,"lang");if(lg){p.lang=dcAttr(lg,"val");p.bidiLang=dcAttr(lg,"bidi")}if(dcKid(el,"rtl"))p.rtl=true;return p};
-  const pP=(el: Element|null|undefined): DcWPp=>{if(!el)return {};const p: DcWPp={};const jc=dcWv(dcKid(el,"jc"));if(jc)p.jc=jc;const ps=dcWv(dcKid(el,"pStyle"));if(ps)p.pStyle=ps;if(dcKid(el,"pageBreakBefore"))p.pb=true;
+  const pP=(el: Element|null|undefined): DcWPp=>{if(!el)return {};const p: DcWPp={};const jc=dcWv(dcKid(el,"jc"));if(jc)p.jc=jc;const ps=dcWv(dcKid(el,"pStyle"));if(ps)p.pStyle=ps;if(dcKid(el,"pageBreakBefore")&&dcWv(dcKid(el,"pageBreakBefore"))!=="0")p.pb=true;
+    {const on=(n: string)=>{const k=dcKid(el,n);if(!k)return undefined;const v=dcWv(k);return !(v==="0"||v==="false")};const kn=on("keepNext"),kl=on("keepLines"),wc=on("widowControl");if(kn!=null)p.kn=kn;if(kl!=null)p.keep=kl;if(wc!=null)p.wc=wc}
     const np=dcKid(el,"numPr");if(np){p.numId=dcWv(dcKid(np,"numId"));p.ilvl=+(dcWv(dcKid(np,"ilvl"))||0)}const ol=dcWv(dcKid(el,"outlineLvl"));if(ol!=null)p.outline=+ol;
     const sh=dcKid(el,"shd"),sf=sh&&dcAttr(sh,"fill");if(sf&&sf!=="auto"&&sf.toUpperCase()!=="FFFFFF")p.shd="#"+sf;if(dcKid(el,"pBdr"))p.bdr=true;
     const ind=dcKid(el,"ind");if(ind){const l=+(dcAttr(ind,"left")||dcAttr(ind,"start")||0);if(l)p.ind=l}if(dcKid(el,"bidi"))p.bidi=true;
@@ -3954,7 +3959,7 @@ async function dcReadDocx(file: File,o?: Bag){const z=await RD.unzip(await file.
       const cb=/^[\u2610\u2611\u2612\u25a1\u25a2\u25fb]\s*(.+)$/.exec(text);if(cb){out.push({k:"field",ftype:"checkbox",label:cb[1],checked:/^[\u2611\u2612]/.test(text)});return}}
     const al=({center:"center",right:"right",end:"right",both:"justify",distribute:"justify"} as Dict)[eff.jc!];
     const quote=/quote|citation|zitat/.test(sname);const box=!!(eff.shd||eff.bdr)&&!quote;
-    out.push({k:"p",html:al&&!o!.clean?`<div style="text-align:${al}">${html}</div>`:html,var:quote?"quote":box?"box":"",bg:box&&!o!.clean?eff.shd:null,rtl:eff.bidi})}
+    out.push({k:"p",html:al&&!o!.clean?`<div style="text-align:${al}">${html}</div>`:html,var:quote?"quote":box?"box":"",bg:box&&!o!.clean?eff.shd:null,rtl:eff.bidi,brk:dcxImpBrk(eff)})}
   async function table(tb: Element){flushList();pushPB();const rows: string[][]=[],cs: Record<string, DcWCs>={};const trs=dcKids(tb,"tr");let head=false;const grid=dcKids(dcKid(tb,"tblGrid"),"gridCol").map(g=>+(dcAttr(g,"w")||0));
     const mg: DcWMg[]=[],vst: Record<number, DcWMg|null>={};for(let r=0;r<trs.length;r++){const tr=trs[r];if(r===0&&dcDesc(dcKid(tr,"trPr"),"tblHeader").length)head=true;const row: string[]=[];let c=0;c+=+(dcWv(dcDesc(dcKid(tr,"trPr"),"gridBefore")[0])||0);
       for(const tc of dcKids(tr,"tc")){const pr=dcKid(tc,"tcPr"),span=+(dcWv(dcKid(pr,"gridSpan"))||1),vm=dcKid(pr,"vMerge");const parts: string[]=[];let eff0=null as string|null,html0="";
@@ -4021,7 +4026,7 @@ function dcHtmlItems(container: HTMLElement,o: Bag){const out: DcWItem[]=[];cons
     out.push({k:"p",html:al&&!o.clean?`<div style="text-align:${al[1]}">${h}</div>`:h,var:(el as HTMLElement).dataset.box?"box":""})};
   const walk=(el: Node)=>{let inl: Node[]=[];const flushInl=()=>{if(!inl.length)return;const d=document.createElement("p");inl.forEach(n=>d.append(n.cloneNode(true)));if(txt(d)||d.querySelector<HTMLInputElement>("img"))para(d);inl=[]};
     for(const n of [...el.childNodes] as HTMLElement[]){if(n.nodeType===3){if(n.nodeValue!.trim())inl.push(n);continue}if(n.nodeType!==1)continue;const tg=n.tagName;
-      if(n.dataset&&n.dataset.pb){flushInl();if(out.length)out.push({k:"pb"})}
+      if(n.dataset&&n.dataset.pb){flushInl();const lay=n.dataset.lay?JSON.parse(n.dataset.lay):undefined;if(out.length||lay)out.push(lay?{k:"pb",layNext:lay}:{k:"pb"})}
       if(tg==="IMG"){flushInl();imgs({querySelectorAll:()=>[n]} as unknown as ParentNode).forEach(x=>out.push(x));continue}
       if(tg==="BR"){inl.push(n);continue}
       if(!BLK.test(tg)&&!n.querySelector<HTMLInputElement>("p,div,table,ul,ol,h1,h2,h3,h4,h5,h6,blockquote,pre,hr,figure")){inl.push(n);continue}
@@ -4068,11 +4073,11 @@ let dcReadEpub=async function(file: File,o: Bag){const z=await RD.unzip(await fi
 /* ---------------- ODT ---------------- */
 async function dcReadOdt(file: File,o: Bag){const z=await RD.unzip(await file.arrayBuffer());const cx=dcX(await z.text("content.xml")),sx=dcX(await z.text("styles.xml"));if(!cx)throw new Error("ODT");
   const st: Record<string, DcOSt>={};const rd=(s: Element)=>{const name=s.getAttribute("style:name");const tp=dcKid(s,"text-properties"),pp=dcKid(s,"paragraph-properties");const g=(a: string)=>tp&&(tp.getAttribute(a));
-    st[name!]={parent:s.getAttribute("style:parent-style-name"),display:(s.getAttribute("style:display-name")||name||"").toLowerCase(),outline:+(s.getAttribute("style:default-outline-level")||0),
+    st[name!]={master:s.getAttribute("style:master-page-name"),parent:s.getAttribute("style:parent-style-name"),display:(s.getAttribute("style:display-name")||name||"").toLowerCase(),outline:+(s.getAttribute("style:default-outline-level")||0),
       r:{b:/bold|[6-9]00/.test(g("fo:font-weight")||"")?true:g("fo:font-weight")?false:undefined,i:g("fo:font-style")?g("fo:font-style")==="italic":undefined,u:g("style:text-underline-style")?g("style:text-underline-style")!=="none":undefined,s:g("style:text-line-through-style")?g("style:text-line-through-style")!=="none":undefined,
         color:g("fo:color"),size:g("fo:font-size"),font:g("style:font-name")||g("fo:font-family"),bg:g("fo:background-color"),va:g("style:text-position")},
       p:{al:pp&&pp.getAttribute("fo:text-align"),bg:pp&&pp.getAttribute("fo:background-color"),pb:pp&&pp.getAttribute("fo:break-before")==="page",bd:pp&&/solid/.test(pp.getAttribute("fo:border")||pp.getAttribute("fo:border-left")||"")}}};
-  [sx,cx].forEach(x=>x&&dcDesc(x,"style").forEach(rd));
+  [sx,cx].forEach(x=>x&&dcDesc(x,"style").forEach(rd));const odtM=dcxOdtMasters(sx);
   const chainK=(n: string|null|undefined,k: "r"|"p",seen=new Set<string|null|undefined>()): DcORp&DcOPp=>{const s=st[n!];if(!s||seen.has(n))return {};seen.add(n);const p=chainK(s.parent,k,seen),me: Record<string, unknown>={};for(const a in s[k])if(s[k][a]!==undefined&&s[k][a]!==null)me[a]=s[k][a];return Object.assign(p,me)};
   const def=chainK("Standard","r");let BASEPT=12;const ptOf=(v: string|null|undefined)=>{if(!v)return null;const m=/([\d.]+)(pt|%|cm|in)?/.exec(v);if(!m)return null;return m[2]==="%"?BASEPT*+m[1]/100:m[2]==="cm"?+m[1]*28.35:m[2]==="in"?+m[1]*72:+m[1]};const basePt=ptOf(def.size)||ptOf(dcDesc(sx,"default-style").map(d=>dcKid(d,"text-properties")?.getAttribute("fo:font-size")).find(Boolean))||12;
   BASEPT=basePt;const baseFont=def.font||"Liberation Serif";
@@ -4088,7 +4093,8 @@ async function dcReadOdt(file: File,o: Bag){const z=await RD.unzip(await file.ar
     return h}
   async function blk(n: Element,parts: string[],lvl=0): Promise<void>{const ln=n.localName;
     if(ln==="h"||ln==="p"){const sn=n.getAttribute("text:style-name");const pe=chainK(sn,"p"),re=chainK(sn,"r");const disp=(st[sn!]?.display||"")+" "+(st[(st[sn!]?.parent) as string]?.display||"");let x=await inl(n,sn);
-      const plain=x.replace(/<[^>]+>/g,"").replace(/&emsp;/g," ").trim();if(pe.pb)parts.push("<hr data-pb=\"1\">");
+      const plain=x.replace(/<[^>]+>/g,"").replace(/&emsp;/g," ").trim();const ms=st[sn!]?.master;
+      if(ms&&odtM.lay[ms]){if(!parts.length&&odtM.first==null)odtM.first=ms;else parts.push(`<hr data-pb="1" data-lay="${dcHtmlE(JSON.stringify(odtM.lay[ms]))}">`)}else if(pe.pb)parts.push("<hr data-pb=\"1\">");
       if(!plain&&!/<img/.test(x))return;const pst: (string)[]=[];if(pe.al&&/center|end|right|justify/.test(pe.al))pst.push("text-align:"+(pe.al==="end"?"right":pe.al));const rs=o.clean?"":spanSt(re);if(rs)x=`<span style="${rs}">${x}</span>`;if(re.b&&ln!=="h")x=`<b>${x}</b>`;if(re.i)x=`<i>${x}</i>`;
       if(ln==="h"){const lv=+(n.getAttribute("text:outline-level")||1);const hst=o.clean?"":[spanSt(re),pst.join(";")].filter(Boolean).join(";");parts.push(`<h${Math.min(6,lv)}${hst?` style="${hst}"`:""}>${plain?dcHtmlE(plain):""}</h${Math.min(6,lv)}>${x.match(/<img[^>]+>/g)?.join("")||""}`);return}
       if(/title|titre/.test(disp)&&!/sub/.test(disp)){const hst=o.clean?"":[spanSt(re),pst.join(";")].filter(Boolean).join(";");parts.push(`<h1${hst?` style="${hst}"`:""}>${dcHtmlE(plain)}</h1>`);return}
@@ -4108,6 +4114,7 @@ async function dcReadOdt(file: File,o: Bag){const z=await RD.unzip(await file.ar
   const bodyEl=dcDesc(cx,"text")[0];const parts: string[]=[];if(bodyEl)for(const c of [...bodyEl.children])await blk(c,parts);
   const box=document.createElement("div");box.innerHTML=parts.join("");const items=dcHtmlItems(box,o);
   const pl=dcDesc(sx,"page-layout-properties")[0];const set: Record<string, string|number>={font:baseFont,fs:basePt};if(pl){const w=parseFloat(pl.getAttribute("fo:page-width")!),hh=parseFloat(pl.getAttribute("fo:page-height")!);if(w&&hh){set.or=w>hh?"l":"p";set.size=Math.abs(Math.min(w,hh)-21.59)<.4?"letter":"a4"}const ml=parseFloat(pl.getAttribute("fo:margin-left")!),mt=parseFloat(pl.getAttribute("fo:margin-top")!);if(ml)set.mgx=Math.round(ml*30.48);if(mt)set.mgy=Math.round(mt*30.48)}
+  {const f=odtM.lay[odtM.first||"Standard"];if(f&&Object.keys(odtM.lay).length>1){if(f.size){set.size=f.size;set.or=f.or!}if(f.ml!=null){set.mgx=f.ml;set.mgy=f.mt!;if(f.mr!==f.ml||f.mb!==f.mt){set.mt=f.mt!;set.mb=f.mb!;set.ml=f.ml;set.mr=f.mr!}}}}
   const mx=dcX(await z.text("meta.xml"));const tl=mx&&dcDesc(mx,"title")[0]?.textContent;
   return {items,title:tl||items.find(x=>x.k==="h")?.text||file.name.replace(/\.[^.]+$/,""),set,lang:null,notes:[]}}
 
@@ -4242,12 +4249,13 @@ let dcReadOld=async function(kind: string,file: File,name: string){const M={doc:
   if(M[kind as keyof typeof M])od=(await M[kind as keyof typeof M](file)).doc;else if(kind==="md")od=RD.markdownToDoc(await file.text(),name);else od=RD.plainToDoc(await file.text(),name);return {old:od,title:name,notes:kind==="doc"||kind==="ppt"?[t("dc_impOldBin")]:[]}}
 
 /* ---------------- items → blocks ---------------- */
-function dcItemsToPages(items: DcImpItem[],d: DcDoc){const pages: DcPage[]=[{id:dcId(),blocks:[]}];const cur=()=>pages[pages.length-1].blocks;let secAt=0;
+function dcItemsToPages(items: DcImpItem[],d: DcDoc){const pages: DcPage[]=[{id:dcId(),blocks:[]}];const cur=()=>pages[pages.length-1].blocks;let secAt=0;let nextLay: DcLay|undefined;
   for(const x of items){switch(x.k){
     case "pb":{const L=x.lay as DcLay|undefined;/* a section's layout covers every page since the previous section ended */if(L){for(let j=secAt;j<pages.length;j++)pages[j].lay=Object.assign({},L)}
-      if(cur().length||L)pages.push({id:dcId(),blocks:[]});if(L)secAt=pages.length-1;break}
+      const N=x.layNext as DcLay|undefined;/* OpenDocument: a master page applies to the pages that follow */
+      if(cur().length||L||(N&&pages.length>1))pages.push({id:dcId(),blocks:[]});if(L)secAt=pages.length-1;if(N)nextLay=N;if(nextLay)pages[pages.length-1].lay=Object.assign({},nextLay);break}
     case "h":{const b=dcB("h",{lv:x.lv,text:x.text});if(x.hs)b.hs=x.hs;cur().push(b);break}
-    case "p":{const b=dcB("p",{html:x.bg?`<div style="background-color:${x.bg}">${x.html}</div>`:x.html});if(x.var)b.var=x.var;cur().push(b);break}
+    case "p":{const b=dcB("p",{html:x.bg?`<div style="background-color:${x.bg}">${x.html}</div>`:x.html});if(x.var)b.var=x.var;if(x.brk)Object.assign(b,x.brk);cur().push(b);break}
     case "list":cur().push(dcB("p",{html:x.html}));break;
     case "sep":cur().push(dcB("sep",{style:"line"}));break;
     case "img":cur().push(dcB("img",{src:x.src,cap:x.cap||"",iw:Math.max(8,Math.min(100,Math.round(x.pct||60)))}));break;
@@ -8236,7 +8244,8 @@ function dcxLayModal(pi?: number) {
     <label class="dc-row dcx-lay-range" hidden><span class="lb">${t("dcx_lay_range")}</span><input class="dc-inp" type="text" inputmode="numeric" data-dxlayrange placeholder="${dcE(t("dcx_lay_rangePh"))}" value="${nf(cur + 1)}"><small class="dc-mut" data-dxlayerr hidden></small></label>
     ${dcRow2(dcRow("dcx_lay_size", `<select class="dc-inp" data-dxlaysize>${DCX_SIZES.map(([v, l]) => `<option value="${v}"${L.size === v ? " selected" : ""}>${l}</option>`).join("")}</select>`), `<div class="dc-row"><span class="lb">${t("dcx_lay_or")}</span>${dcSegH("data-dxlayor", [["p", t("dc_portrait")], ["l", t("dc_landscape")]], L.or)}</div>`)}
     <div class="dc-row"><span class="lb">${t("dcx_lay_mg")}</span>${dcSegH("data-dxlaypre", [["narrow", t("dc_mgNarrow")], ["normal", t("dc_mgNormal")], ["wide", t("dc_mgWide")]], "")}</div>
-    ${dcRow2(num("mt", "dcx_lay_top", L.mt), num("mb", "dcx_lay_bottom", L.mb))}${dcRow2(num("ml", "dcx_lay_left", L.ml), num("mr", "dcx_lay_right", L.mr))}</div>
+    ${dcRow2(num("mt", "dcx_lay_top", L.mt), num("mb", "dcx_lay_bottom", L.mb))}${dcRow2(num("ml", "dcx_lay_left", L.ml), num("mr", "dcx_lay_right", L.mr))}
+    <h6 class="dcx-lay-h">${t("dcx_ft_title")}</h6>${dcRow2(dcRow("dcx_ft_text", `<input class="dc-inp" type="text" data-dxlayft value="${dcE(d.pages[cur]?.pf ?? "")}" placeholder="${dcE(dcTx(d.clinic) + " · " + dcTx(d.title))}" dir="auto">`), dcRow("dcx_ft_pn", `<input class="dc-inp" type="number" min="0" max="9999" step="1" data-dxlaypn value="${d.pages[cur]?.pn ?? ""}" placeholder="${dcE(t("dcx_ft_pnPh"))}">`))}</div>
     <footer class="dc-mf">${own ? `<button type="button" class="dc-btn" data-dxlayreset>${t("dcx_lay_reset")}</button><span style="flex:1"></span>` : ""}<button type="button" class="dc-btn" data-mclose>${t("fe_cancel")}</button><button type="button" class="dc-btn pri" data-dxlayok>${DCI.check}${t("dcx_lay_apply_btn")}</button></footer>`, { title: t("dcx_lay_title") });
   dcxLaySync();
 }
@@ -8251,7 +8260,9 @@ function dcxLayOk() {
   let scope: "all" | number[] = "all";
   if (sc === "this") scope = [cur]; else if (sc === "after") scope = d.pages.map((_, i) => i).filter((i) => i >= cur);
   else if (sc === "range") { const r = dcxParseRange(m.querySelector<HTMLInputElement>("[data-dxlayrange]")!.value, N); const e = m.querySelector<HTMLElement>("[data-dxlayerr]"); if (!r) { if (e) { e.hidden = false; e.textContent = t("dcx_lay_rangeBad", { n: nf(N) }); } return; } scope = r; }
-  dcModalClose(); dcMut((dd) => dcxLayApply(dd, L, scope), "all"); dcThumbsSoon(0); dcToast(t("dcx_lay_done"));
+  const ft = m.querySelector<HTMLInputElement>("[data-dxlayft]")!, pn = m.querySelector<HTMLInputElement>("[data-dxlaypn]")!;
+  const F = { ft: ft.value === ft.defaultValue ? undefined : ft.value.trim(), pn: pn.value === pn.defaultValue ? undefined : pn.value.trim() };
+  dcModalClose(); dcMut((dd) => { dcxLayApply(dd, L, scope); dcxFootApply(dd, F, scope); }, "all"); dcThumbsSoon(0); dcToast(t("dcx_lay_done"));
 }
 { const _mc = dcModalClick; dcModalClick = function (e, m) {
   const x = tgt(e); let b: HTMLElement | null;
@@ -8334,8 +8345,14 @@ function dcxImgFit(be: HTMLElement,L: { lim: number; s: number }){const im=be.qu
 function dcxImgFitReset(host: HTMLElement){host.querySelectorAll<HTMLElement>(".dcx-ifit").forEach(b=>{b.classList.remove("dcx-ifit");const im=b.querySelector<HTMLImageElement>("img");if(im){im.style.maxHeight="";im.style.width=im.dataset.w||"";im.style.maxWidth=""}})}
 /** Tries to cut the block that crosses the sheet bottom; true when something changed. */
 function dcxPgSplitAny(kb: DcPgEl,L: { lim: number; s: number },k: number,kids: DcPgEl[]){
-  if(kb.classList.contains("t-table"))return k===0?dcxPgSplitRow(kb,L.lim):false;
-  if(kb.classList.contains("t-img")){if(k===0&&!kb.classList.contains("dcx-ifit")){const im=kb.querySelector<HTMLImageElement>("img");if(im&&im.dataset.w==null)im.dataset.w=im.style.width;return dcxImgFit(kb,L)}return false}
+  if(kb.classList.contains("t-table")){if(k===0)return dcxPgSplitRow(kb,L.lim);
+    /* not at the top: cut in place only a row that could not fit even on a whole sheet (it would be cut there anyway) */
+    const pin=kb.closest(".dc-pin");const full=pin?L.lim-pin.getBoundingClientRect().top:0;const tr=[...kb.querySelectorAll<HTMLElement>(":scope tbody>tr")].find(r=>r.getBoundingClientRect().bottom>L.lim);
+    return !!tr&&full>0&&tr.getBoundingClientRect().height>full*.95&&dcxPgSplitRow(kb,L.lim)}
+  if(kb.classList.contains("t-img")){if(kb.classList.contains("dcx-ifit"))return false;const im=kb.querySelector<HTMLImageElement>("img");if(!im)return false;if(im.dataset.w==null)im.dataset.w=im.style.width;
+    if(k===0)return dcxImgFit(kb,L);
+    /* further down a sheet: shrink when at least 70% of the picture fits, otherwise it goes to the next sheet */
+    const r=kb.getBoundingClientRect(),ir=im.getBoundingClientRect();const room=L.lim-ir.top-(r.bottom-ir.bottom)-2;return room>=ir.height*.7&&dcxImgFit(kb,L)}
   const first=k===0;void kids;
   if(kb.classList.contains("t-p")){const lr=dcxPgSplitList(kb,L.lim);if(lr===1)return true;if(lr===-1&&!first)return false;return dcxPgSplitPara(kb,L.lim)}
   if(/\bt-(quote|concl|longtext)\b/.test(kb.className))return dcxPgSplitPara(kb,L.lim);
@@ -8386,7 +8403,7 @@ function dcxOdtBrk(out: string[],o0: number,x: DcFlowItem,bks: Map<string,string
     if(!props)continue;out[i]=out[i].replace(/<text:(p|h) text:style-name="([^"]+)"/,(m,tag,st)=>{if(/^PM\d|^PB$/.test(st))return m;const key=st+"|"+props;let n=bks.get(key);if(!n){n="BK"+(bks.size+1);bks.set(key,n)}return `<text:${tag} text:style-name="${n}"`})}}
 function dcxOdtBrkStyles(bks: Map<string,string>){return [...bks].map(([k,n])=>{const [st,props]=k.split("|");return `<style:style style:name="${n}" style:family="paragraph" style:parent-style-name="${st}"><style:paragraph-properties${props}/></style:style>`}).join("")}
 /** RTF: section properties of page `pi` (size, orientation, four margins), after \sect or at the start. */
-function dcxRtfSect(d: DcDoc,pi: number){const g=dcPageTw(d,pi);return `\\sectd\\sbkpage\\pgwsxn${g.w}\\pghsxn${g.h}\\marglsxn${g.ml}\\margrsxn${g.mr}\\margtsxn${g.mt}\\margbsxn${g.mb+340}${g.land?"\\lndscpsxn":""}`}
+function dcxRtfSect(d: DcDoc,pi: number){const g=dcPageTw(d,pi);const pn=d.pages[pi]?.pn;return `\\sectd\\sbkpage\\pgwsxn${g.w}\\pghsxn${g.h}\\marglsxn${g.ml}\\margrsxn${g.mr}\\margtsxn${g.mt}\\margbsxn${g.mb+340}${g.land?"\\lndscpsxn":""}${pn!=null?`\\pgnrestart\\pgnstarts${+pn}`:""}`}
 /** RTF: the block's break rules on its paragraphs (\keepn, \keep, \pagebb, widow control) and table header rows. */
 function dcxRtfBrk(out: string[],o0: number,x: DcFlowItem){const r=x.brk;if(!r)return;
   for(let i=o0;i<out.length;i++){let h=out[i];if(x.k==="table"){if(r.hrep===false)h=h.replace(/\\trhdr/g,"");if(r.keep)h=h.replace(/\\trowd/g,"\\trowd\\trkeep\\trkeepfollow");out[i]=h;continue}
@@ -8444,3 +8461,26 @@ onDoc("keydown",e=>{const k=e.key;if(!/^(ArrowDown|ArrowRight|ArrowUp|ArrowLeft|
   if(k==="ArrowRight"||k==="Delete"){if(!c.atEnd)return}else if(k==="ArrowLeft"||k==="Backspace"){if(!c.atStart)return}
   else{/* up / down: only when the browser cannot move (the caret is on the first / last line) */const before=c.pre;setTimeout(()=>{const c2=dcxCaretIn(el);if(c2&&c2.pre===before&&document.activeElement===el)dcxPutCaret(nx,!fwd)},0);return}
   e.preventDefault();dcxPutCaret(nx,!fwd);if(k==="Backspace")document.execCommand("delete");else if(k==="Delete")document.execCommand("forwardDelete")},true);
+/** Word import: a paragraph's break rules (direct or from its style) as block options — keep with next, keep lines together,
+ *  widow control off (one line allowed on each side). Page break before already starts a new page. */
+function dcxImpBrk(eff: DcWPp){const o: Record<string, unknown>={};if(eff.kn)o.kn=true;if(eff.keep)o.keep=true;if(eff.wc===false)o.wo=1;return Object.keys(o).length?o:undefined}
+/** OpenDocument: the layout of each master page (size, orientation, four margins in sheet px). */
+function dcxOdtMasters(sx: Document|null){const lay: Record<string, DcLay>={};if(!sx)return {lay,first:null as string|null};const cm=(v: string|null)=>{if(!v)return null;const m=/([\d.]+)\s*(cm|mm|in|pt)?/.exec(v);if(!m)return null;const n=+m[1];return m[2]==="mm"?n/10:m[2]==="in"?n*2.54:m[2]==="pt"?n/28.3465:n};
+  const pls: Record<string, DcLay>={};dcDesc(sx,"page-layout").forEach(pl=>{const pp=dcKid(pl,"page-layout-properties");if(!pp)return;const L: DcLay={};const w=cm(pp.getAttribute("fo:page-width")),h=cm(pp.getAttribute("fo:page-height"));
+    if(w&&h){L.or=w>h?"l":"p";const sh=Math.min(w,h),lo=Math.max(w,h);let best="a4",bd=1e9;for(const k in DC_PCM){const c=DC_PCM[k];const d=Math.abs(c[0]-sh)+Math.abs(c[1]-lo);if(d<bd){bd=d;best=k}}L.size=best}
+    const px=(a: string)=>{const v=cm(pp.getAttribute(a)||pp.getAttribute("fo:margin"));return v==null?undefined:Math.round(v*30.48)};const t=px("fo:margin-top"),b=px("fo:margin-bottom"),l=px("fo:margin-left"),r=px("fo:margin-right");
+    if(l!=null){L.ml=l;L.mr=r??l;L.mt=t??l;L.mb=b??t??l}pls[pl.getAttribute("style:name")!]=L});
+  dcDesc(sx,"master-page").forEach(m=>{const L=pls[m.getAttribute("style:page-layout-name")!];if(L)lay[m.getAttribute("style:name")!]=L});return {lay,first:null as string|null}}
+/* ---------------- footer per section and page numbers that restart ---------------- */
+/** The footer text of page `pi`: its section's own text when set, the clinic and title otherwise. */
+function dcxFootText(d: DcDoc,pi: number,L?: string){const own=d.pages[pi]?.pf;return own!=null&&own!==""?String(own):dcTx(d.clinic,L)+" · "+dcTx(d.title,L)}
+/** Page setup: footer text on every page in scope ("" clears it), numbering restart on the first page in scope. */
+function dcxFootApply(d: DcDoc,F: {ft?: string;pn?: string},scope: "all"|number[]){const ix=scope==="all"?d.pages.map((_,i)=>i):scope;
+  if(F.ft!==undefined)ix.forEach(i=>{if(F.ft)d.pages[i].pf=F.ft;else delete d.pages[i].pf});
+  if(F.pn!==undefined){const i0=Math.min(...ix);if(F.pn===""||isNaN(+F.pn))delete d.pages[i0].pn;else d.pages[i0].pn=Math.max(0,Math.round(+F.pn))}}
+/** Page n of every sheet, restarting where a section asks for it (the total stays the whole document). */
+function dcxPageNums(sheets: HTMLElement[]){let n=0;return sheets.map(p=>{if(!p.dataset.part&&p.dataset.pn!=null)n=+p.dataset.pn;else n++;return n})}
+{const _pn=dcPgNumber;dcPgNumber=function(host,d){const r=_pn(host,d);const pages=[...host.querySelectorAll<HTMLElement>(".dc-page")];if(!pages.some(p=>p.dataset.pn!=null))return r;
+  const L=d.lang||lang(),m=pages.length,ns=dcxPageNums(pages);pages.forEach((p,i)=>{const s=p.querySelector<HTMLElement>(".dc-pf span:last-child");if(s)s.textContent=dcTv("dc_pageNofM",{n:nf(ns[i]),m:nf(m)},L)});return r}}
+/** Whether exports need one section per page (own layout, own footer text or numbering restart somewhere). */
+function dcxSecsUsed(d: DcDoc){return d.pages.some(p=>!!p.lay||p.pf!=null||p.pn!=null)}

@@ -252,3 +252,5 @@
 .dcx-cllogo{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.dcx-cllogo .pv{display:grid;place-items:center;width:64px;height:48px;border:1px dashed var(--line,#e3e8ef);border-radius:8px;overflow:hidden;background:#fff;color:var(--muted,#667085)}
 .dcx-cllogo .pv img{max-width:100%;max-height:100%;object-fit:contain}.dcx-cllogo label{cursor:pointer}
 .dcx-xpfinal{margin-inline-end:auto;max-width:340px;font-size:12.5px}
+
+.dcx-laym .dcx-lay-h{margin:14px 0 6px;font-size:12px;font-weight:600;color:var(--tx2,#475467)}
