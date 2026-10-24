@@ -7853,7 +7853,7 @@ type DcxPa = { id: string; first: string; last: string; birthName?: string; birt
 const DCX_DYN: [string, string[]][]=[
   ["patient",["full","first","last","birthName","birth","age","sex","mrn","phone","email","address","city","lang","insurer","member","gp","referrer","emergency","allergies","problems"]],
   ["prac",["name","job","specialty","phone","email"]],
-  ["clinic",["name","address","phone","email"]],
+  ["clinic",["name","address","phone","email","reg","company"]],
   ["visit",["date","time","end","service","room","prac","instr"]]];
 const DCX_DYNKEYS=new Set(DCX_DYN.flatMap(([s,ks])=>ks.map(k=>s+"."+k)));
 const DCX_DYNRE=/^(patient|prac|clinic|visit)\.[a-zA-Z]+$/;
@@ -7872,6 +7872,10 @@ function dcxAppt(d: DcxDynDoc): DcxAppt|null{const l=d.links||{};if(l.appt==="-"
 const dcxIso=(a: string,tz: string)=>{try{return clDateOf(Date.parse(a),tz||CL_ORG_TZ)}catch(e){return a.slice(0,10)}};
 const dcxHm=(a: string,tz: string)=>{try{return clTimeOf(Date.parse(a),tz||CL_ORG_TZ)}catch(e){return a.slice(11,16)}};
 const DCX_SEX: Record<string,string>={F:"dc_s_fem",M:"dc_s_masc",X:"dc_s_other"};
+/* clinic details kept by Documents (per HR establishment; "_" when there is none), inside the (encrypted) store */
+type DcxClinic = { reg?: string; company?: string; addr?: string; city?: string; tel?: string; mail?: string; logo?: string };
+const dcxClinics=()=>{const S=dcS as unknown as {clinics?: Record<string,DcxClinic>};return S?(S.clinics||(S.clinics={})):{}};
+const dcxClinic=(d: DcxDynDoc): DcxClinic=>dcxClinics()[dcxEstId(d)||"_"]||{};
 /** the value of a data key for a document — raw gives ISO dates for date fields */
 function dcxResolve(k: string,d: DcxDynDoc,L: string,raw?: boolean): string{const [s,f]=k.split(".");
   if(s==="patient"){const p=dcxPat(d.pid);if(!p)return "";const c=p.contact||{},a=c.addr||{},ad=p.admin||{};
@@ -7887,8 +7891,9 @@ function dcxResolve(k: string,d: DcxDynDoc,L: string,raw?: boolean): string{cons
     return ""}
   if(s==="prac"){const id=dcxPracId(d);const pr=id?rmPrac(id):null;if(!pr)return f==="name"?String(d.prat||""):"";const e=pr.hr?rmHrEmp(pr.hr):null;
     switch(f){case "name":return rmPracName(pr);case "job":return rmPracJob(pr);case "specialty":try{return dcxL4(RM_SPECS[pr.spec]||"",L)||rmSpecName(pr.spec)}catch(x){return ""};case "phone":return (e as {phone?: string}|null)?.phone||"";case "email":return (e as {email?: string}|null)?.email||""}return ""}
-  if(s==="clinic"){switch(f){case "name":{const id=dcxEstId(d);return (id&&dcxEstList().find(x=>x.id===id)?.n)||dcTx(d.clinic,L)||""}
-    case "address":return [dcField("doc.addr",d,L),dcField("doc.city",d,L)].filter(Boolean).join(", ");case "phone":return dcField("doc.ptel",d,L);case "email":return dcField("doc.pmail",d,L)}return ""}
+  if(s==="clinic"){const C=dcxClinic(d);switch(f){case "name":{const id=dcxEstId(d);return (id&&dcxEstList().find(x=>x.id===id)?.n)||dcTx(d.clinic,L)||""}
+    case "address":return C.addr||C.city?[C.addr,C.city].filter(Boolean).join(", "):[dcField("doc.addr",d,L),dcField("doc.city",d,L)].filter(Boolean).join(", ");case "phone":return C.tel||dcField("doc.ptel",d,L);case "email":return C.mail||dcField("doc.pmail",d,L);
+    case "reg":return C.reg||"";case "company":return C.company||""}return ""}
   if(s==="visit"){const a=dcxAppt(d);if(!a)return "";switch(f){case "date":{const iso=dcxIso(a.start,a.tz);return raw?iso:dcFmtDate(iso,L)}case "time":return dcxHm(a.start,a.tz);case "end":return dcxHm(a.end,a.tz);
     case "service":{const sv=clSvc(a.svc);return sv?dcxL4(sv.n,L):""}case "room":return a.room?(clRes(a.room)?.n||""):"";case "prac":return a.pr?rmPracName(a.pr):"";case "instr":return a.instr||""}}
   return ""}
@@ -7929,8 +7934,8 @@ function dcxWhoHTML(d: DcxDynDoc){const L=d.lang||lang();const p=dcxPat(d.pid),f
   return `<div class="dcx-who${fz?" fz":""}" data-dxwho><span class="ic">${DCI.user}</span><div class="dcx-whob"><span class="lb">${t("dcx_who")}</span>${pat}</div>
     ${sel("prac","dcx_src_prac",[["",t("dcx_whoAuto")+": "+autoPr],...prs.map(x=>[x.id,rmPracName(x)] as [string,string])],l.prac||"")}
     ${ests.length>1?sel("est","dcx_src_clinic",[["",t("dcx_whoAuto")],...ests.map(e=>[e.id,e.n] as [string,string])],l.est||""):""}${visit}
-    ${fz?`<p class="dcx-whofz">${DCI.lock}<span>${t("dcx_whoFrozen",{d:new Date(fz.at).toLocaleDateString(LANGS[lang()]?.locale||loc()),w:t(({pades:"dcx_fz_pades",sign:"dcx_fz_sign",manual:"dcx_fz_manual",send:"dcx_fz_send"} as Dict)[fz.why]||"dcx_fz_sign")})}</span>${fz.why==="manual"&&!dcxSigned(d)&&!((d as unknown as {pades?: unknown[]}).pades||[]).length?`<button type="button" class="dc-btn sm" data-dxwhounfz>${DCI.unlock}${t("dcx_whoUnfreeze")}</button>`:""}</p>`
-      :p?`<div class="dcx-whoact"><button type="button" class="dc-btn sm" data-dxwhoref>${DCI.refresh}${t("dcx_whoRefresh")}</button><button type="button" class="dc-btn sm" data-dxwhofz>${DCI.lock}${t("dcx_whoFreeze")}</button></div>`:""}</div>`}
+    ${fz?`<p class="dcx-whofz">${DCI.lock}<span>${t("dcx_whoFrozen",{d:new Date(fz.at).toLocaleDateString(LANGS[lang()]?.locale||loc()),w:t(({pades:"dcx_fz_pades",sign:"dcx_fz_sign",manual:"dcx_fz_manual",send:"dcx_fz_send",export:"dcx_fz_export"} as Dict)[fz.why]||"dcx_fz_sign")})}</span>${fz.why==="manual"&&!dcxSigned(d)&&!((d as unknown as {pades?: unknown[]}).pades||[]).length?`<button type="button" class="dc-btn sm" data-dxwhounfz>${DCI.unlock}${t("dcx_whoUnfreeze")}</button>`:""}</p>`
+      :`<div class="dcx-whoact">${p?`<button type="button" class="dc-btn sm" data-dxwhoref>${DCI.refresh}${t("dcx_whoRefresh")}</button><button type="button" class="dc-btn sm" data-dxwhofz>${DCI.lock}${t("dcx_whoFreeze")}</button>`:""}<button type="button" class="dc-btn sm" data-dxclinic>${DCI.sliders}${t("dcx_clinicEdit")}</button></div>`}</div>`}
 function dcxWhoPaint(){const R=dcRoot();if(!R||DC.view!=="editor"||!dcS||!dcS.docs[dcS.cur])return;const cv=R.querySelector<HTMLElement>(".dc-cv");if(!cv)return;const d=dcDoc() as DcxDynDoc;
   const old=cv.querySelector<HTMLElement>(":scope > .dcx-who");const show=dcxWhoShow(d);if(!show){old?.remove();return}
   const ae=document.activeElement as HTMLElement|null;if(old&&ae&&old.contains(ae))return;/* never repaint under the person typing */
@@ -7946,10 +7951,32 @@ onDoc("change",e=>{const x=tgt(e) as HTMLInputElement|HTMLSelectElement;if(!x.cl
 {const _ck=dcClick;dcClick=function(e,R){const c=(s: string)=>tgt(e).closest<HTMLElement>(s);
   if(c("[data-dxwhochg]")){dcxSetLinks(d=>{delete d.pid;if(d.links)delete d.links.appt});setTimeout(()=>dcRoot()?.querySelector<HTMLInputElement>("[data-dxwhopat]")?.focus(),80);return}
   if(c("[data-dxtpluse]")){dcxFromTpl(dcDoc() as DcxDynDoc);return}
+  if(c("[data-dxclinic]")){dcxClinicModal();return}
+  if(c("[data-dxclsave]")){dcxClinicSave();return}
+  if(c("[data-dxcllogodel]")){const m=dcRoot()?.querySelector<HTMLElement>(".dcx-clm");if(m){m.dataset.logo="";dcxClinicLogoPaint(m)}return}
   if(c("[data-dxwhoref]")){const d=dcDoc() as DcxDynDoc;if(d.frozen)return;dcPush();const n=dcxRefresh(d);d.upd=Date.now();dcSave();dcRefresh("all");dcToast(t("dcx_whoRefreshed",{n:nf(n)}));return}
   if(c("[data-dxwhofz]")){const d=dcDoc() as DcxDynDoc;if(d.frozen)return;dcPush();dcxFreeze(d,"manual");d.upd=Date.now();dcSave();dcRefresh("all");return}
   if(c("[data-dxwhounfz]")){const d=dcDoc() as DcxDynDoc;if(!d.frozen||d.frozen.why!=="manual")return;dcPush();delete d.frozen;d.upd=Date.now();dcSave();dcRefresh("all");return}
   return _ck(e,R)}}
+function dcxClinicModal(){const d=dcDoc() as DcxDynDoc;const id=dcxEstId(d)||"_";const C=dcxClinic(d);const nm=dcxResolve("clinic.name",d,d.lang||lang())||"—";
+  const inp=(k: keyof DcxClinic,l: string,ty="text")=>dcRow(l,`<input class="dc-inp" type="${ty}" data-dxcl="${k}" value="${dcE(String(C[k]||""))}" dir="auto">`);
+  dcModal(dcMHead(DCI.sliders,t("dcx_clinicEdit"),nm)+`<div class="dc-mb dcx-clm" data-est="${dcE(id)}" data-logo="${dcE(C.logo||"")}"><p class="dc-mut sm">${t("dcx_cl_sub")}</p>${inp("reg","dcx_cl_reg")}${inp("company","dcx_cl_company")}${inp("addr","dcx_cl_addr")}${inp("city","dcx_cl_city")}${inp("tel","dcx_cl_tel","tel")}${inp("mail","dcx_cl_mail","email")}
+    <div class="dc-row"><span class="lb">${t("dcx_cl_logo")}</span><div class="dcx-cllogo"><span class="pv"></span><label class="dc-btn sm">${DCI.image}${t("dcx_cl_logoAdd")}<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" data-dxcllogo hidden></label><button type="button" class="dc-btn sm" data-dxcllogodel>${DCI.x}${t("dcx_cl_logoDel")}</button></div></div></div>
+    <footer class="dc-mf"><button type="button" class="dc-btn" data-mclose>${t("fe_cancel")}</button><button type="button" class="dc-btn pri" data-dxclsave>${DCI.check}${t("dcx_cl_save")}</button></footer>`,{title:t("dcx_clinicEdit")});
+  const m=dcRoot()?.querySelector<HTMLElement>(".dcx-clm");if(m)dcxClinicLogoPaint(m)}
+function dcxClinicLogoPaint(m: HTMLElement){const pv=m.querySelector<HTMLElement>(".dcx-cllogo .pv");if(pv)pv.innerHTML=m.dataset.logo?`<img src="${m.dataset.logo}" alt="">`:`<i>${DCI.image}</i>`;const del=m.querySelector<HTMLButtonElement>("[data-dxcllogodel]");if(del)del.hidden=!m.dataset.logo}
+function dcxClinicSave(){const m=dcRoot()?.querySelector<HTMLElement>(".dcx-clm");if(!m)return;const C: DcxClinic={};m.querySelectorAll<HTMLInputElement>("[data-dxcl]").forEach(i=>{const v=i.value.trim();if(v)(C as Record<string,string>)[i.dataset.dxcl!]=v});if(m.dataset.logo)C.logo=m.dataset.logo;
+  dcxClinics()[m.dataset.est||"_"]=C;dcModalClose();const d=dcDoc();d.upd=Date.now();dcSave();dcRefresh("all");dcToast(t("dcx_cl_saved"))}
+onDoc("change",e=>{const x=tgt(e) as HTMLInputElement;if(!x.matches?.("[data-dxcllogo]")||!x.files?.[0])return;const m=x.closest<HTMLElement>(".dcx-clm");if(!m)return;const fr=new FileReader();
+  fr.onload=()=>{const im=new Image();im.onload=()=>{const k=Math.min(1,320/Math.max(im.width,im.height));const cv=document.createElement("canvas");cv.width=Math.max(1,Math.round(im.width*k));cv.height=Math.max(1,Math.round(im.height*k));cv.getContext("2d")!.drawImage(im,0,0,cv.width,cv.height);m.dataset.logo=cv.toDataURL("image/png");dcxClinicLogoPaint(m)};im.src=fr.result as string};fr.readAsDataURL(x.files[0]);x.value=""},true);
+/* the header block of a linked document shows the clinic's logo when the document has none of its own */
+{const _bi=dcBlockInner;dcBlockInner=function(b,ctx){const h=_bi(b,ctx);if(b.type!=="hdr"||b.logo===false||ctx.d.set.logo)return h;const D=ctx.d as DcxDynDoc;if(!D.links&&!D.pid)return h;const lg=dcxClinic(D).logo;if(!lg)return h;
+  return h.replace(/<div class="lg">[\s\S]*?<\/div>/,`<div class="lg img"><img src="${lg}" alt="${dcE(t("dc_my_logo"))}"></div>`)}}
+/* export as final: freezes the linked values first */
+{const _xo=dcExportOpen;dcExportOpen=async function(k?: string){const p=_xo(k);try{const d=dcDoc() as DcxDynDoc;const btns=dcRoot()?.querySelector<HTMLElement>(".dc-xpm .dc-xpbtns");
+  if(btns&&!d.frozen&&!d.isTpl&&(d.links||d.pid)&&dcxDynKeys(d).length&&!btns.parentElement!.querySelector(".dcx-xpfinal")){const w=document.createElement("label");w.className="dc-tg dcx-xpfinal";w.title=t("dcx_xp_finalD");w.innerHTML=`<span>${t("dcx_xp_final")}</span><input type="checkbox" data-dxxpfinal><i></i>`;btns.before(w)}}catch(e){console.warn(e)}return p} as typeof dcExportOpen}
+onDoc("click",e=>{const b=tgt(e).closest?.("[data-xpgo]");if(!b||!dcRoot()?.contains(b))return;const cb=dcRoot()!.querySelector<HTMLInputElement>("[data-dxxpfinal]");if(!cb||!cb.checked)return;
+  const d=dcDoc() as DcxDynDoc;if(d.frozen)return;dcxFreeze(d,"export");d.upd=Date.now();dcSave();setTimeout(()=>{try{dcxWhoPaint()}catch(x){}},0)},true);
 /** a new document from a template: same content, no patient yet, the bar asks who it is for */
 function dcxFromTpl(src: DcxDynDoc){const c=dcReId(JSON.parse(JSON.stringify(src))) as DcxDynDoc;delete c.isTpl;delete c.pid;delete c.frozen;delete c.sig;delete (c as unknown as {pades?: unknown}).pades;c.links={};c.tplOf=src.id;c.vers=[];c.cmts=[];c.status="draft";
   c.pages.forEach(p=>p.blocks.forEach(b=>{if(b.type==="field"&&b.bind){b.value="";delete b.bv}}));if(dcIsEx(c))c.ex.fields.forEach(f=>{if(f.src)f.value=""});

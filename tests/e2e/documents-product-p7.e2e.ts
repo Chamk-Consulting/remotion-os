@@ -199,3 +199,32 @@ test("spreadsheet as data with charts: each table gets a chart linked to it", as
   expect(ch.series!.map((s) => s.name)).toEqual(["Pain", "Mobility"]); expect(ch.series![0].vals).toEqual([7, 6, 4, 3]);
   await ctx.close();
 });
+
+test("clinic details feed clinic fields and the header logo; export as final freezes the values", async ({ browser, baseURL }) => {
+  const json = await seededStore(browser, baseURL, [
+    { id: "h7", type: "hdr", logo: true, showDate: true, showPrat: true, title: "Consent" },
+    { id: "dyn7", type: "p", html: 'Patient <span class="dc-dyn" contenteditable="false" data-k="patient.full">—</span> · clinic no. <span class="dc-dyn" contenteditable="false" data-k="clinic.reg">—</span>' },
+  ]);
+  const ctx = await shellWithStore(browser, baseURL, json); const p = await openShell(ctx); await openDc(p);
+  await p.locator(`${W} .dcx-who [data-dxwhopat]`).waitFor({ timeout: 15000 });
+  const label = await p.evaluate((W) => (document.querySelector(`${W} #dcx-wl option`) as HTMLOptionElement).value, W);
+  await p.locator(`${W} [data-dxwhopat]`).fill(label); await p.locator(`${W} [data-dxwhopat]`).dispatchEvent("change"); await p.waitForTimeout(900);
+  // clinic details: registration number and logo
+  await dclick(p, `${W} [data-dxclinic]`, 600);
+  await p.fill(`${W} .dcx-clm [data-dxcl="reg"]`, "FINESS 750000123");
+  await p.setInputFiles(`${W} .dcx-clm [data-dxcllogo]`, "tests/fixtures/photo.jpg");
+  await p.locator(`${W} .dcx-cllogo .pv img`).waitFor({ timeout: 8000 });
+  await dclick(p, `${W} [data-dxclsave]`, 900);
+  await expect(p.locator(`${W} .dc-cv .dc-dyn[data-k="clinic.reg"]`).first()).toHaveText("FINESS 750000123");
+  await expect(p.locator(`${W} .dc-cv .dc-b[data-b="h7"] .lg.img img`).first()).toBeVisible();
+  // export as final
+  await dclick(p, `${W} [data-dexp="pdf"]`, 1500);
+  await p.locator(`${W} .dc-tg:has([data-dxxpfinal])`).click(); await expect(p.locator(`${W} [data-dxxpfinal]`)).toBeChecked();
+  await p.waitForFunction((W) => !document.querySelector(`${W} [data-xpgo]`)?.hasAttribute("disabled"), W, { timeout: 30000 }).catch(() => {});
+  await Promise.all([p.waitForEvent("download", { timeout: 90000 }), dclick(p, `${W} [data-xpgo]`, 300)]);
+  await p.waitForTimeout(1200);
+  const st = (await readStore(p))!.json as St & { clinics?: Record<string, { reg?: string; logo?: string }> }; const d = st.docs[st.cur];
+  expect(d.frozen?.why).toBe("export"); expect(d.frozen!.vals["clinic.reg"]).toBe("FINESS 750000123");
+  expect(Object.values(st.clinics || {}).some((c) => c.reg === "FINESS 750000123" && (c.logo || "").startsWith("data:image/png"))).toBe(true);
+  await ctx.close();
+});
